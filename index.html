@@ -456,10 +456,13 @@ html, body {
       width: 80% !important;
       padding: 6px 10px;
       font-size: 12px;
-      height: auto;
+      height: auto !important;
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
+      overflow: visible;
+      flex-shrink: 1;
+      min-height: 0;
     }
 
 
@@ -2118,6 +2121,11 @@ html, body {
         }
 
         if (slicerContainer) {
+          // 🧹 Clear any stale inline height or display
+          slicerContainer.style.removeProperty("height");
+          slicerContainer.style.removeProperty("display");
+
+          // ✅ Force mobile layout re-apply
           slicerContainer.style.height = "auto";
       slicerContainer.style.display = "block";      
         }
@@ -2193,7 +2201,9 @@ html, body {
 
     window.addEventListener("resize", updateSlicerView);
     window.addEventListener("DOMContentLoaded", updateSlicerView);   
-    window.addEventListener("orientationchange", updateSlicerView);
+    window.addEventListener("orientationchange", () => {
+      setTimeout(updateSlicerView, 300);
+    });
    </script>   
    
   <script>
