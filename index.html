@@ -2061,14 +2061,12 @@ html, body {
       }
 
       // Select all inputs inside the sidebar
-      const sidebarInputs = sidebar.querySelectorAll("input, select, textarea");
+      const inputs = sidebar.querySelectorAll("input, select, textarea");
 
-      sidebarInputs.forEach(input => {
-        input.addEventListener("input", () => {
-          if (!sidebar.classList.contains("open")) {
+      inputs.forEach(input => {
+        input.addEventListener("focus", () => {
             sidebar.classList.add("open");
-          }
-          if (window.innerWidth >= 769) {
+          if (window.innerWidth < 769) {
             appContainer.classList.add("sidebar-open");
           }
         });
@@ -2302,9 +2300,6 @@ html, body {
         if (window.innerWidth >= 769) {
           sidebar.classList.add("open");
           appContainer.classList.add("sidebar-open");
-        } else {
-          sidebar.classList.remove("open");
-          appContainer.classList.remove("sidebar-open");
         }
 
         updateLegendOffset(); // 👈 met aussi à jour la légende
