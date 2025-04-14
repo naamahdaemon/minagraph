@@ -1159,8 +1159,16 @@ html, body {
                 ${unique.map(tx => `
                   <tr title="${tx.memo || ''}">
                     <td>${formatTimestamp(tx.timestamp)}</td>
-                    <td>${tx.block_id || "-"}</td>
-                    <td>${tx.command_type || tx.label || "-"}</td>
+                    <td>
+                      ${tx.block_id
+                        ? `<a href="https://minascan.io/mainnet/block/${tx.block_hash}/txs" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">${tx.block_id}</a> <span style="font-size: 9px; opacity: 0.7;">🔗</span>`
+                        : "-"}
+                    </td>
+                    <td>
+                      ${tx.command_type
+                        ? `<a href="https://minascan.io/mainnet/tx/${tx.hash}/txInfo" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">${tx.command_type} <span style="font-size: 9px; opacity: 0.7;">🔗</span></a>`
+                        : (tx.label || "-")}
+                    </td>
                     <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(2) + "" : "-"}</td>
                     <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(2) + "" : "-"}</td>
                     <td>${tx.status || "-"}</td>
