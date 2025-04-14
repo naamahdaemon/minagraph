@@ -2301,6 +2301,8 @@ html, body {
     document.addEventListener("DOMContentLoaded", () => {
       const sidebar = document.getElementById("left-sidebar");
       const appContainer = document.getElementById("app-container");
+      const sigmaContainer = document.getElementById("sigma-container");
+      
 
       function adjustSidebarState() {
         if (window.innerWidth >= 769) {
@@ -2314,9 +2316,27 @@ html, body {
       adjustSidebarState(); // Appel initial
 
       // Responsive: surveille resize
-      window.addEventListener("resize", adjustSidebarState);
-      window.addEventListener("resize", updateLegendOffset);
+      // ✅ Resize Sigma on window resize
+      window.addEventListener("resize", () => {
+        adjustSidebarState();
+        updateLegendOffset();
+        if (renderer) {
+          renderer.resize();
+          renderer.refresh();
+        }
+      });
 
+      // ✅ Resize Sigma if #sigma-container itself is resized (e.g. flexbox, sidebar toggle, etc.)
+      const resizeObserver = new ResizeObserver(() => {
+        if (renderer) {
+          renderer.resize();
+          renderer.refresh();
+        }
+      });
+
+      if (sigmaContainer) {
+        resizeObserver.observe(sigmaContainer);
+      }
 
       /*document.getElementById("menu-toggle").addEventListener("click", () => {
         const sidebar = document.getElementById("left-sidebar");
@@ -2335,8 +2355,17 @@ html, body {
         sidebar.classList.toggle("open");
         appContainer.classList.toggle("sidebar-open");
         updateLegendOffset();
+        
+        // Give layout time to settle before resizing Sigma
+        setTimeout(() => {
+          if (renderer) {
+            renderer.resize();
+            renderer.refresh();
+          }
+        }, 150);        
       });
 
+      // Close side panel (right panel)
        document.getElementById("close-panel-btn").addEventListener("click", () => {
         document.getElementById("side-panel").classList.remove("open");
       });
