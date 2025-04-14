@@ -2066,9 +2066,7 @@ html, body {
       inputs.forEach(input => {
         input.addEventListener("focus", () => {
             sidebar.classList.add("open");
-          if (window.innerWidth < 769) {
-            appContainer.classList.add("sidebar-open");
-          }
+          appContainer.classList.add("sidebar-open"); // ✅ Keep it for all screen sizes
         });
       });
       
