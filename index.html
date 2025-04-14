@@ -2114,25 +2114,55 @@ html, body {
       // ✅ Force re-render of the slider (if needed)
       if (slider && slider.noUiSlider) {
         try {
-          slider.noUiSlider.refresh(); // 👈 Some versions of noUiSlider don't have refresh()
+          slider.noUiSlider.refresh(); // if this fails, we rebuild
         } catch (err) {
           console.warn("⚠️ noUiSlider.refresh failed, reinitializing...");
-          // Full rebuild fallback:
-          const values = slider.noUiSlider.get(); // try to preserve current values
+
+          try {
+            // 👇 Check if timestamps are still valid
+            if (!Array.isArray(allTimestamps) || allTimestamps.length < 2) {
+              console.error("❌ allTimestamps are invalid, cannot rebuild slider.");
+              return;
+            }
+
+            const values = slider.noUiSlider.get();
+            const min = allTimestamps[0];
+            const max = allTimestamps[allTimestamps.length - 1];
+
+            // 👇 Destroy and clear
           slider.noUiSlider.destroy();
+            slider.innerHTML = "";
+
+            // 👇 Ensure re-init only after DOM reflow
+            setTimeout(() => {
           noUiSlider.create(slider, {
             start: values.map(v => parseInt(v)),
             connect: true,
             range: {
-              min: allTimestamps[0],
-              max: allTimestamps[allTimestamps.length - 1]
+                  min,
+                  max
             },
-            step: 24 * 60 * 60 * 1000,
+                step: 24 * 60 * 60 * 1000, // 1 day
             format: {
               to: value => Math.round(value),
               from: Number
             }
           });
+
+              console.log("✅ noUiSlider reinitialized");
+
+              // 👇 Restore tooltip or listeners if needed
+              slider.noUiSlider.on("update", function (values) {
+                currentRange = values.map(v => parseInt(v));
+                applyDateFilter();
+              });
+
+              applyDateFilter();
+
+            }, 50); // give DOM a beat to settle
+          } catch (e2) {
+            console.error("🔥 Rebuild of noUiSlider failed:", e2);
+          }
         }
       }
     }
