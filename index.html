@@ -2103,10 +2103,18 @@ html, body {
         if (chartCanvas) chartCanvas.style.display = "block";
         labels.forEach(label => label.style.display = "inline-block");
       }
+      
+      // ✅ Force reflow or re-render if necessary
+      slicerContainer.style.display = "block";      
+     
+      if (slider && slider.noUiSlider) {
+        slider.noUiSlider.refresh(); // or destroy and re-init if needed
+      }
     }
 
     window.addEventListener("resize", updateSlicerView);
     window.addEventListener("DOMContentLoaded", updateSlicerView);   
+    window.addEventListener("orientationchange", updateSlicerView);
    </script>   
    
   <script>
