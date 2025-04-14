@@ -218,7 +218,7 @@ html, body {
       #date-slicer-container canvas,
       #date-slicer-container .slicer-chart,
       #date-slicer-container .slicer-histogram {
-        display: none;
+        display: none !important;
       }
     }
 
@@ -1939,7 +1939,8 @@ html, body {
       const appContainer = document.getElementById("app-container");
       sidebar.classList.remove("open");
       appContainer.classList.remove("sidebar-open");      
-      
+      // 👇 Reposition legend
+      updateLegendOffset();      
     });
 
     //main(DEPTH).catch(console.error);
@@ -2086,12 +2087,15 @@ html, body {
       document.getElementById("close-panel-btn").addEventListener("click", () => {
         document.getElementById("side-panel").classList.remove("open");
       });
+      
+      updateSlicerView(); // ⬅️ initial call
     });    
     
     function updateSlicerView() {
       const slicerContainer = document.getElementById("date-slicer-container");
       const chartCanvas = slicerContainer.querySelector("canvas");
       const labels = slicerContainer.querySelectorAll("#slicer-start-label, #slicer-end-label");
+      const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
       if (isMobile) {
@@ -2107,8 +2111,29 @@ html, body {
       // ✅ Force reflow or re-render if necessary
       slicerContainer.style.display = "block";      
      
+      // ✅ Force re-render of the slider (if needed)
       if (slider && slider.noUiSlider) {
-        slider.noUiSlider.refresh(); // or destroy and re-init if needed
+        try {
+          slider.noUiSlider.refresh(); // 👈 Some versions of noUiSlider don't have refresh()
+        } catch (err) {
+          console.warn("⚠️ noUiSlider.refresh failed, reinitializing...");
+          // Full rebuild fallback:
+          const values = slider.noUiSlider.get(); // try to preserve current values
+          slider.noUiSlider.destroy();
+          noUiSlider.create(slider, {
+            start: values.map(v => parseInt(v)),
+            connect: true,
+            range: {
+              min: allTimestamps[0],
+              max: allTimestamps[allTimestamps.length - 1]
+            },
+            step: 24 * 60 * 60 * 1000,
+            format: {
+              to: value => Math.round(value),
+              from: Number
+            }
+          });
+        }
       }
     }
 
@@ -2686,7 +2711,7 @@ html, body {
       border-radius: 6px;
       max-height: 250px;
       overflow-y: auto;
-      width: 450px;
+      width: 430px;
       font-size: 13px;
     "></pre>
     <button id="stop-loading-btn" style="
