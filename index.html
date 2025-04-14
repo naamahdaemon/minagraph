@@ -162,7 +162,7 @@ html, body {
       top: 0;
       right: 0;
       width: 100%;
-      max-width: 500px;
+      max-width: 450px;
       height: 100%;
       background: #1c1c1c;
       color: white;
@@ -256,7 +256,7 @@ html, body {
     #side-panel .mono th,
     #side-panel .mono td {
       font-family: monospace !important;
-      font-size: 13px !important;
+      font-size: 10px !important;
     }
 
     #date-slicer-container.on-left {
@@ -374,7 +374,7 @@ html, body {
     /* Base legend style */
     #legend.legend-box {
       position: fixed;
-      top: 30px;
+      top: 20px;
       left: 50px;
       background: #222;
       color: white;
@@ -1107,7 +1107,7 @@ html, body {
         border-radius: 4px;
         cursor: pointer;
       ">🗑️ Delete this node from the Graph</button>         
-      <p><strong>Key:</strong> <span style="font-size: 12px;">${node}</span></p>
+      <p><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
       <p><strong>Degree:</strong> ${graph.degree(node)}</p>
       <p><strong>#Transactions:</strong> ${tx}</p>
       <p><strong>#Delegations:</strong> ${del}</p>
@@ -1134,7 +1134,7 @@ html, body {
           const unique = Array.from(new Map(interactions.map(tx => [tx.hash, tx])).values());
 
           const txTable = unique.length > 0 ? `
-            <table style="width:100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px;">
+            <table style="width:100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px;">
               <thead>
                 <tr>
                   <th style="text-align:left;">Timestamp</th>
@@ -2649,7 +2649,7 @@ html, body {
       border-radius: 6px;
       max-height: 250px;
       overflow-y: auto;
-      width: 480px;
+      width: 450px;
       font-size: 13px;
     "></pre>
     <button id="stop-loading-btn" style="
