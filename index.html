@@ -9,24 +9,24 @@
   <meta name="theme-color" content="#000000">
   
   <style>
-    html, body {
+html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      font-family: 'Coda', sans-serif;
+
       background: #fff;
       color: #eee;
     }
 
     * {
       box-sizing: border-box;
-      font-family: 'Coda', sans-serif !important;
+
     }
-    
+
     body {
       display: flex;
       flex-direction: column;
-      font-family: 'Coda', sans-serif;
+
       background: #fff;
       color: #eee;
     } 
@@ -37,16 +37,90 @@
       height: 100vh;
     }
 
-// RESPONSIVE DESIGN
     #left-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 280px;
-      top: 53px;
+      height: 100%;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
       background: #1e1e1e;
-      color: white;
-      padding: 20px;
-      overflow-y: auto;
-      border-right: 1px solid #444;
       z-index: 1001;
+    }
+
+    #left-sidebar.open {
+      transform: translateX(0);
+    }
+
+    #left-sidebar input[type="text"],
+    #left-sidebar input[type="number"],
+    #left-sidebar input[type="email"],
+    #left-sidebar input[type="password"],
+    #left-sidebar select {
+      width: 100%;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #eee;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      appearance: none;
+    }
+
+    #left-sidebar input[type="text"]:focus,
+    #left-sidebar input[type="number"]:focus,
+    #left-sidebar input[type="email"]:focus,
+    #left-sidebar input[type="password"]:focus,
+    #left-sidebar select:focus {
+      border-color: #4fc3f7;
+      background: #1e1e1e;
+    }
+
+    /* Custom arrow for number inputs (modern browsers) */
+    #left-sidebar input[type="number"]::-webkit-inner-spin-button,
+    #left-sidebar input[type="number"]::-webkit-outer-spin-button {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    #left-sidebar input[type="number"]:hover::-webkit-inner-spin-button,
+    #left-sidebar input[type="number"]:hover::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+
+    /* Checkbox style (optional improvement) */
+    #left-sidebar input[type="checkbox"] {
+      accent-color: #4fc3f7;
+      transform: scale(1.2);
+      margin-right: 6px;
+    }
+
+    #left-sidebar label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 4px;
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #left-sidebar h2 {
+      font-size: 16px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+      color: #4fc3f7;
+    }
+
+
+    #app-container.sidebar-open {
+      margin-left: 280px;
     }
 
     #main-content {
@@ -58,20 +132,20 @@
       min-height: 0;
     }
 
-
     #controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
       background: #222;
-      color: white;
+      z-index: 999;
       padding: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+      border-radius: 8px;
     }
 
     #sigma-container {
       flex: 1;
       position: relative;
-      //z-index: 1000;
+
       background: radial-gradient(circle at center, #0f0f0f, #000000);
     }
 
@@ -88,7 +162,7 @@
       top: 0;
       right: 0;
       width: 100%;
-      max-width: 700px;
+      max-width: 500px;
       height: 100%;
       background: #1c1c1c;
       color: white;
@@ -104,7 +178,7 @@
     }
 
     #menu-toggle {
-      display: none;
+      display: block;
       position: absolute;
       top: 10px;
       left: 10px;
@@ -112,7 +186,7 @@
       border: none;
       color: white;
       font-size: 24px;
-      z-index: 1001;
+      z-index: 1002;
     }
 
     @media screen and (max-width: 768px) {
@@ -120,32 +194,15 @@
         flex-direction: column;
       }
 
-      #left-sidebar {
-        position: fixed;
-        top: 53px;
-        left: 0;
-        width: 280px;
-        height: 100%;
-        transform: translateX(-100%);
-        transition: transform 0.3s ease;
-        background: #1e1e1e;
-        z-index: 1000;
-      }
-
-      #left-sidebar.open {
-        transform: translateX(0);
-      }
-
       #menu-toggle {
         display: block;
       }
-      
-      #controls,
+
       #sigma-container,
       #date-slicer-container {
         width: 100%;
       }
-      
+
       #sigma-container {
         height: 400px;
       }
@@ -164,7 +221,7 @@
         display: none;
       }
     }
-// RESPONSIVE DESIGN        
+
     #tooltip {
       position: absolute;
       background: rgba(0,0,0,0.8);
@@ -188,12 +245,12 @@
       border: none;
       color: #aaa;
       font-size: 20px;
-      //position: absolute;
+
       top: 0px;
       right: 0px;
       cursor: pointer;
     }
-    
+
     #side-panel .mono,
     #side-panel .mono table,
     #side-panel .mono th,
@@ -204,19 +261,19 @@
 
     #date-slicer-container.on-left {
       left: auto !important;
-      right: 780px !important; /* 👈 positions the slicer just left of the side panel */
+      right: 530px !important; /* 👈 positions the slicer just left of the side panel */
     }
 
     #date-slicer-container {
       transition: right 0.3s ease, left 0.3s ease;
     }
-    
+
     .linked-node {
       cursor: pointer;
       color: #4fc3f7;
       margin: 2px 0;
     }
-    
+
     .search-wrapper {
       position: relative;
       display: inline-block;
@@ -251,12 +308,12 @@
       animation: pulse 1.5s infinite;
       z-index: 1000;
     }
-    
+
     .legend-item.active {
       font-weight: bold;
       text-decoration: underline;
     }    
-    
+
     #close-panel-btn {
       position: absolute;
       top: 0px;
@@ -287,7 +344,7 @@
       height: auto;
       vertical-align: middle;
     }
-    
+
     #controls button,
     #side-panel button,
     #loader-modal button {
@@ -299,7 +356,7 @@
       line-height: normal;
       padding: 0 12px;
     }    
-    
+
     .sigma-label {
       padding: 2px 4px;
       border-radius: 4px;
@@ -313,12 +370,12 @@
       margin-left: 5px;
       color: #4fc3f7;
     }
-     
+
     /* Base legend style */
     #legend.legend-box {
       position: fixed;
-      bottom: 170px;
-      left: 20px;
+      top: 30px;
+      left: 50px;
       background: #222;
       color: white;
       padding: 10px 15px;
@@ -333,22 +390,18 @@
     /* 💻 Desktop layout: shift legend if sidebar is visible */
     @media screen and (min-width: 769px) {
       #app-container.sidebar-open #legend.legend-box {
-        left: 300px; /* 280px sidebar + 20px margin */
+        left: 330px; /* 280px sidebar + 50px margin */
       }
 
       /* If sidebar is hidden (fullscreen or collapsed) */
       #app-container:not(.sidebar-open) #legend.legend-box {
-        left: 20px;
+        left: 50px;
       }
-    }
-
-    body.fullscreen-mode #legend.legend-box {
-      margin-left: 20px;
     }
 
     #date-slicer-container {
       position: absolute;
-      bottom: 20px;
+      bottom: 50px;
       right: 20px;
       width: 400px;
       background: #1e1e1e;
@@ -385,21 +438,25 @@
       left: 0;
       right: 0;
     }
-  
+
     body.mobile-mode #sigma-container {
       height: calc(100vh - 90px) !important;
     }
 
     body.mobile-mode #date-slicer-container {
-      width: 100% !important;
-      right: 0 !important;
-      left: 0 !important;
-      bottom: 30 !important;
-      border-radius: 0;
+      position: absolute;
+      left: 50% !important;
+      transform: translateX(-50%);
+      bottom: 50px !important;
+      width: 80% !important;
       padding: 6px 10px;
       font-size: 12px;
       height: auto;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
     }
+
 
     body.mobile-mode #slicer-container {
       height: auto !important;
@@ -418,12 +475,6 @@
       display: none !important;
     }   
 
-    //@media screen and (min-width: 769px) {
-    //  #app-container.sidebar-open #sigma-container {
-    //    margin-left: 280px;
-    //  }
-    //}
-
     .noUi-handle {
       width: 12px; /* or smaller, adjust as needed */
       height: 24px;
@@ -441,8 +492,107 @@
       transform: translateX(-11px); /* (12px width) - 1px gap */
     }
 
+    #searchdiv {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      margin-top: 6px;
+    }
 
+    #searchdiv input {
+      padding: 6px 10px;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      background: #111;
+      color: white;
+      border-radius: 4px;
+    }
+
+    #searchdiv button {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      margin-left: 6px;
+      cursor: pointer;
+    }
     
+  .info-icon:hover {
+    color: #4fc3f7;
+  }
+  
+  #help-overlay {
+    position: fixed;
+    top: 80px;
+    left: 10vw;
+    right: 10vw;
+    bottom: 40px;
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    z-index: 9999;
+    font-size: 14px;
+    padding: 30px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+  }
+
+@media screen and (max-width: 768px) {
+  #help-overlay {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+    padding: 20px 16px;
+    font-size: 13px;
+  }
+
+  #help-overlay h1 {
+    font-size: 20px;
+  }
+
+  #help-overlay ul {
+    padding-left: 16px;
+  }
+
+  #help-overlay button {
+    top: 10px !important;
+    right: 10px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+}
+
+#help-overlay button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  color: white;
+  border: 2px solid white;
+  font-size: 16px;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+#help-overlay button:hover {
+  background: white;
+  color: black;
+}   
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
@@ -471,9 +621,9 @@
     const fullscreen = document.body.classList.contains("fullscreen-mode");
 
     if (isWideScreen && sidebarOpen && !fullscreen) {
-      legend.style.left = "300px"; // Sidebar visible
+      legend.style.left = "330px"; // Sidebar visible
     } else {
-      legend.style.left = "20px";  // Sidebar hidden or fullscreen
+      legend.style.left = "50px";  // Sidebar hidden or fullscreen
     }
   }
   
@@ -562,7 +712,7 @@
 
   function fruchtermanReingold(graph, {
     width = 2000, height = 2000,
-    iterations = 3000, gravity = GRAVITY, scalingRatio = SCALINGRATIO
+    iterations = 5000, gravity = GRAVITY, scalingRatio = SCALINGRATIO
   } = {}) {
     const nodes = graph.nodes();
     const positions = {};
@@ -616,7 +766,7 @@
   }
 
   function applyLayout() {
-      const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 200;
+      const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 5000;
       const gravity = parseFloat(document.getElementById("layout-gravity").value, 10) || 0.01;
       const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 10;
       const width = parseInt(document.getElementById("layout-width").value, 10) || 2000;
@@ -675,7 +825,7 @@
 
 
   function runLayoutInWorker() {
-    const iterations = parseInt(document.getElementById("layout-iterations").value) || 200;
+    const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
     const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
     const scale = parseFloat(document.getElementById("layout-scale").value) || 10;
     const width = parseInt(document.getElementById("layout-width").value) || 2000;
@@ -683,7 +833,7 @@
 
     if (layoutWorker) layoutWorker.terminate();
 
-    layoutWorker = new Worker("layoutWorker.js");
+    layoutWorker = new Worker("./scripts/layoutWorker.js");
 
     const nodes = graph.nodes().map(id => ({
       id,
@@ -957,7 +1107,7 @@
         border-radius: 4px;
         cursor: pointer;
       ">🗑️ Delete this node from the Graph</button>         
-      <p><strong>Key:</strong> ${node}</p>
+      <p><strong>Key:</strong> <span style="font-size: 12px;">${node}</span></p>
       <p><strong>Degree:</strong> ${graph.degree(node)}</p>
       <p><strong>#Transactions:</strong> ${tx}</p>
       <p><strong>#Delegations:</strong> ${del}</p>
@@ -984,7 +1134,7 @@
           const unique = Array.from(new Map(interactions.map(tx => [tx.hash, tx])).values());
 
           const txTable = unique.length > 0 ? `
-            <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+            <table style="width:100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px;">
               <thead>
                 <tr>
                   <th style="text-align:left;">Timestamp</th>
@@ -993,7 +1143,7 @@
                   <th>Amount</th>
                   <th>Fee</th>
                   <th>Status</th>
-                  <th>Chain</th>
+                  <!--<th>Chain</th>-->
                 </tr>
               </thead>
               <tbody>
@@ -1002,10 +1152,10 @@
                     <td>${formatTimestamp(tx.timestamp)}</td>
                     <td>${tx.block_id || "-"}</td>
                     <td>${tx.command_type || tx.label || "-"}</td>
-                    <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(6) + " Mina" : "-"}</td>
-                    <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(6) + " Mina" : "-"}</td>
+                    <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(2) + "" : "-"}</td>
+                    <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(2) + "" : "-"}</td>
                     <td>${tx.status || "-"}</td>
-                    <td>${tx.chain_status || "-"}</td>
+                    <!--<td>${tx.chain_status || "-"}</td>-->
                   </tr>
                   `).join("")}
               </tbody>
@@ -1324,6 +1474,16 @@
 
       renderer.refresh();
     });
+    
+    document.getElementById("search-icon").addEventListener("click", () => {
+      const searchDiv = document.getElementById("searchdiv");
+      const input = document.getElementById("search-input");
+      const searchVisible = searchDiv.style.display === "block" ? false : true;
+      searchDiv.style.display = searchVisible ? "none" : "block";
+      input.style.display = searchVisible ? "none" : "block";
+      if (searchVisible) input.focus();
+    });
+    
 
     clearBtn.addEventListener("click", () => {
       searchInput.value = "";
@@ -1332,7 +1492,8 @@
       panel.style.display = "none";
       renderer.refresh();
     });
-  }    
+  }  
+  
   async function main(depth = 2) {
     showLoader(); // ✅ show modal
 
@@ -1485,7 +1646,7 @@
       <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
       <label>START KEY<br /><input id="param-base-key" type="text" value="B62..." style="width: 100%; margin-bottom: 10px;"></label>
-      <label>MINATAUR API KEY<br /><b style="font-size:11px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED</b><input readonly disabled id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;"></label>
+      <label>MINATAUR API KEY<br /><b style="font-size:9px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED</b><input readonly disabled id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;"></label>
       <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
       <span id="toggle-token-arrow">▸</span> Get new API token
       <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
@@ -1504,7 +1665,7 @@
           <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
       </div>
       <h2 style="font-size: 16px; margin-bottom: 10px;">Graph Parameters</h2>
-      <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="200" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="5000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
@@ -1529,12 +1690,12 @@
         <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
       </div>  
       <div style="margin-top: 10px;">
-        <label style="font-size: 10px">
-          Buy me a coffee (or a Lamborghini 😊)
-        </label>
-        <span class="info-icon" style="font-size:18px; color: white; opacity: 1" title="Support this project by sending any amount of MINA via Auro Wallet.">
-          <span style="font-size:24px; color: white; opacity: 1;">ℹ</span>
-        </span>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
+          <label style="margin: 0;font-size:9px;">Buy me a coffee (or a Lamborghini 😊)</label>
+          <span class="info-icon" title="Support this project by sending any amount of MINA via Auro Wallet." style="cursor: help; font-size: 14px; opacity: 1;">
+            ℹ
+          </span>
+        </div>
         <input id="donation-amount" type="number" min="0.1" step="0.1" placeholder="Amount in MINA" style="width: 100%; margin-bottom: 10px;" />
         <button id="donate-btn" style="width: 100%; background: #ff9800; color: white; padding: 8px; border: none; border-radius: 4px;">
           Donate with Auro Wallet
@@ -1556,35 +1717,44 @@
           <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
         </div>
         
-        <div style="min-width: 60px;">
+        <div style="min-width: 60px;display: none;">
           <label style="color:#aaa;">&nbsp;</label><br />
           <span id="progress-text" style="display:none;"></span>
         </div>
 
-        <div id=searchdiv class="search-wrapper" style="min-width: 200px;">
-          <!--<label for="search-input" style="color:#aaa;">Search node</label><br />-->
-          <input id="search-input" type="text" placeholder="Search node..." style="padding: 4px 8px; font-size: 14px;" />
-          <button id="clear-search" title="Clear search" style="
-            position: absolute;
-            right: 6px;
-            top: 48px;
-            background: none;
-            border: none;
-            color: #aaa;
-            font-size: 16px;
-            cursor: pointer;
-            display: none;">×</button>
+        <!-- Floating search input -->
+        <div id="searchdiv" class="search-wrapper" style="display: none;">
+          <input id="search-input" type="text" placeholder="Search node..." />
+          <button id="clear-search">×</button>
         </div>
+
+        <button id="search-icon" title="Search" style="background: none; border: none; cursor: pointer;">
+          <svg id="search-icon-svg" viewBox="0 0 24 24" width="24" height="24">
+            <path d="M15.5,14h-0.79l-0.28-0.27c1.01-1.18,1.63-2.71,1.63-4.38
+              C16.06,6.47,13.59,4,10.53,4S5,6.47,5,9.53S7.47,15.06,10.53,15.06
+              c1.67,0,3.2-0.62,4.38-1.63l0.27,0.28v0.79l4.25,4.25
+              c0.41,0.41,1.08,0.41,1.49,0s0.41-1.08,0-1.49L15.5,14z
+              M10.53,13.06c-1.95,0-3.53-1.58-3.53-3.53s1.58-3.53,3.53-3.53
+              s3.53,1.58,3.53,3.53S12.48,13.06,10.53,13.06z"/>
+          </svg>
+        </button>
+
 
         <div style="display:none;">
           <label>&nbsp;</label><br />
           <button onclick="pause = !pause">Pause/Resume</button>
         </div>
 
-        <div style="display: flex; justify-content: space-between; gap: 20px; margin-bottom: 0px;">
-          <button id="theme-toggle-btn">
-            Switch to Light Theme
+          <button id="theme-toggle-btn" title="Toggle theme" style="background: none; border: none; cursor: pointer;">
+            <span id="theme-icon">
+              <!-- SVG moon (default dark theme) -->
+              <svg viewBox="0 0 24 24" width="24" height="24" style="fill:white;">
+                <path fill="white" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/>
+              </svg>
+            </span>
           </button>
+
+
 
           <button id="fullscreen-toggle" style="
             padding: 6px 12px;
@@ -1598,11 +1768,11 @@
             ⛶
           </button>
         </div>
-      </div>
 
-   
-      <div id="sigma-container"></div>  
-     </div>
+
+       <div id="sigma-container"></div>  
+       </div>
+      </div>
       <!-- SLICER CONTAINER -->
       <div id="date-slicer-container" >
 <!--style="
@@ -1617,7 +1787,7 @@
         width: 360px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
       "      -->
-        <strong style="display: block; margin-bottom: 8px;">Filter by Transaction Date</strong>
+        <!--<strong style="display: block; margin-bottom: 8px;">Filter by Transaction Date</strong>-->
         
         <div id="slicer-container" style="width: 100%; height: 140px;">
           <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>    
@@ -1640,23 +1810,7 @@
     <div id="tooltip"></div>
    
      <!-- Help overlay -->
-    <div id="help-overlay" style="
-      display: none;
-      position: absolute;
-      top: 120px;
-      left: 400px;
-      right: 40px;
-      bottom: 100px;
-      background-color: rgba(0, 0, 0, 0.8);
-      color: white;
-      z-index: 9999;
-      font-size: 14px;
-      padding: 40px;
-      overflow-y: auto;
-      box-sizing: border-box;
-      display: none;
-      flex-direction: column;
-    ">
+    <div id="help-overlay">
       <button onclick="document.getElementById('help-overlay').style.display='none'" style="
         position: absolute;
         top: 20px;
@@ -1715,7 +1869,7 @@
         </ul>
     </div>
 
-    <footer style=" margin-left: 280px; margin-top: 30px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
+    <footer style="font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
       &copy; naamahdaemon – <a href="https://mina.naamahdaemon.eu" target="_blank" style="color: #4fc3f7; text-decoration: none;">mina.naamahdaemon.eu</a><br/>
       Minataur API by Serhii Pimenov - <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net/api/restful</a>
     </footer>  
@@ -1779,6 +1933,13 @@
 
       // Launch the graph builder
       main(DEPTH).catch(console.error);
+      
+      // 👉 Hide the sidebar after launching
+      const sidebar = document.getElementById("left-sidebar");
+      const appContainer = document.getElementById("app-container");
+      sidebar.classList.remove("open");
+      appContainer.classList.remove("sidebar-open");      
+      
     });
 
     //main(DEPTH).catch(console.error);
@@ -1855,6 +2016,31 @@
         cancelRequested = true;
         appendLoaderLog("⚠️ Loading cancelled by user.");
       });
+      
+
+      const toggleBtn = document.getElementById("search-icon");
+      const searchDiv = document.getElementById("searchdiv");
+      const searchInput = document.getElementById("search-input");
+
+      toggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // prevent bubbling to the outside click
+        const isVisible = searchDiv.style.display === "block";
+
+        if (isVisible) {
+          searchDiv.style.display = "none";
+        } else {
+          searchDiv.style.display = "block";
+          searchInput.style.display = "block"; // optional safeguard
+          searchInput.focus();
+        }
+      });
+
+      // Hide on outside click
+      document.addEventListener("click", (e) => {
+        if (!searchDiv.contains(e.target) && !toggleBtn.contains(e.target)) {
+          searchDiv.style.display = "none";
+        }
+      });
     });    
    </script>
 
@@ -1872,7 +2058,21 @@
         appContainer.classList.add("sidebar-open");
       } else {
       appContainer.classList.remove("sidebar-open");
-    }
+      }
+
+      // Select all inputs inside the sidebar
+      const sidebarInputs = sidebar.querySelectorAll("input, select, textarea");
+
+      sidebarInputs.forEach(input => {
+        input.addEventListener("input", () => {
+          if (!sidebar.classList.contains("open")) {
+            sidebar.classList.add("open");
+          }
+          if (window.innerWidth >= 769) {
+            appContainer.classList.add("sidebar-open");
+          }
+        });
+      });
       
       /*document.getElementById("menu-toggle").addEventListener("click", () => {
         const sidebar = document.getElementById("left-sidebar");
@@ -1922,8 +2122,24 @@
         const isLight = theme === "light";
 
         // Update button text
-        if (toggleBtn) {
-          toggleBtn.textContent = isLight ? "Switch to Dark Theme" : "Switch to Light Theme";
+        const iconContainer = document.getElementById("theme-icon");
+        iconContainer.innerHTML = isLight
+          ? `
+            <!-- Sun -->
+            <svg viewBox="0 0 24 24" width="24" height="24" style="fill:white;">
+              <path fill="black" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"/>
+            </svg>
+          `
+          : `
+            <!-- Moon -->
+            <svg viewBox="0 0 24 24" width="24" height="24" style="fill:white;">
+              <path fill="white" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/>
+            </svg>
+          `;
+
+        const searchIconSvg = document.getElementById("search-icon-svg");
+        if (searchIconSvg) {
+          searchIconSvg.setAttribute("fill", isLight ? "black" : "white");
         }
 
         // Apply styles only if elements exist
@@ -2116,14 +2332,7 @@
 
       document.getElementById("menu-toggle").addEventListener("click", () => {
         sidebar.classList.toggle("open");
-
-        if (window.innerWidth >= 769) {
-          // Desktop: toggle margin class
-          appContainer.classList.toggle("sidebar-open");
-        } else {
-            appContainer.classList.remove("sidebar-open");
-          }
-
+        appContainer.classList.toggle("sidebar-open");
         updateLegendOffset();
       });
 
@@ -2194,7 +2403,7 @@
       fullscreenBtn.textContent = "Exit Fullscreen";
       exitFullscreenBtn.style.display = "block";
       document.body.classList.add("fullscreen-mode");
-      legend.style.left = "20px";
+      legend.style.left = "50px";
       menu.style.display="none"
     } else {
       sidebar.style.display = "block";
@@ -2205,10 +2414,10 @@
       // 👇 Only add sidebar-open on desktop
       if (window.innerWidth >= 769 && sidebar.classList.contains("open")) {
         appContainer.classList.add("sidebar-open");
-        legend.style.left = "300px"; // sidebar + margin
+        legend.style.left = "330px"; // sidebar + margin
       } else { 
         appContainer.classList.remove("sidebar-open");
-        legend.style.left = "20px";
+        legend.style.left = "50px";
       }
 
       fullscreenBtn.textContent = "⛶";
@@ -2447,7 +2656,7 @@
       border-radius: 6px;
       max-height: 250px;
       overflow-y: auto;
-      width: 600px;
+      width: 480px;
       font-size: 13px;
     "></pre>
     <button id="stop-loading-btn" style="
