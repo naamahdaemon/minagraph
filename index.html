@@ -222,6 +222,11 @@ html, body {
       }
     }
 
+    body.mobile-mode #slicer-chart {
+      display: none !important;
+      height: 0 !important;
+    }
+
     #tooltip {
       position: absolute;
       background: rgba(0,0,0,0.8);
@@ -464,6 +469,7 @@ html, body {
 
     body.mobile-mode #slicer-container canvas {
       display: none !important;
+      height: 0 !important;
     }
 
     body.mobile-mode #slicer-range {
@@ -2093,6 +2099,7 @@ html, body {
     
     function updateSlicerView() {
       const slicerContainer = document.getElementById("date-slicer-container");
+      const slicerInner = document.getElementById("slicer-container");
       const chartCanvas = slicerContainer.querySelector("canvas");
       const labels = slicerContainer.querySelectorAll("#slicer-start-label, #slicer-end-label");
       const slider = document.getElementById("slicer-range");
@@ -2111,7 +2118,21 @@ html, body {
       // ✅ Force reflow or re-render if necessary
       slicerContainer.style.display = "block";      
      
-      // ✅ Force re-render of the slider (if needed)
+      if (document.body.classList.contains("mobile-mode")) {
+        // Hide chart properly
+        const chart = document.getElementById("slicer-chart");
+        if (chart) {
+          chart.style.display = "none";
+          chart.style.height = "0";
+        }
+
+        if (slicerInner) {
+          slicerInner.style.height = "auto";
+        }
+
+        slicerContainer.style.height = "auto"; // force container to shrink
+      }
+     
       if (slider && slider.noUiSlider) {
         try {
           slider.noUiSlider.refresh(); // if this fails, we rebuild
