@@ -5,30 +5,166 @@
   <title>Mina Graph Explorer</title>
   <link href="https://fonts.googleapis.com/css2?family=Coda&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
   <meta name="theme-color" content="#000000">
   
   <style>
     html, body {
-      height: 100%;
       margin: 0;
       padding: 0;
+      height: 100%;
+      font-family: 'Coda', sans-serif;
+      background: #fff;
+      color: #eee;
     }
 
+    * {
+      box-sizing: border-box;
+      font-family: 'Coda', sans-serif !important;
+    }
+    
     body {
       display: flex;
       flex-direction: column;
       font-family: 'Coda', sans-serif;
       background: #fff;
       color: #eee;
+    } 
+
+    #app-container {
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
     }
-    
-    * {
-      font-family: 'Coda', sans-serif !important;
-    }    
-    
-    #controls { padding: 5px; background: #222; border-bottom: 1px solid #444; display: flex; gap: 10px; align-items: center; color: #fff; }
-    #sigma-container { height: calc(100vh - 64px); position: relative; background: radial-gradient(circle at center, #0f0f0f, #000000);
-}
+
+// RESPONSIVE DESIGN
+    #left-sidebar {
+      width: 280px;
+      top: 53px;
+      background: #1e1e1e;
+      color: white;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid #444;
+      z-index: 1001;
+    }
+
+    #main-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      flex-basis: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+
+    #controls {
+      background: #222;
+      color: white;
+      padding: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    #sigma-container {
+      flex: 1;
+      position: relative;
+      //z-index: 1000;
+      background: radial-gradient(circle at center, #0f0f0f, #000000);
+    }
+
+    #date-slicer-container {
+      position: relative;
+      width: 100%;
+      background: #1e1e1e;
+      padding: 10px;
+      border-top: 1px solid #444;
+    }
+
+    #side-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      max-width: 700px;
+      height: 100%;
+      background: #1c1c1c;
+      color: white;
+      overflow-y: auto;
+      padding: 20px;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 999;
+    }
+
+    #side-panel.open {
+      transform: translateX(0);
+    }
+
+    #menu-toggle {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: #1e1e1e;
+      border: none;
+      color: white;
+      font-size: 24px;
+      z-index: 1001;
+    }
+
+    @media screen and (max-width: 768px) {
+      #app-container {
+        flex-direction: column;
+      }
+
+      #left-sidebar {
+        position: fixed;
+        top: 53px;
+        left: 0;
+        width: 280px;
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        background: #1e1e1e;
+        z-index: 1000;
+      }
+
+      #left-sidebar.open {
+        transform: translateX(0);
+      }
+
+      #menu-toggle {
+        display: block;
+      }
+      
+      #controls,
+      #sigma-container,
+      #date-slicer-container {
+        width: 100%;
+      }
+      
+      #sigma-container {
+        height: 400px;
+      }
+
+      #date-slicer-container {
+        padding: 6px;
+        font-size: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      #date-slicer-container canvas,
+      #date-slicer-container .slicer-chart,
+      #date-slicer-container .slicer-histogram {
+        display: none;
+      }
+    }
+// RESPONSIVE DESIGN        
     #tooltip {
       position: absolute;
       background: rgba(0,0,0,0.8);
@@ -44,30 +180,17 @@
       padding: 4px 8px;
       font-size: 14px;
     }
-    #side-panel {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 700px;
-      height: 100%;
-      background: #1c1c1c;
-      color: white;
-      overflow-y: auto;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-      z-index: 100;
-      border-left: 1px solid #444;
-    }
+
     #side-panel h3 { margin-top: 0; }
+
     #side-panel button {
       background: none;
       border: none;
       color: #aaa;
       font-size: 20px;
       //position: absolute;
-      top: 10px;
-      right: 15px;
+      top: 0px;
+      right: 0px;
       cursor: pointer;
     }
     
@@ -78,7 +201,7 @@
       font-family: monospace !important;
       font-size: 13px !important;
     }
-    
+
     #date-slicer-container.on-left {
       left: auto !important;
       right: 780px !important; /* 👈 positions the slicer just left of the side panel */
@@ -136,9 +259,9 @@
     
     #close-panel-btn {
       position: absolute;
-      top: 12px;
-      right: 15px;
-      font-size: 24px;
+      top: 0px;
+      right: 0px;
+      font-size: 36px;
       background: none;
       border: none;
       color: #ccc;
@@ -177,66 +300,146 @@
       padding: 0 12px;
     }    
     
-.sigma-label {
-  padding: 2px 4px;
-  border-radius: 4px;
-  background-color: rgba(0,0,0,0.4);
-  color: white;
-}
-    
-.info-icon {
-  cursor: pointer;
-  font-size: 14px;
-  margin-left: 5px;
-  color: #4fc3f7;
-}
- 
-#legend.legend-box {
-  position: absolute;
-  bottom: 50px;
-  left: 10px;
-  background: #222;
-  color: white;
-  padding: 10px 15px;
-  border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  transition: margin-left 0.3s ease;
-  margin-left: 320px; /* default */
-}
+    .sigma-label {
+      padding: 2px 4px;
+      border-radius: 4px;
+      background-color: rgba(0,0,0,0.4);
+      color: white;
+    }
 
-body.fullscreen-mode #legend.legend-box {
-  margin-left: 20px;
-}
+    .info-icon {
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 5px;
+      color: #4fc3f7;
+    }
+     
+    /* Base legend style */
+    #legend.legend-box {
+      position: fixed;
+      bottom: 170px;
+      left: 20px;
+      background: #222;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      transition: left 0.3s ease;
+      z-index: 998;
+    }
 
-#date-slicer-container {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  width: 400px;
-  background: #1e1e1e;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 10px;
-  box-shadow: 0 0 6px rgba(0,0,0,0.4);
-  z-index: 9999;
-}
+    /* 💻 Desktop layout: shift legend if sidebar is visible */
+    @media screen and (min-width: 769px) {
+      #app-container.sidebar-open #legend.legend-box {
+        left: 300px; /* 280px sidebar + 20px margin */
+      }
 
-#slicer-container {
-  position: relative; /* 👈 no longer absolute! */
-  height: auto;
-}
+      /* If sidebar is hidden (fullscreen or collapsed) */
+      #app-container:not(.sidebar-open) #legend.legend-box {
+        left: 20px;
+      }
+    }
 
-#slicer-container canvas {
-  width: 100% !important;
-  height: 150px !important;
-}
+    body.fullscreen-mode #legend.legend-box {
+      margin-left: 20px;
+    }
 
-#slicer-range {
-  margin-top: 10px;
-}
+    #date-slicer-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 400px;
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.4);
+      z-index: 999;
+    }
 
+    #slicer-container {
+      position: relative; /* 👈 no longer absolute! */
+      height: auto;
+    }
+
+    #slicer-container canvas {
+      width: 100% !important;
+      height: 150px !important;
+    }
+
+    #slicer-range {
+      margin-top: 10px;
+    }
+
+    #slicer-range .noUi-target {
+      width: 100%;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+    }
+
+    #slicer-range .noUi-base {
+      width: 100%;
+      left: 0;
+      right: 0;
+    }
+  
+    body.mobile-mode #sigma-container {
+      height: calc(100vh - 90px) !important;
+    }
+
+    body.mobile-mode #date-slicer-container {
+      width: 100% !important;
+      right: 0 !important;
+      left: 0 !important;
+      bottom: 30 !important;
+      border-radius: 0;
+      padding: 6px 10px;
+      font-size: 12px;
+      height: auto;
+    }
+
+    body.mobile-mode #slicer-container {
+      height: auto !important;
+    }
+
+    body.mobile-mode #slicer-container canvas {
+      display: none !important;
+    }
+
+    body.mobile-mode #slicer-range {
+      margin-top: 4px;
+    }
+
+    body.mobile-mode #slicer-start-label,
+    body.mobile-mode #slicer-end-label {
+      display: none !important;
+    }   
+
+    //@media screen and (min-width: 769px) {
+    //  #app-container.sidebar-open #sigma-container {
+    //    margin-left: 280px;
+    //  }
+    //}
+
+    .noUi-handle {
+      width: 12px; /* or smaller, adjust as needed */
+      height: 24px;
+      border-radius: 2px;
+      box-shadow: none;
+      background: white;
+    }
+
+    /* Override the centering offset */
+    .noUi-handle-lower {
+      transform: translateX(11px); /* slightly offset */
+    }
+
+    .noUi-handle-upper {
+      transform: translateX(-11px); /* (12px width) - 1px gap */
+    }
 
 
     
@@ -249,278 +452,1277 @@ body.fullscreen-mode #legend.legend-box {
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.js"></script>
   
 </head>
-<body>
-  <div id="left-sidebar" style="
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 280px;
-    background: #1e1e1e;
-    color: white;
-    padding: 20px;
-    overflow-y: auto;
-    font-family: sans-serif;
-    border-right: 1px solid #444;
-    z-index: 999;
-  ">
-  <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
-  <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>START KEY<br /><input id="param-base-key" type="text" value="B62..." style="width: 100%; margin-bottom: 10px;"></label>
-  <label>MINATAUR API KEY<br /><input id="param-api-token" type="password" value="minataur-token:..." style="width: 100%; margin-bottom: 20px;"></label>
-  <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
-    <span id="toggle-token-arrow">▸</span> Get new API token
-    <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
-    <span style="font-size:18px; color: white; opacity: 1;">ℹ</span>
-    </span>
-  </button>
 
-  <div id="minataur-token-section" style="display: none; margin-bottom: 20px;">
-  <input id="minataur-email" type="email" placeholder="Enter your email to receive your token" style="width: 100%; margin-bottom: 10px;" />
-  <button id="connect-auro-btn" style="width: 100%; background: #4caf50; color: white; padding: 8px; border: none; border-radius: 4px;">Request Token (Auro Wallet required)</button>
-  </div>
-  <hr/>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/mina-graph/service-worker.js").then(
+        (reg) => console.log("ServiceWorker registered", reg),
+        (err) => console.log("ServiceWorker registration failed", err)
+      );
+    });
+  }
 
-  <div>
-      <label>&nbsp;</label><br />
-      <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
-  </div>
-  <h2 style="font-size: 16px; margin-bottom: 10px;">Graph Parameters</h2>
-  <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="200" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
-  <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="10" style="width: 100%; margin-bottom: 10px;"></label>
-  <input type="checkbox" id="toggle-labels" checked />
-  <label style="color:#aaa;">SHOW LABELS</label><br/><br/>
-  <button id="layout-toggle-btn"
-    style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
-    Apply Layout
-  </button>
-  <div id="layout-progress-wrapper" style="margin-top: 20px;">
-    <label style="color:#aaa;">Layout progress</label>
-    <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
-    <div id="layout-progress-text" style="font-size: 13px; color: #aaa; text-align: right; margin-top: 4px;">0%</div>
-  </div>
-  <h2 style="font-size: 16px; margin-bottom: 10px;">Load / Save</h2>
-  <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
-  <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
-  <input type="file" id="import-json" accept=".json" style="display: none;">
-  <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
-  <div style="margin-top: 40px; text-align: center;">
-    <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
-  </div>  
-  <div style="margin-top: 10px;">
-    <label style="font-size: 10px">
-      Buy me a coffee (or a Lamborghini 😊)
-    </label>
-    <span class="info-icon" style="font-size:18px; color: white; opacity: 1" title="Support this project by sending any amount of MINA via Auro Wallet.">
-      <span style="font-size:24px; color: white; opacity: 1;">ℹ</span>
-    </span>
-    <input id="donation-amount" type="number" min="0.1" step="0.1" placeholder="Amount in MINA" style="width: 100%; margin-bottom: 10px;" />
-    <button id="donate-btn" style="width: 100%; background: #ff9800; color: white; padding: 8px; border: none; border-radius: 4px;">
-      Donate with Auro Wallet
-    </button>
-  </div>
+  function updateLegendOffset() {
+    const legend = document.getElementById("legend");
+    const appContainer = document.getElementById("app-container");
+    const isWideScreen = window.innerWidth >= 769;
+    const sidebarOpen = appContainer.classList.contains("sidebar-open");
+    const fullscreen = document.body.classList.contains("fullscreen-mode");
+
+    if (isWideScreen && sidebarOpen && !fullscreen) {
+      legend.style.left = "300px"; // Sidebar visible
+    } else {
+      legend.style.left = "20px";  // Sidebar hidden or fullscreen
+    }
+  }
   
-</div>
+  function getContrastingLabelColor(bgColor) {
+    if (!bgColor || typeof bgColor !== "string") return currentTheme === "light" ? "#000" : "#fff";
 
-<!-- Make sure the graph container has margin-left to not overlap the sidebar -->
-<div  style="margin-left: 320px;">
-  <div id="controls" style="padding: 10px; background: #222; border-bottom: 1px solid #444; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; color: #fff; font-size: 13px;">
-    
-    <div style="min-width: 200px;">
-      <label style="color:#aaa;">Layout info</label><br />
-      <span id="layout-info" style="display:inline-block; min-width: 180px;"></span>
-    </div>
+    // Ensure it's a valid 6-digit hex color
+    if (!/^#[0-9a-fA-F]{6}$/.test(bgColor)) return currentTheme === "light" ? "#000" : "#fff";
 
-    <div style="flex: 1; min-width: 200px;">
-      <label for="progress-bar" style="color:#aaa;">Progress</label><br />
-      <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
-    </div>
+    const r = parseInt(bgColor.substr(1, 2), 16);
+    const g = parseInt(bgColor.substr(3, 2), 16);
+    const b = parseInt(bgColor.substr(5, 2), 16);
 
-    <div style="min-width: 60px;">
-      <label style="color:#aaa;">%</label><br />
-      <span id="progress-text"></span>
-    </div>
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-    <div class="search-wrapper" style="min-width: 200px;">
-      <label for="search-input" style="color:#aaa;">Search node</label><br />
-      <input id="search-input" type="text" placeholder="Search node..." style="padding: 4px 8px; font-size: 14px;" />
-      <button id="clear-search" title="Clear search" style="
-        position: absolute;
-        right: 6px;
-        top: 48px;
-        background: none;
-        border: none;
-        color: #aaa;
-        font-size: 16px;
-        cursor: pointer;
-        display: none;">×</button>
-    </div>
+    return luminance > 0.6 ? "#000" : "#fff";
+  }
 
-    <div>
-      <label>&nbsp;</label><br />
-      <button onclick="pause = !pause">Pause/Resume</button>
-    </div>
 
-    <div style="display: flex; justify-content: space-between; gap: 20px; margin-bottom: 0px;">
-      <button id="theme-toggle-btn">
-        Switch to Light Theme
-      </button>
+  function showLoader() {
+    cancelRequested = false;
+    document.getElementById("loader-modal").style.display = "flex";
+    document.getElementById("loader-log").textContent = "";
+  }
 
-      <button id="fullscreen-toggle" style="
-        padding: 6px 12px;
-        background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border: none;
-        border-radius: 6px;
-      cursor: pointer;
-        white-space: nowrap;
-    ">
-        ⛶
-    </button>
-    </div>
-    
-  </div>
- </div>
- 
- 
-  <div id="sigma-container" style="
-    margin-left: 320px;
-    position: relative;
-    height: calc(100vh - 64px); /* Or whatever height you're using */
-  ">
-  </div>  
+  function hideLoader() {
+    document.getElementById("loader-modal").style.display = "none";
+  }
 
-    <!-- SLICER CONTAINER -->
-    <div id="date-slicer-container" style="
-      position: absolute;
-      bottom: 60px;
-      right: 30px;
-      background: rgba(0, 0, 0, 0.85);
-      padding: 14px;
-      border-radius: 8px;
-      color: white;
-      font-size: 13px;
-      z-index: 9999;
-      width: 360px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-    ">
-      <strong style="display: block; margin-bottom: 8px;">Filter by Transaction Date</strong>
-      
-      <div id="slicer-container" style="width: 100%; height: 140px;">
-        <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>    
-      </div>
+  function appendLoaderLog(message) {
+    const logEl = document.getElementById("loader-log");
+    const lines = logEl.textContent.trim().split("\n");
+    lines.push(message);
+    if (lines.length > 10) lines.shift(); // Keep max 10 lines
+    logEl.textContent = lines.join("\n");
+  }
 
-      <div id="slicer-range" style="margin-top: 12px;"></div>  
+  function getColorByName(name) {
+    if (!name || name === "noname") return "hsl(300, 100%, 65%)";
+    if (!nameColorMap.has(name)) {
+      const hue = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
+      nameColorMap.set(name, `hsl(${hue}, 100%, 60%)`);
+    }
+    return nameColorMap.get(name);
+  }
 
-      <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px;">
-        <span id="slicer-start-label">From: --</span>
-        <span id="slicer-end-label">To: --</span>
-      </div>
-    </div>
+  function getBrightColorByName(name) {
+    if (!name || name === "noname") return "#F984EF";
+    if (!nameColorMap.has(name)) {
+      const hash = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const hue = hash % 360;
 
-  <footer style=" margin-left: 280px; margin-top: 30px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
-    &copy; naamahdaemon – <a href="https://mina.naamahdaemon.eu" target="_blank" style="color: #4fc3f7; text-decoration: none;">mina.naamahdaemon.eu</a><br/>
-    Minataur API by Serhii Pimenov - <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net/api/restful</a>
-  </footer>  
-  <div id="side-panel">
-    <button id="close-panel-btn" onclick="hideNodePanel()">&times;</button>
-    <div id="node-details"></div>
-  </div>
-  <div id="tooltip"></div>
- 
-   <!-- Help overlay -->
-  <div id="help-overlay" style="
-    display: none;
-    position: absolute;
-    top: 120px;
-    left: 400px;
-    right: 40px;
-    bottom: 100px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    z-index: 9999;
-    font-size: 14px;
-    padding: 40px;
-    overflow-y: auto;
-    box-sizing: border-box;
-    display: none;
-    flex-direction: column;
-  ">
-    <button onclick="document.getElementById('help-overlay').style.display='none'" style="
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: none;
-      color: white;
-      border: 2px solid white;
-      font-size: 18px;
-      padding: 8px 16px;
-      cursor: pointer;
-      border-radius: 5px;
-    ">CLOSE</button>
-    <h1>How does this work?</h1>
-      <p style="font-size: 18px; line-height: 1.6;">
-        This tool lets you explore Mina blockchain graphs interactively by fetching and visualizing account transactions as nodes and links.
-      </p>
-      <ul style="font-size: 16px; line-height: 1.8;">
-        <li><strong>LIMIT</strong>: Max number of transactions to fetch per key (after the first).</li>
-        <li><strong>FIRST ITERATION LIMIT</strong>: Max transactions for the root key.</li>
-        <li><strong>RECURSION DEPTH</strong>: How many levels of linked accounts to explore.</li>
-        <li><strong>START KEY</strong>: The public key where exploration begins.</li>
-        <li><strong>API TOKEN</strong>: Your Minataur API authorization token.</li>
-        <li><strong>LAYOUT PARAMETERS</strong>: Adjust the layout algorithm (iterations, gravity, scale, etc.)</li>
-        <li><strong>EXPORT/IMPORT</strong>: Save or load graph JSON, export image.</li>
-        <li><strong>LEGEND</strong>: Filter graph edges by transaction type.</li>
-        <li><strong>SEARCH</strong>: Look up a node by label or key fragment.</li>
-      </ul>
-      
-      <hr style="margin: 30px 0; border: 1px solid #555;" />
+      // Convert HSL( hue, 100%, 65% ) to HEX:
+      const hex = hslToHex(hue, 100, 65);
+      nameColorMap.set(name, hex);
+    }
+    return nameColorMap.get(name);
+  }
 
-      <h2 style="font-size: 20px; margin-bottom: 12px;">⚠️ Important note on graph complexity</h2>
-      <p style="font-size: 16px; line-height: 1.6;">
-        The size of the graph grows exponentially based on the combination of:
-      </p>
-      <ul style="font-size: 16px; line-height: 1.8;">
-        <li><strong>FIRST ITERATION LIMIT (F)</strong>: Number of transactions fetched for the root key.</li>
-        <li><strong>LIMIT (L)</strong>: Max transactions per linked account.</li>
-        <li><strong>DEPTH (D)</strong>: How many recursive levels of linked accounts are explored.</li>
-      </ul>
-      <p style="font-size: 16px; line-height: 1.6;">
-        Estimated number of nodes (accounts):<br />
-        <code>N ≈ 1 + F × (L<sup>D</sup> – 1) / (L – 1)</code>
-      </p>
-      <p style="font-size: 16px; line-height: 1.6;">
-        This means the graph can reach tens of thousands of nodes if values are too high.<br />
-        It can impact memory, loading time, layout performance, and browser responsiveness.
-      </p>
+  // Converts HSL to HEX
+  function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
 
-      <p style="font-size: 16px; line-height: 1.6;">
-        For a smooth experience, try values like:
-      </p>
-      <ul style="font-size: 16px; line-height: 1.8;">
-        <li><strong>Safe defaults</strong>: F = 100, L = 20, D = 2</li>
-        <li><strong>Deeper graph (heavy)</strong>: F = 200, L = 30, D = 3+</li>
-        <li><strong>Shallow & fast</strong>: F = 50, L = 10, D = 1</li>
-      </ul>
-  </div>
- 
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js").then(
-          (reg) => console.log("ServiceWorker registered", reg),
-          (err) => console.log("ServiceWorker registration failed", err)
-        );
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n =>
+      Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+
+    return `#${[f(0), f(8), f(4)]
+      .map(x => x.toString(16).padStart(2, "0"))
+      .join("")}`;
+  }
+
+
+
+
+  function updateLayoutProgressBar(percent) {
+    const bar = document.getElementById("progress-bar");
+    const text = document.getElementById("progress-text");
+
+    bar.max = 100;
+    bar.value = percent;
+    text.textContent = percent + "%";
+  }
+
+  function fruchtermanReingold(graph, {
+    width = 2000, height = 2000,
+    iterations = 3000, gravity = GRAVITY, scalingRatio = SCALINGRATIO
+  } = {}) {
+    const nodes = graph.nodes();
+    const positions = {};
+    nodes.forEach(n => positions[n] = {
+      x: graph.getNodeAttribute(n, 'x') || Math.random() * width,
+      y: graph.getNodeAttribute(n, 'y') || Math.random() * height
+    });
+
+    for (let iter = 0; iter < iterations && !pause; iter++) {
+      const disp = {};
+      nodes.forEach(v => {
+        disp[v] = { x: 0, y: 0 };
+        nodes.forEach(u => {
+          if (u !== v) {
+            const dx = positions[v].x - positions[u].x;
+            const dy = positions[v].y - positions[u].y;
+            const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+            const rep = scalingRatio * scalingRatio / dist;
+            disp[v].x += dx / dist * rep;
+            disp[v].y += dy / dist * rep;
+          }
+        });
+      });
+
+      graph.forEachEdge((_, __, src, tgt) => {
+        const dx = positions[src].x - positions[tgt].x;
+        const dy = positions[src].y - positions[tgt].y;
+        const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+        const att = dist * dist / scalingRatio;
+        const dxNorm = dx / dist * att;
+        const dyNorm = dy / dist * att;
+        disp[src].x -= dxNorm; disp[src].y -= dyNorm;
+        disp[tgt].x += dxNorm; disp[tgt].y += dyNorm;
+      });
+
+      nodes.forEach(v => {
+        const d = Math.sqrt(disp[v].x ** 2 + disp[v].y ** 2);
+        if (d > 0) {
+          positions[v].x += (disp[v].x / d) * Math.min(d, 10);
+          positions[v].y += (disp[v].y / d) * Math.min(d, 10);
+        }
+        positions[v].x -= gravity * (positions[v].x - width / 2) * 0.01;
+        positions[v].y -= gravity * (positions[v].y - height / 2) * 0.01;
       });
     }
-  </script>
+
+    nodes.forEach(n => {
+      graph.setNodeAttribute(n, "x", positions[n].x);
+      graph.setNodeAttribute(n, "y", positions[n].y);
+    });
+  }
+
+  function applyLayout() {
+      const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 200;
+      const gravity = parseFloat(document.getElementById("layout-gravity").value, 10) || 0.01;
+      const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 10;
+      const width = parseInt(document.getElementById("layout-width").value, 10) || 2000;
+      const height = parseInt(document.getElementById("layout-height").value, 10) || 2000;        
+      
+      pause = false;
+      
+      document.getElementById("layout-info").textContent =
+        `▶ Applying layout: gravity=${gravity}, scale=${scale}, width=${width}, height=${height}`;
+      
+      //console.log(`gravity: ${gravity}`);
+      
+      let step = 0;
+
+      function runLayoutStep() {
+        if (pause || step >= iterations) return;
+
+        fruchtermanReingold(graph, {
+          iterations: 1,
+          gravity: gravity,
+          scalingRatio: scale,
+          width: width,
+          height: height
+        });
+
+        renderer.refresh();
+        step++;
+
+        requestAnimationFrame(runLayoutStep);
+      }
+
+      requestAnimationFrame(runLayoutStep); // Start loop
+
+      fruchtermanReingold(graph, {
+          iterations: 1,
+          gravity:  gravity,
+          scalingRatio: scale,
+          width: width,
+          height: height
+      });
+      renderer.refresh();
+      step++;        
+  };  
+  
+  function stopLayoutInWorker() {
+    if (layoutWorker) {
+      layoutWorker.terminate();
+      layoutWorker = null;
+
+      document.getElementById("layout-progress").value = 0;
+      document.getElementById("layout-progress-text").textContent = "Stopped";
+
+      console.log("⛔ Layout stopped by user");
+    }
+  }
+
+
+  function runLayoutInWorker() {
+    const iterations = parseInt(document.getElementById("layout-iterations").value) || 200;
+    const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+    const scale = parseFloat(document.getElementById("layout-scale").value) || 10;
+    const width = parseInt(document.getElementById("layout-width").value) || 2000;
+    const height = parseInt(document.getElementById("layout-height").value) || 2000;
+
+    if (layoutWorker) layoutWorker.terminate();
+
+    layoutWorker = new Worker("layoutWorker.js");
+
+    const nodes = graph.nodes().map(id => ({
+      id,
+      x: graph.getNodeAttribute(id, "x"),
+      y: graph.getNodeAttribute(id, "y")
+    }));
+
+    const edges = graph.edges().map(id => ({
+      source: graph.source(id),
+      target: graph.target(id)
+    }));
+
+    layoutWorker.postMessage({
+      nodes,
+      edges,
+      settings: { iterations, gravity, scalingRatio: scale, width, height }
+    });
+
+    let lastRenderTime = 0;
+
+    layoutWorker.onmessage = function (e) {
+      const { type, progress, positions } = e.data;
+
+      if (type === "progress") {
+        const percent = Math.round(progress * 100);
+        document.getElementById("layout-progress").value = percent;
+        document.getElementById("layout-progress-text").textContent = `${percent}%`;
+
+        const now = performance.now();
+        if (now - lastRenderTime > 300) { // only update every 300ms
+          for (const id in positions) {
+            graph.setNodeAttribute(id, "x", positions[id].x);
+            graph.setNodeAttribute(id, "y", positions[id].y);
+          }
+          renderer.refresh();
+          lastRenderTime = now;
+        }
+      }
+
+      if (type === "done") {
+        for (const id in positions) {
+          graph.setNodeAttribute(id, "x", positions[id].x);
+          graph.setNodeAttribute(id, "y", positions[id].y);
+        }
+        renderer.refresh();
+        
+        // 🔁 Auto reset button and flag
+        const layoutBtn = document.getElementById("layout-toggle-btn");
+        if (layoutBtn) layoutBtn.textContent = "Apply Layout";
+        isLayoutRunning = false;          
+      }
+    };
+
+
+
+  };
+
+  function updateProgress() {
+    const bar = document.getElementById("progress-bar");
+    bar.max = totalSteps;
+    bar.value = currentStep;
+  }
+
+  function showErrorPopup(message) {
+    const popup = document.getElementById("error-popup");
+    const msgBox = document.getElementById("error-message");
+    msgBox.textContent = message;
+    popup.style.display = "block";
+  }
+
+
+  async function fetchTransactionsForKey(publicKey) {
+      if (visitedKeys.has(publicKey))
+          return [];
+      visitedKeys.add(publicKey);
+
+      const limit = (publicKey === BASE_KEY) ? FIRST_ITERATION_LIMIT : LIMIT;
+
+      try {
+          const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
+              method: "POST",
+              headers: {
+                  "Minataur-Authorization": API_TOKEN,
+                  'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+                  "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                  publicKey,
+                  limit
+              })
+          });
+
+          if (!res.ok) {
+              throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
+          }
+          const json = await res.json();
+
+          if (!json || !json.payload || !json.payload.transactions) {
+              throw new Error("Unexpected response format from Minataur API");
+          }
+
+          const transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+
+          currentStep++;
+          updateProgressBar(currentStep, totalSteps);
+
+          return transactions;
+      } catch (error) {
+          // Cancel processing
+          cancelRequested = true;
+          hideLoader();
+          showErrorPopup(error.message || "An unknown error occurred");
+          throw error;
+      }
+  }
+
+  async function buildGraphRecursively(publicKey, depth, level = 0) {
+    if (depth < 0 || visitedKeys.has(publicKey) || cancelRequested) return;
+    while (pause) await new Promise(r => setTimeout(r, 100));
+    const transactions = await fetchTransactionsForKey(publicKey);
+
+    transactionsByNeighbor[publicKey] = transactions; // ✅ ici
+
+    appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${publicKey.slice(0, 6)}…${publicKey.slice(-6)} at depth ${level}`);
+
+
+    for (const tx of transactions) {
+      const sender = tx.sender_key;
+      const receiver = tx.receiver_key;
+      const senderName = tx.sender_name;
+      const receiverName = tx.receiver_name;
+
+      if (!graph.hasNode(sender)) {
+        graph.addNode(sender, {
+          label: `${senderName !== "noname" ? senderName : "Sender"} (${sender.slice(0, 6)}…${sender.slice(-6)})`,
+          name: senderName,
+          color: getBrightColorByName(senderName),
+          x: Math.random() * 1000, // ← assure une position aléatoire
+          y: Math.random() * 1000
+        });
+      }
+
+      if (!graph.hasNode(receiver)) {
+        graph.addNode(receiver, {
+          label: `${receiverName !== "noname" ? receiverName : "Receiver"} (${receiver.slice(0, 6)}…${receiver.slice(-6)})`,
+          name: receiverName,
+          color: getBrightColorByName(receiverName),
+          x: Math.random() * 1000,
+          y: Math.random() * 1000
+        });
+      }
+
+      const edgeId = tx.hash || `${sender}-${receiver}-${tx.nonce}`;
+      if (!graph.hasEdge(edgeId)) {
+        const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
+        graph.addEdgeWithKey(edgeId, sender, receiver, {
+          label: tx.command_type,
+          status: tx.chain_status,
+          timestamp: timestamp, // ✅ Add timestamp here
+          color: tx.chain_status === "canonical" ? "#ccc" : "#f66"
+        });
+      }
+    }
+
+    const newReceivers = [...new Set(transactions.map(t => t.receiver_key))];
+    totalSteps += newReceivers.length;
+    updateProgressBar(currentStep, totalSteps);
+
+    for (const r of newReceivers) {
+      if (cancelRequested) break;
+      await buildGraphRecursively(r, depth - 1, level + 1);
+    }
+  }
+
+  function applyNodeSizesByDegree() {
+    graph.forEachNode(node => {
+      const degree = graph.degree(node);
+      graph.setNodeAttribute(node, "size", 4 + Math.sqrt(degree));
+    });
+  }
+
+  function animateLayout(iterations = 200) {
+    for (let i = 0; i < iterations; i++) {
+      setTimeout(() => {
+        fruchtermanReingold(graph, { iterations: 1 });
+        renderer.refresh();
+      }, i * 20);
+    }
+  }
+  
+  function deleteSelectedNode(nodeId) {
+    if (!graph.hasNode(nodeId)) return;
+
+    const neighbors = graph.neighbors(nodeId);
+    const toDelete = new Set([nodeId]); // Start with selected node
+
+    neighbors.forEach(neighbor => {
+      const neighborEdges = graph.edges(neighbor);
+      let connectedOutside = false;
+
+      for (const edge of neighborEdges) {
+        const other = graph.source(edge) === neighbor ? graph.target(edge) : graph.source(edge);
+        if (other !== nodeId && !toDelete.has(other)) {
+          connectedOutside = true;
+          break;
+        }
+      }
+
+      if (!connectedOutside) {
+        toDelete.add(neighbor);
+      }
+    });
+
+    // Drop all nodes marked for deletion
+    toDelete.forEach(n => {
+      if (graph.hasNode(n)) graph.dropNode(n);
+    });
+
+    selectedNode = null;
+    panel.style.display = "none";
+    renderer.refresh();
+  }
+
+  function updateProgressBar(step, max) {
+    const bar = document.getElementById("progress-bar");
+    const text = document.getElementById("progress-text");
+    bar.max = max;
+    bar.value = step;
+    text.textContent = `${Math.round((step / max) * 100)}%`;
+  }
+
+  function isLightTheme() {
+    return currentTheme === "light";
+  }
+
+  function formatTimestamp(timestamp) {
+    var t = Number(timestamp);
+    if (isNaN(t)) return "-";
+    var date = new Date(t);
+    if (isNaN(date.getTime())) return "-";
+    return date.toISOString().replace(/:\d{2}\.\d{3}Z$/, "Z");
+  }
+
+
+
+  function showNodePanel(node) {
+    const data = graph.getNodeAttributes(node);
+    const neighbors = graph.neighbors(node);
+    
+    document.getElementById("side-panel").classList.add("open");
+    
+    selectedNode = node; // Ensure selection from side panel works too
+
+    let tx = 0, del = 0, failed = 0;
+    graph.forEachEdge((e, attr, src, tgt) => {
+      if ((src === node || tgt === node)) {
+        if (attr.status !== "canonical") failed++;
+        else if (attr.label === "delegation") del++;
+        else if (attr.label === "payment") tx++;
+      }
+    });
+
+    const html = `
+      <h3><a href="https://minascan.io/mainnet/account/${node}" target="_blank" style="color:#4fc3f7">${data.label}</a></h3>
+      <button onclick="deleteSelectedNode('${node}')" style="
+        margin: 5px 0;
+        background: #e53935;
+        color: white;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      ">🗑️ Delete this node from the Graph</button>         
+      <p><strong>Key:</strong> ${node}</p>
+      <p><strong>Degree:</strong> ${graph.degree(node)}</p>
+      <p><strong>#Transactions:</strong> ${tx}</p>
+      <p><strong>#Delegations:</strong> ${del}</p>
+      <p><strong>#Failed Transactions:</strong> ${failed}</p>
+      <p><strong>Linked Nodes & Transactions:</strong></p>
+      <div>
+        ${neighbors.map(n => {
+          const label = graph.getNodeAttribute(n, 'label');
+
+          // Transactions initiées par le voisin vers le nœud sélectionné
+          const fromNeighbor = (transactionsByNeighbor[n] || []).filter(tx =>
+            tx.sender_key === n && tx.receiver_key === node ||
+            tx.receiver_key === n && tx.sender_key === node
+          );
+
+          // Transactions initiées par le nœud sélectionné vers ce voisin
+          const fromNode = (transactionsByNeighbor[node] || []).filter(tx =>
+            tx.sender_key === n && tx.receiver_key === node ||
+            tx.receiver_key === n && tx.sender_key === node
+          );
+
+          // Concatène et déduplique (via hash par exemple si dispo)
+          const interactions = [...fromNeighbor, ...fromNode];
+          const unique = Array.from(new Map(interactions.map(tx => [tx.hash, tx])).values());
+
+          const txTable = unique.length > 0 ? `
+            <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Timestamp</th>
+                  <th>Block</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Fee</th>
+                  <th>Status</th>
+                  <th>Chain</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${unique.map(tx => `
+                  <tr title="${tx.memo || ''}">
+                    <td>${formatTimestamp(tx.timestamp)}</td>
+                    <td>${tx.block_id || "-"}</td>
+                    <td>${tx.command_type || tx.label || "-"}</td>
+                    <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(6) + " Mina" : "-"}</td>
+                    <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(6) + " Mina" : "-"}</td>
+                    <td>${tx.status || "-"}</td>
+                    <td>${tx.chain_status || "-"}</td>
+                  </tr>
+                  `).join("")}
+              </tbody>
+            </table>
+          ` : `<p style="color:#888; margin-bottom: 16px;">No direct interactions.</p>`;
+
+          return `
+            <div style="margin-bottom: 20px;">
+              <div class="linked-node" onclick="showNodePanel('${n}')">${label}</div>
+              <div class="mono">
+                ${txTable}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>`;
+      
+    details.innerHTML = html;
+    panel.style.display = "flex";
+    document.getElementById("date-slicer-container").classList.add("on-left");
+    
+    renderer.refresh(); // ✅ ensures selection is visible immediately
+
+  }    
+</script>  
+
+<script>
+  function initRenderer() {
+    const container = document.getElementById("sigma-container");
+    
+    // ⛔ Block init if container is not visible
+    if (!container.offsetWidth || !container.offsetHeight) {
+      console.warn("Sigma container not ready. Retrying in 100ms...");
+      setTimeout(initRenderer, 100); // retry later
+      return;
+    }    
+    
+    graph = new Graph({ multi: true });
+    //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
+    param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
+    
+    //renderer = new Sigma(graph, container);
+
+    renderer = new Sigma(graph,container,param);
+
+    // Re-apply settings and listeners
+    setupReducers();
+    setupInteractions();
+    setupSearch();
+  }
+
+  function setupReducers() {
+    renderer.setSetting("nodeReducer", (node, data) => {
+      const focusNode = hoveredNode || selectedNode;
+      const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
+      const isFocus = focusNode === node;
+      const isNeighbor = neighbors?.has(node);
+      //console.log("getBrightColorByName " + data.name); 
+      const glowColor =  getBrightColorByName(data.name || "noname");
+      const defaultSize = data.size || 5;
+      //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
+
+
+      // 🎯 Filter by command type
+      if (commandTypeFilter.size > 0) {
+        const hasVisibleEdge = graph.edges(node).some(e => {
+          const command = graph.getEdgeAttribute(e, "command_type") || graph.getEdgeAttribute(e, "label");
+          return commandTypeFilter.has(command);
+        });
+
+        if (!hasVisibleEdge) {
+          return {
+            ...data,
+            color: isLightTheme() ? "#eee" : "#111",
+            label: "",
+            labelSize: 36,
+            hidden: false,
+            opacity: 0.05,
+            size: defaultSize * 0.1, //* 0.7,
+            borderSize: 0,
+            zIndex: 0
+          };
+        }
+      }
+
+      // ✨ Focus or neighbor styling
+      if (focusNode) {
+        if (isFocus) {
+          //console.log ("Node Focused");
+          return {
+            ...data,
+            type: "circle",
+            color: glowColor,
+            overrideColor: glowColor, // 🟢 force Sigma to use this color
+            label: data.label,
+            labelSize: 36,
+            labelColor: {color: "#000"},
+            forceLabelColor: true,
+            //labelBackground: {
+            //  color: currentTheme === "light" ? "#000" : "#fff",
+            //  opacity: 0.6,
+            //  padding: 3,
+            //  borderRadius: 4,
+            //},  
+            //forceLabelBackground: true,
+            zIndex: 2,
+            size: defaultSize * 2.2,
+            borderColor: glowColor,
+            borderSize: 6,
+            opacity: 0.9,
+          };
+        }
+
+        if (isNeighbor) {
+          return {
+            ...data,
+            type: "circle",
+            color: glowColor,
+            overrideColor: glowColor, // 🟢 force Sigma to use this color
+            label: showAllLabels ? data.label : "",
+            labelSize: 36,
+            // 👇 Force label color
+            labelColor: {color: isLightTheme() ? "#000" : "#fff"},
+            forceLabelColor: true,
+            labelBackground: {
+              color: currentTheme === "light" ? "#000" : "#fff",
+              opacity: 0.6,
+              padding: 3,
+              borderRadius: 4,
+            },  
+            forceLabelBackground: true,                
+            zIndex: 1,
+            size: defaultSize * 1.5,
+            borderColor: glowColor,
+            borderSize: 4,
+            opacity: 0.5,
+          };
+        }
+
+        // Dim unrelated nodes
+        return {
+          ...data,
+          color: isLightTheme() ? "#eee" : "#111",
+          labelColor: {color: isLightTheme() ? "#000" : "#fff"},
+          label: "",
+          labelSize: 36,
+          size: defaultSize * 0.7,
+          opacity: 0.1,
+          borderSize: 0,
+          zIndex: 0
+        };
+      }
+
+      // 🧩 Default view
+      return {
+        ...data,
+        color: glowColor,
+        overrideColor: glowColor, // 🟢 force Sigma to use this color
+        borderColor: glowColor,
+        borderSize: 4,
+        opacity: 0.75,
+        label: showAllLabels ? data.label : "",
+        // 👇 Force label color
+        labelColor: {color: isLightTheme() ? "#000" : "#fff"},
+        forceLabelColor: true,
+        //labelBackground: {
+        //  color: currentTheme === "light" ? "#000" : "#fff",
+        //  opacity: 0.6,
+        //  padding: 3,
+        //  borderRadius: 4,
+        //},
+        labelSize: 36,
+        //forceLabelBackground: true,          
+        size: defaultSize,
+        zIndex: 1
+      };
+    });
+    
+    renderer.setSetting("defaultNodeColor", "#fff"); // or any default fallback
+
+
+    renderer.setSetting("edgeReducer", (edge, data) => {
+      const focusNode = hoveredNode || selectedNode;
+      const command = data.command_type || data.label;
+      //console.log("Dans edgeReducer - isLightTheme = " + isLightTheme())
+      let baseColor = "#666";
+      switch (command) {
+        case "payment": baseColor = "#4caf50"; break;
+        case "delegation": baseColor = "#2196f3"; break;
+        case "zkapp": baseColor = "#ff57c1"; break;
+      }
+
+      // 🧊 Filter edges
+      if (commandTypeFilter.size > 0 && !commandTypeFilter.has(command)) {
+        return {
+          ...data,
+          color: isLightTheme() ? "#eee" : "#111",
+          size: 0.3,
+          opacity: 0.05,
+          zIndex: 0
+        };
+      }
+
+      if (focusNode) {
+        const source = graph.source(edge);
+        const target = graph.target(edge);
+        const neighbors = new Set(graph.neighbors(focusNode));
+
+        const isFocusEdge =
+          (source === focusNode && neighbors.has(target)) ||
+          (target === focusNode && neighbors.has(source));
+
+        if (isFocusEdge) {
+          return {
+            ...data,
+            color: baseColor,
+            size: 1.5,
+            opacity: 0.6,
+            zIndex: 2
+          };
+        } else {
+          return {
+            ...data,
+            color: isLightTheme() ? "#eee" : "#111",
+            size: 0.4,
+            opacity: 0.1,
+            zIndex: 0
+          };
+        }
+      }
+
+      // 🌐 Default
+      return {
+        ...data,
+        color: baseColor,
+        size: 0.8,
+        opacity: 0.3,
+        zIndex: 0
+      };
+    });
+  }
+
+
+
+  function setupInteractions() {
+    renderer.on("enterNode", ({ node }) => {
+      hoveredNode = node;
+      tooltip.style.display = "block";
+      tooltip.innerText = graph.getNodeAttribute(node, "label");
+      
+      const pos = renderer.getNodeDisplayData(node);
+      const halo = document.createElement("div");
+      halo.className = "node-halo";
+      halo.style.left = `${pos.x}px`;
+      halo.style.top = `${pos.y}px`;
+      halo.id = "node-halo";
+      document.getElementById("sigma-container").appendChild(halo);        
+      
+      renderer.refresh();
+    });
+
+    renderer.on("leaveNode", () => {
+      hoveredNode = null;
+      tooltip.style.display = "none";
+      const halo = document.getElementById("node-halo");
+      if (halo) halo.remove();        
+      renderer.refresh();
+    });
+
+    renderer.on("clickNode", ({ node }) => {
+      selectedNode = node;
+      showNodePanel(node);
+      renderer.refresh();
+    });
+
+    renderer.on("clickStage", () => {
+      hideNodePanel();
+    });
+
+    
+    if (renderer) {
+      renderer.getContainer().addEventListener("mousemove", e => {
+        tooltip.style.left = e.pageX + 10 + "px";
+        tooltip.style.top = e.pageY + 10 + "px";
+      });
+    }
+  }
+
+  function setupSearch() {
+    const searchInput = document.getElementById("search-input");
+    const clearBtn = document.getElementById("clear-search");
+
+    searchInput.addEventListener("input", e => {
+      const query = e.target.value.toLowerCase();
+      clearBtn.style.display = query ? "block" : "none";
+
+      if (!query) {
+        selectedNode = null;
+        panel.style.display = "none";
+        renderer.refresh();
+        return;
+      }
+
+      const match = graph.nodes().find(n =>
+        graph.getNodeAttribute(n, "label").toLowerCase().includes(query)
+      );
+
+      selectedNode = match || null;
+
+      if (match) {
+        //showNodePanel(match);
+        //panel.style.display = "flex";
+      } else {
+        panel.style.display = "none";
+      }
+
+      renderer.refresh();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      selectedNode = null;
+      clearBtn.style.display = "none";
+      panel.style.display = "none";
+      renderer.refresh();
+    });
+  }    
+  async function main(depth = 2) {
+    showLoader(); // ✅ show modal
+
+    totalSteps = 1;
+    currentStep = 0;
+    visitedKeys.clear();
+
+    // Rebuild the graph object BEFORE rendering
+    graph = new Graph({ multi: true });
+
+    await buildGraphRecursively(BASE_KEY, depth);
+
+    applyNodeSizesByDegree();
+    //fruchtermanReingold(graph);
+
+    // Only now, create the renderer
+    const container = document.getElementById("sigma-container");
+    container.innerHTML = ""; // ✅ clears canvas and attached DOM elements
+    tooltip.style.display = "none";
+    panel.style.display = "none";
+    hoveredNode = null;
+    selectedNode = null;      
+
+    param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
+    
+    //renderer = new Sigma(graph, container);
+
+    renderer = new Sigma(graph,container,param);
+   
+    // Apply reducers and interactions
+    setupReducers();
+    setupInteractions();
+    setupSearch();
+
+    renderer.refresh();
+    
+    animateLayout();
+    
+    hideLoader(); // ✅ hide modal
+    
+    setTimeout(() => updateProgressBar(0, 1), 500); // clear bar after delay
+    
+    setupDateSlicer();  // 👈 à ajouter à la fin de main()
+    
+  }
+
+
+
+
+  function exportJSON() {
+    const json = {
+      nodes: graph.nodes().map(n => ({ id: n, ...graph.getNodeAttributes(n) })),
+      edges: graph.edges().map(e => ({
+        id: e,
+        source: graph.source(e),
+        target: graph.target(e),
+        ...graph.getEdgeAttributes(e)
+      }))
+    };
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "mina-graph.json";
+    a.click();
+  }
+
+  function importJSON(file) {
+    if (!graph || !renderer) {
+      initRenderer();
+    }
  
- <script>
+    hoveredNode = null;
+    selectedNode = null;
+
+    const reader = new FileReader();
+    const progressBar = document.getElementById("progress-bar");
+
+    reader.onload = function (event) {
+      try {
+        const data = JSON.parse(event.target.result);
+
+        if (!data.nodes || !data.edges) {
+          alert("Invalid JSON format (missing 'nodes' or 'edges')");
+          return;
+        }
+
+        graph.clear();
+        const total = data.nodes.length + data.edges.length;
+        let current = 0;
+        updateProgressBar(current, total);
+
+        data.nodes.forEach((n) => {
+          graph.addNode(n.id, n);
+          current++;
+          updateProgressBar(current, total);
+        });
+
+        data.edges.forEach((e) => {
+          graph.addEdgeWithKey(e.id, e.source, e.target, e);
+          current++;
+          updateProgressBar(current, total);
+        });
+
+        applyNodeSizesByDegree();     // reuse your logic
+        //fruchtermanReingold(graph);   // optional
+        renderer.refresh();
+
+        // Reset bar
+        setTimeout(() => {
+          progressBar.value = 0;
+          document.getElementById("progress-text").textContent = "";
+        }, 300);
+
+        alert("Graph imported successfully!");
+      } catch (e) {
+        console.error("Failed to load graph JSON:", e);
+        alert("Failed to load graph JSON. See console for details.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+
+  function exportPNG() {
+    const canvas = document.querySelector("canvas");
+    const img = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = img;
+    a.download = "mina-graph.png";
+    a.click();
+  }    
+</script>
+
+<body>
+  <button id="menu-toggle">☰</button>
+  <div id="app-container">
+    <div id="left-sidebar" style="
+      width: 280px;
+      background: #1e1e1e;
+      color: white;
+      padding: 20px;
+      overflow-y: auto;
+      font-family: sans-serif;
+      border-right: 1px solid #444;
+    "><br/>
+      <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
+      <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>START KEY<br /><input id="param-base-key" type="text" value="B62..." style="width: 100%; margin-bottom: 10px;"></label>
+      <label>MINATAUR API KEY<br /><b style="font-size:11px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED</b><input readonly disabled id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;"></label>
+      <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
+      <span id="toggle-token-arrow">▸</span> Get new API token
+      <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
+      <span style="font-size:18px; color: white; opacity: 1;">ℹ</span>
+      </span>
+      </button>
+      <div id="minataur-token-section" style="display: none; margin-bottom: 20px;">
+        <input id="minataur-email" type="email" placeholder="Enter your email to receive your token" style="width: 100%; margin-bottom: 10px;" />
+        <button id="connect-auro-btn" style="width: 100%; background: #4caf50; color: white; padding: 8px; border: none; border-radius: 4px;">Request Token (Auro Wallet required)</button>
+      </div>
+      
+      <hr/>
+
+      <div>
+          <label>&nbsp;</label><br />
+          <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
+      </div>
+      <h2 style="font-size: 16px; margin-bottom: 10px;">Graph Parameters</h2>
+      <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="200" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="10" style="width: 100%; margin-bottom: 10px;"></label>
+      <input type="checkbox" id="toggle-labels" checked />
+      <label style="color:#aaa;">SHOW LABELS</label><br/><br/>
+      <button id="layout-toggle-btn"
+        style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
+        Apply Layout
+      </button>
+      <div id="layout-progress-wrapper" style="margin-top: 20px;">
+        <label style="color:#aaa;">Layout progress</label>
+        <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
+        <div id="layout-progress-text" style="font-size: 13px; color: #aaa; text-align: right; margin-top: 4px;">0%</div>
+      </div>
+      <h2 style="font-size: 16px; margin-bottom: 10px;">Load / Save</h2>
+      <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
+      <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
+      <input type="file" id="import-json" accept=".json" style="display: none;">
+      <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
+      <div style="margin-top: 40px; text-align: center;">
+        <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
+      </div>  
+      <div style="margin-top: 10px;">
+        <label style="font-size: 10px">
+          Buy me a coffee (or a Lamborghini 😊)
+        </label>
+        <span class="info-icon" style="font-size:18px; color: white; opacity: 1" title="Support this project by sending any amount of MINA via Auro Wallet.">
+          <span style="font-size:24px; color: white; opacity: 1;">ℹ</span>
+        </span>
+        <input id="donation-amount" type="number" min="0.1" step="0.1" placeholder="Amount in MINA" style="width: 100%; margin-bottom: 10px;" />
+        <button id="donate-btn" style="width: 100%; background: #ff9800; color: white; padding: 8px; border: none; border-radius: 4px;">
+          Donate with Auro Wallet
+        </button>
+      </div>
+    </div>
+
+
+    <!-- Make sure the graph container has margin-left to not overlap the sidebar -->
+    <div id="main-content">
+      <div id="controls">
+        <div style="min-width: 200px;display: none;">
+          <label style="color:#aaa;">Layout info</label><br />
+          <span id="layout-info" style="display:inline-block; min-width: 180px;"></span>
+        </div>
+        
+        <div style="flex: 1; min-width: 100px;display:none;">
+          <label for="progress-bar" style="color:#aaa;">Progress</label><br />
+          <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
+        </div>
+        
+        <div style="min-width: 60px;">
+          <label style="color:#aaa;">&nbsp;</label><br />
+          <span id="progress-text" style="display:none;"></span>
+        </div>
+
+        <div id=searchdiv class="search-wrapper" style="min-width: 200px;">
+          <!--<label for="search-input" style="color:#aaa;">Search node</label><br />-->
+          <input id="search-input" type="text" placeholder="Search node..." style="padding: 4px 8px; font-size: 14px;" />
+          <button id="clear-search" title="Clear search" style="
+            position: absolute;
+            right: 6px;
+            top: 48px;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;">×</button>
+        </div>
+
+        <div style="display:none;">
+          <label>&nbsp;</label><br />
+          <button onclick="pause = !pause">Pause/Resume</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; gap: 20px; margin-bottom: 0px;">
+          <button id="theme-toggle-btn">
+            Switch to Light Theme
+          </button>
+
+          <button id="fullscreen-toggle" style="
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+          ">
+            ⛶
+          </button>
+        </div>
+      </div>
+
+   
+      <div id="sigma-container"></div>  
+     </div>
+      <!-- SLICER CONTAINER -->
+      <div id="date-slicer-container" >
+<!--style="
+        position: absolute;
+        bottom: 60px;
+        right: 30px;
+        background: rgba(0, 0, 0, 0.85);
+        padding: 14px;
+        border-radius: 8px;
+        color: white;
+        font-size: 13px;
+        width: 360px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      "      -->
+        <strong style="display: block; margin-bottom: 8px;">Filter by Transaction Date</strong>
+        
+        <div id="slicer-container" style="width: 100%; height: 140px;">
+          <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>    
+        </div>
+
+        <div id="slicer-range" style="margin-top: 12px;"></div>  
+
+        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px;">
+          <span id="slicer-start-label">From: --</span>
+          <span id="slicer-end-label">To: --</span>
+        </div>
+      </div>
+  </div>    
+  
+    <div id="side-panel">
+      <button id="close-panel-btn" onclick="hideNodePanel()">&times;</button>
+      <div id="node-details"></div>
+    </div>
+    
+    <div id="tooltip"></div>
+   
+     <!-- Help overlay -->
+    <div id="help-overlay" style="
+      display: none;
+      position: absolute;
+      top: 120px;
+      left: 400px;
+      right: 40px;
+      bottom: 100px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      z-index: 9999;
+      font-size: 14px;
+      padding: 40px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      display: none;
+      flex-direction: column;
+    ">
+      <button onclick="document.getElementById('help-overlay').style.display='none'" style="
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: none;
+        color: white;
+        border: 2px solid white;
+        font-size: 18px;
+        padding: 8px 16px;
+        cursor: pointer;
+        border-radius: 5px;
+      ">CLOSE</button>
+      <h1>How does this work?</h1>
+        <p style="font-size: 18px; line-height: 1.6;">
+          This tool lets you explore Mina blockchain graphs interactively by fetching and visualizing account transactions as nodes and links.
+        </p>
+        <ul style="font-size: 16px; line-height: 1.8;">
+          <li><strong>LIMIT</strong>: Max number of transactions to fetch per key (after the first).</li>
+          <li><strong>FIRST ITERATION LIMIT</strong>: Max transactions for the root key.</li>
+          <li><strong>RECURSION DEPTH</strong>: How many levels of linked accounts to explore.</li>
+          <li><strong>START KEY</strong>: The public key where exploration begins.</li>
+          <li><strong>API TOKEN</strong>: Your Minataur API authorization token.</li>
+          <li><strong>LAYOUT PARAMETERS</strong>: Adjust the layout algorithm (iterations, gravity, scale, etc.)</li>
+          <li><strong>EXPORT/IMPORT</strong>: Save or load graph JSON, export image.</li>
+          <li><strong>LEGEND</strong>: Filter graph edges by transaction type.</li>
+          <li><strong>SEARCH</strong>: Look up a node by label or key fragment.</li>
+        </ul>
+        
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
+        <h2 style="font-size: 20px; margin-bottom: 12px;">⚠️ Important note on graph complexity</h2>
+        <p style="font-size: 16px; line-height: 1.6;">
+          The size of the graph grows exponentially based on the combination of:
+        </p>
+        <ul style="font-size: 16px; line-height: 1.8;">
+          <li><strong>FIRST ITERATION LIMIT (F)</strong>: Number of transactions fetched for the root key.</li>
+          <li><strong>LIMIT (L)</strong>: Max transactions per linked account.</li>
+          <li><strong>DEPTH (D)</strong>: How many recursive levels of linked accounts are explored.</li>
+        </ul>
+        <p style="font-size: 16px; line-height: 1.6;">
+          Estimated number of nodes (accounts):<br />
+          <code>N ≈ 1 + F × (L<sup>D</sup> – 1) / (L – 1)</code>
+        </p>
+        <p style="font-size: 16px; line-height: 1.6;">
+          This means the graph can reach tens of thousands of nodes if values are too high.<br />
+          It can impact memory, loading time, layout performance, and browser responsiveness.
+        </p>
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          For a smooth experience, try values like:
+        </p>
+        <ul style="font-size: 16px; line-height: 1.8;">
+          <li><strong>Safe defaults</strong>: F = 100, L = 20, D = 2</li>
+          <li><strong>Deeper graph (heavy)</strong>: F = 200, L = 30, D = 3+</li>
+          <li><strong>Shallow & fast</strong>: F = 50, L = 10, D = 1</li>
+        </ul>
+    </div>
+
+    <footer style=" margin-left: 280px; margin-top: 30px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
+      &copy; naamahdaemon – <a href="https://mina.naamahdaemon.eu" target="_blank" style="color: #4fc3f7; text-decoration: none;">mina.naamahdaemon.eu</a><br/>
+      Minataur API by Serhii Pimenov - <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net/api/restful</a>
+    </footer>  
+  
+
+ 
+  <script>
     const { Graph } = graphology;
     let currentTheme = "dark"; // 👈 Declare it globally so reducers and other functions can use it
     let API_TOKEN = "minataur-token:your_minataur_token_here";
@@ -534,9 +1736,7 @@ body.fullscreen-mode #legend.legend-box {
     const HEIGHT = 3000;
     const visitedKeys = new Set();
     const nameColorMap = new Map();
-    
     const transactionsByNeighbor = {};
-
     
     let totalSteps = 0;
     let currentStep = 0;
@@ -558,993 +1758,11 @@ body.fullscreen-mode #legend.legend-box {
 
     let isLayoutRunning = false;
 
-
     const tooltip = document.getElementById("tooltip");
     const panel = document.getElementById("side-panel");
     const details = document.getElementById("node-details");
 
-    function getContrastingLabelColor(bgColor) {
-      if (!bgColor || typeof bgColor !== "string") return currentTheme === "light" ? "#000" : "#fff";
-
-      // Ensure it's a valid 6-digit hex color
-      if (!/^#[0-9a-fA-F]{6}$/.test(bgColor)) return currentTheme === "light" ? "#000" : "#fff";
-
-      const r = parseInt(bgColor.substr(1, 2), 16);
-      const g = parseInt(bgColor.substr(3, 2), 16);
-      const b = parseInt(bgColor.substr(5, 2), 16);
-
-      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-      return luminance > 0.6 ? "#000" : "#fff";
-    }
-
-
-    function showLoader() {
-      cancelRequested = false;
-      document.getElementById("loader-modal").style.display = "flex";
-      document.getElementById("loader-log").textContent = "";
-    }
-
-    function hideLoader() {
-      document.getElementById("loader-modal").style.display = "none";
-    }
-
-    function appendLoaderLog(message) {
-      const logEl = document.getElementById("loader-log");
-      const lines = logEl.textContent.trim().split("\n");
-      lines.push(message);
-      if (lines.length > 10) lines.shift(); // Keep max 10 lines
-      logEl.textContent = lines.join("\n");
-    }
-
-    function getColorByName(name) {
-      if (!name || name === "noname") return "hsl(300, 100%, 65%)";
-      if (!nameColorMap.has(name)) {
-        const hue = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
-        nameColorMap.set(name, `hsl(${hue}, 100%, 60%)`);
-      }
-      return nameColorMap.get(name);
-    }
-
-    function getBrightColorByName(name) {
-      if (!name || name === "noname") return "#F984EF";
-      if (!nameColorMap.has(name)) {
-        const hash = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const hue = hash % 360;
-
-        // Convert HSL( hue, 100%, 65% ) to HEX:
-        const hex = hslToHex(hue, 100, 65);
-        nameColorMap.set(name, hex);
-      }
-      return nameColorMap.get(name);
-    }
-
-    // Converts HSL to HEX
-    function hslToHex(h, s, l) {
-      s /= 100;
-      l /= 100;
-
-      const k = n => (n + h / 30) % 12;
-      const a = s * Math.min(l, 1 - l);
-      const f = n =>
-        Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
-
-      return `#${[f(0), f(8), f(4)]
-        .map(x => x.toString(16).padStart(2, "0"))
-        .join("")}`;
-    }
-
-
-
-
-    function updateLayoutProgressBar(percent) {
-      const bar = document.getElementById("progress-bar");
-      const text = document.getElementById("progress-text");
-
-      bar.max = 100;
-      bar.value = percent;
-      text.textContent = percent + "%";
-    }
-
-    function fruchtermanReingold(graph, {
-      width = 2000, height = 2000,
-      iterations = 3000, gravity = GRAVITY, scalingRatio = SCALINGRATIO
-    } = {}) {
-      const nodes = graph.nodes();
-      const positions = {};
-      nodes.forEach(n => positions[n] = {
-        x: graph.getNodeAttribute(n, 'x') || Math.random() * width,
-        y: graph.getNodeAttribute(n, 'y') || Math.random() * height
-      });
-
-      for (let iter = 0; iter < iterations && !pause; iter++) {
-        const disp = {};
-        nodes.forEach(v => {
-          disp[v] = { x: 0, y: 0 };
-          nodes.forEach(u => {
-            if (u !== v) {
-              const dx = positions[v].x - positions[u].x;
-              const dy = positions[v].y - positions[u].y;
-              const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-              const rep = scalingRatio * scalingRatio / dist;
-              disp[v].x += dx / dist * rep;
-              disp[v].y += dy / dist * rep;
-            }
-          });
-        });
-
-        graph.forEachEdge((_, __, src, tgt) => {
-          const dx = positions[src].x - positions[tgt].x;
-          const dy = positions[src].y - positions[tgt].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-          const att = dist * dist / scalingRatio;
-          const dxNorm = dx / dist * att;
-          const dyNorm = dy / dist * att;
-          disp[src].x -= dxNorm; disp[src].y -= dyNorm;
-          disp[tgt].x += dxNorm; disp[tgt].y += dyNorm;
-        });
-
-        nodes.forEach(v => {
-          const d = Math.sqrt(disp[v].x ** 2 + disp[v].y ** 2);
-          if (d > 0) {
-            positions[v].x += (disp[v].x / d) * Math.min(d, 10);
-            positions[v].y += (disp[v].y / d) * Math.min(d, 10);
-          }
-          positions[v].x -= gravity * (positions[v].x - width / 2) * 0.01;
-          positions[v].y -= gravity * (positions[v].y - height / 2) * 0.01;
-        });
-      }
-
-      nodes.forEach(n => {
-        graph.setNodeAttribute(n, "x", positions[n].x);
-        graph.setNodeAttribute(n, "y", positions[n].y);
-      });
-    }
-
-    function applyLayout() {
-        const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 200;
-        const gravity = parseFloat(document.getElementById("layout-gravity").value, 10) || 0.01;
-        const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 10;
-        const width = parseInt(document.getElementById("layout-width").value, 10) || 2000;
-        const height = parseInt(document.getElementById("layout-height").value, 10) || 2000;        
-        
-        pause = false;
-        
-        document.getElementById("layout-info").textContent =
-          `▶ Applying layout: gravity=${gravity}, scale=${scale}, width=${width}, height=${height}`;
-        
-        //console.log(`gravity: ${gravity}`);
-        
-        let step = 0;
-
-        function runLayoutStep() {
-          if (pause || step >= iterations) return;
-
-          fruchtermanReingold(graph, {
-            iterations: 1,
-            gravity: gravity,
-            scalingRatio: scale,
-            width: width,
-            height: height
-          });
-
-          renderer.refresh();
-          step++;
-
-          requestAnimationFrame(runLayoutStep);
-        }
-
-        requestAnimationFrame(runLayoutStep); // Start loop
-
-        fruchtermanReingold(graph, {
-            iterations: 1,
-            gravity:  gravity,
-            scalingRatio: scale,
-            width: width,
-            height: height
-        });
-        renderer.refresh();
-        step++;        
-    };
-
     let layoutWorker;
-
-    function stopLayoutInWorker() {
-      if (layoutWorker) {
-        layoutWorker.terminate();
-        layoutWorker = null;
-
-        document.getElementById("layout-progress").value = 0;
-        document.getElementById("layout-progress-text").textContent = "Stopped";
-
-        console.log("⛔ Layout stopped by user");
-      }
-    }
-
-
-    function runLayoutInWorker() {
-      const iterations = parseInt(document.getElementById("layout-iterations").value) || 200;
-      const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-      const scale = parseFloat(document.getElementById("layout-scale").value) || 10;
-      const width = parseInt(document.getElementById("layout-width").value) || 2000;
-      const height = parseInt(document.getElementById("layout-height").value) || 2000;
-
-      if (layoutWorker) layoutWorker.terminate();
-
-      layoutWorker = new Worker("layoutWorker.js");
-
-      const nodes = graph.nodes().map(id => ({
-        id,
-        x: graph.getNodeAttribute(id, "x"),
-        y: graph.getNodeAttribute(id, "y")
-      }));
-
-      const edges = graph.edges().map(id => ({
-        source: graph.source(id),
-        target: graph.target(id)
-      }));
-
-      layoutWorker.postMessage({
-        nodes,
-        edges,
-        settings: { iterations, gravity, scalingRatio: scale, width, height }
-      });
-
-      let lastRenderTime = 0;
-
-      layoutWorker.onmessage = function (e) {
-        const { type, progress, positions } = e.data;
-
-        if (type === "progress") {
-          const percent = Math.round(progress * 100);
-          document.getElementById("layout-progress").value = percent;
-          document.getElementById("layout-progress-text").textContent = `${percent}%`;
-
-          const now = performance.now();
-          if (now - lastRenderTime > 300) { // only update every 300ms
-            for (const id in positions) {
-              graph.setNodeAttribute(id, "x", positions[id].x);
-              graph.setNodeAttribute(id, "y", positions[id].y);
-            }
-            renderer.refresh();
-            lastRenderTime = now;
-          }
-        }
-
-        if (type === "done") {
-          for (const id in positions) {
-            graph.setNodeAttribute(id, "x", positions[id].x);
-            graph.setNodeAttribute(id, "y", positions[id].y);
-          }
-          renderer.refresh();
-          
-          // 🔁 Auto reset button and flag
-          const layoutBtn = document.getElementById("layout-toggle-btn");
-          if (layoutBtn) layoutBtn.textContent = "Apply Layout";
-          isLayoutRunning = false;          
-        }
-      };
-
-
-
-    };
-
-      
-    function updateProgress() {
-      const bar = document.getElementById("progress-bar");
-      bar.max = totalSteps;
-      bar.value = currentStep;
-    }
-
-    function showErrorPopup(message) {
-      const popup = document.getElementById("error-popup");
-      const msgBox = document.getElementById("error-message");
-      msgBox.textContent = message;
-      popup.style.display = "block";
-    }
-
-
-    async function fetchTransactionsForKey(publicKey) {
-        if (visitedKeys.has(publicKey))
-            return [];
-        visitedKeys.add(publicKey);
-
-        const limit = (publicKey === BASE_KEY) ? FIRST_ITERATION_LIMIT : LIMIT;
-
-        try {
-            const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
-                method: "POST",
-                headers: {
-                    "Minataur-Authorization": API_TOKEN,
-                    'x-api-key': 'e0d9da01-c1c5-4c44-b4fa-3cbdb4982ed3',
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    publicKey,
-                    limit
-                })
-            });
-
-            if (!res.ok) {
-                throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
-            }
-            const json = await res.json();
-
-            if (!json || !json.payload || !json.payload.transactions) {
-                throw new Error("Unexpected response format from Minataur API");
-            }
-
-            const transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
-
-            currentStep++;
-            updateProgressBar(currentStep, totalSteps);
-
-            return transactions;
-        } catch (error) {
-            // Cancel processing
-            cancelRequested = true;
-            hideLoader();
-            showErrorPopup(error.message || "An unknown error occurred");
-            throw error;
-        }
-    }
-
-    async function buildGraphRecursively(publicKey, depth, level = 0) {
-      if (depth < 0 || visitedKeys.has(publicKey) || cancelRequested) return;
-      while (pause) await new Promise(r => setTimeout(r, 100));
-      const transactions = await fetchTransactionsForKey(publicKey);
-
-      transactionsByNeighbor[publicKey] = transactions; // ✅ ici
-
-      appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${publicKey.slice(0, 6)}…${publicKey.slice(-6)} at depth ${level}`);
-
-
-      for (const tx of transactions) {
-        const sender = tx.sender_key;
-        const receiver = tx.receiver_key;
-        const senderName = tx.sender_name;
-        const receiverName = tx.receiver_name;
-
-        if (!graph.hasNode(sender)) {
-          graph.addNode(sender, {
-            label: `${senderName !== "noname" ? senderName : "Sender"} (${sender.slice(0, 6)}…${sender.slice(-6)})`,
-            name: senderName,
-            color: getBrightColorByName(senderName),
-            x: Math.random() * 1000, // ← assure une position aléatoire
-            y: Math.random() * 1000
-          });
-        }
-
-        if (!graph.hasNode(receiver)) {
-          graph.addNode(receiver, {
-            label: `${receiverName !== "noname" ? receiverName : "Receiver"} (${receiver.slice(0, 6)}…${receiver.slice(-6)})`,
-            name: receiverName,
-            color: getBrightColorByName(receiverName),
-            x: Math.random() * 1000,
-            y: Math.random() * 1000
-          });
-        }
-
-        const edgeId = tx.hash || `${sender}-${receiver}-${tx.nonce}`;
-        if (!graph.hasEdge(edgeId)) {
-          const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
-          graph.addEdgeWithKey(edgeId, sender, receiver, {
-            label: tx.command_type,
-            status: tx.chain_status,
-            timestamp: timestamp, // ✅ Add timestamp here
-            color: tx.chain_status === "canonical" ? "#ccc" : "#f66"
-          });
-        }
-      }
-
-      const newReceivers = [...new Set(transactions.map(t => t.receiver_key))];
-      totalSteps += newReceivers.length;
-      updateProgressBar(currentStep, totalSteps);
-
-      for (const r of newReceivers) {
-        if (cancelRequested) break;
-        await buildGraphRecursively(r, depth - 1, level + 1);
-      }
-    }
-
-    function applyNodeSizesByDegree() {
-      graph.forEachNode(node => {
-        const degree = graph.degree(node);
-        graph.setNodeAttribute(node, "size", 4 + Math.sqrt(degree));
-      });
-    }
-
-    function animateLayout(iterations = 200) {
-      for (let i = 0; i < iterations; i++) {
-        setTimeout(() => {
-          fruchtermanReingold(graph, { iterations: 1 });
-          renderer.refresh();
-        }, i * 20);
-      }
-    }
-    
-    function deleteSelectedNode(nodeId) {
-      if (!graph.hasNode(nodeId)) return;
-
-      const neighbors = graph.neighbors(nodeId);
-      const toDelete = new Set([nodeId]); // Start with selected node
-
-      neighbors.forEach(neighbor => {
-        const neighborEdges = graph.edges(neighbor);
-        let connectedOutside = false;
-
-        for (const edge of neighborEdges) {
-          const other = graph.source(edge) === neighbor ? graph.target(edge) : graph.source(edge);
-          if (other !== nodeId && !toDelete.has(other)) {
-            connectedOutside = true;
-            break;
-          }
-        }
-
-        if (!connectedOutside) {
-          toDelete.add(neighbor);
-        }
-      });
-
-      // Drop all nodes marked for deletion
-      toDelete.forEach(n => {
-        if (graph.hasNode(n)) graph.dropNode(n);
-      });
-
-      selectedNode = null;
-      panel.style.display = "none";
-      renderer.refresh();
-    }
-
-    function updateProgressBar(step, max) {
-      const bar = document.getElementById("progress-bar");
-      const text = document.getElementById("progress-text");
-      bar.max = max;
-      bar.value = step;
-      text.textContent = `${Math.round((step / max) * 100)}%`;
-    }
-
-    function isLightTheme() {
-      return currentTheme === "light";
-    }
-
-    function formatTimestamp(timestamp) {
-      var t = Number(timestamp);
-      if (isNaN(t)) return "-";
-      var date = new Date(t);
-      if (isNaN(date.getTime())) return "-";
-      return date.toISOString().replace(/:\d{2}\.\d{3}Z$/, "Z");
-    }
-
-
-
-    function showNodePanel(node) {
-      const data = graph.getNodeAttributes(node);
-      const neighbors = graph.neighbors(node);
-      selectedNode = node; // Ensure selection from side panel works too
-
-      let tx = 0, del = 0, failed = 0;
-      graph.forEachEdge((e, attr, src, tgt) => {
-        if ((src === node || tgt === node)) {
-          if (attr.status !== "canonical") failed++;
-          else if (attr.label === "delegation") del++;
-          else if (attr.label === "payment") tx++;
-        }
-      });
-
-      const html = `
-        <h3><a href="https://minascan.io/mainnet/account/${node}" target="_blank" style="color:#4fc3f7">${data.label}</a></h3>
-        <button onclick="deleteSelectedNode('${node}')" style="
-          margin: 5px 0;
-          background: #e53935;
-          color: white;
-          border: none;
-          padding: 4px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-        ">🗑️ Delete this node from the Graph</button>         
-        <p><strong>Key:</strong> ${node}</p>
-        <p><strong>Degree:</strong> ${graph.degree(node)}</p>
-        <p><strong>#Transactions:</strong> ${tx}</p>
-        <p><strong>#Delegations:</strong> ${del}</p>
-        <p><strong>#Failed Transactions:</strong> ${failed}</p>
-        <p><strong>Linked Nodes & Transactions:</strong></p>
-        <div>
-          ${neighbors.map(n => {
-            const label = graph.getNodeAttribute(n, 'label');
-
-            // Transactions initiées par le voisin vers le nœud sélectionné
-            const fromNeighbor = (transactionsByNeighbor[n] || []).filter(tx =>
-              tx.sender_key === n && tx.receiver_key === node ||
-              tx.receiver_key === n && tx.sender_key === node
-            );
-
-            // Transactions initiées par le nœud sélectionné vers ce voisin
-            const fromNode = (transactionsByNeighbor[node] || []).filter(tx =>
-              tx.sender_key === n && tx.receiver_key === node ||
-              tx.receiver_key === n && tx.sender_key === node
-            );
-
-            // Concatène et déduplique (via hash par exemple si dispo)
-            const interactions = [...fromNeighbor, ...fromNode];
-            const unique = Array.from(new Map(interactions.map(tx => [tx.hash, tx])).values());
-
-            const txTable = unique.length > 0 ? `
-              <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
-                <thead>
-                  <tr>
-                    <th style="text-align:left;">Timestamp</th>
-                    <th>Block</th>
-                    <th>Type</th>
-                    <th>Amount</th>
-                    <th>Fee</th>
-                    <th>Status</th>
-                    <th>Chain</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${unique.map(tx => `
-                    <tr title="${tx.memo || ''}">
-                      <td>${formatTimestamp(tx.timestamp)}</td>
-                      <td>${tx.block_id || "-"}</td>
-                      <td>${tx.command_type || tx.label || "-"}</td>
-                      <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(6) + " Mina" : "-"}</td>
-                      <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(6) + " Mina" : "-"}</td>
-                      <td>${tx.status || "-"}</td>
-                      <td>${tx.chain_status || "-"}</td>
-                    </tr>
-                    `).join("")}
-                </tbody>
-              </table>
-            ` : `<p style="color:#888; margin-bottom: 16px;">No direct interactions.</p>`;
-
-            return `
-              <div style="margin-bottom: 20px;">
-                <div class="linked-node" onclick="showNodePanel('${n}')">${label}</div>
-                <div class="mono">
-                  ${txTable}
-        </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-      `;
-      details.innerHTML = html;
-      panel.style.display = "flex";
-      document.getElementById("date-slicer-container").classList.add("on-left");
-      
-      renderer.refresh(); // ✅ ensures selection is visible immediately
-
-    }
-
-    function initRenderer() {
-      const container = document.getElementById("sigma-container");
-      graph = new Graph({ multi: true });
-      //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
-      param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
-      
-      //renderer = new Sigma(graph, container);
-
-      renderer = new Sigma(graph,container,param);
-
-      // Re-apply settings and listeners
-      setupReducers();
-      setupInteractions();
-      setupSearch();
-    }
-
-    function setupReducers() {
-      renderer.setSetting("nodeReducer", (node, data) => {
-        const focusNode = hoveredNode || selectedNode;
-        const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
-        const isFocus = focusNode === node;
-        const isNeighbor = neighbors?.has(node);
-        //console.log("getBrightColorByName " + data.name); 
-        const glowColor =  getBrightColorByName(data.name || "noname");
-        const defaultSize = data.size || 5;
-        //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
-
-
-        // 🎯 Filter by command type
-        if (commandTypeFilter.size > 0) {
-          const hasVisibleEdge = graph.edges(node).some(e => {
-            const command = graph.getEdgeAttribute(e, "command_type") || graph.getEdgeAttribute(e, "label");
-            return commandTypeFilter.has(command);
-          });
-
-          if (!hasVisibleEdge) {
-            return {
-              ...data,
-              color: isLightTheme() ? "#eee" : "#111",
-              label: "",
-              labelSize: 36,
-              hidden: false,
-              opacity: 0.05,
-              size: defaultSize * 0.1, //* 0.7,
-              borderSize: 0,
-              zIndex: 0
-            };
-          }
-        }
-
-        // ✨ Focus or neighbor styling
-        if (focusNode) {
-          if (isFocus) {
-            //console.log ("Node Focused");
-            return {
-              ...data,
-              type: "circle",
-              color: glowColor,
-              overrideColor: glowColor, // 🟢 force Sigma to use this color
-              label: data.label,
-              labelSize: 36,
-              labelColor: {color: "#000"},
-              forceLabelColor: true,
-              //labelBackground: {
-              //  color: currentTheme === "light" ? "#000" : "#fff",
-              //  opacity: 0.6,
-              //  padding: 3,
-              //  borderRadius: 4,
-              //},  
-              //forceLabelBackground: true,
-              zIndex: 2,
-              size: defaultSize * 2.2,
-              borderColor: glowColor,
-              borderSize: 6,
-              opacity: 0.9,
-            };
-          }
-
-          if (isNeighbor) {
-            return {
-              ...data,
-              type: "circle",
-              color: glowColor,
-              overrideColor: glowColor, // 🟢 force Sigma to use this color
-              label: showAllLabels ? data.label : "",
-              labelSize: 36,
-              // 👇 Force label color
-              labelColor: {color: isLightTheme() ? "#000" : "#fff"},
-              forceLabelColor: true,
-              labelBackground: {
-                color: currentTheme === "light" ? "#000" : "#fff",
-                opacity: 0.6,
-                padding: 3,
-                borderRadius: 4,
-              },  
-              forceLabelBackground: true,                
-              zIndex: 1,
-              size: defaultSize * 1.5,
-              borderColor: glowColor,
-              borderSize: 4,
-              opacity: 0.5,
-            };
-          }
-
-          // Dim unrelated nodes
-          return {
-            ...data,
-            color: isLightTheme() ? "#eee" : "#111",
-            labelColor: {color: isLightTheme() ? "#000" : "#fff"},
-            label: "",
-            labelSize: 36,
-            size: defaultSize * 0.7,
-            opacity: 0.1,
-            borderSize: 0,
-            zIndex: 0
-          };
-        }
-
-        // 🧩 Default view
-        return {
-          ...data,
-          color: glowColor,
-          overrideColor: glowColor, // 🟢 force Sigma to use this color
-          borderColor: glowColor,
-          borderSize: 4,
-          opacity: 0.75,
-          label: showAllLabels ? data.label : "",
-          // 👇 Force label color
-          labelColor: {color: isLightTheme() ? "#000" : "#fff"},
-          forceLabelColor: true,
-          //labelBackground: {
-          //  color: currentTheme === "light" ? "#000" : "#fff",
-          //  opacity: 0.6,
-          //  padding: 3,
-          //  borderRadius: 4,
-          //},
-          labelSize: 36,
-          //forceLabelBackground: true,          
-          size: defaultSize,
-          zIndex: 1
-        };
-      });
-      
-      renderer.setSetting("defaultNodeColor", "#fff"); // or any default fallback
-
-
-      renderer.setSetting("edgeReducer", (edge, data) => {
-        const focusNode = hoveredNode || selectedNode;
-        const command = data.command_type || data.label;
-        //console.log("Dans edgeReducer - isLightTheme = " + isLightTheme())
-        let baseColor = "#666";
-        switch (command) {
-          case "payment": baseColor = "#4caf50"; break;
-          case "delegation": baseColor = "#2196f3"; break;
-          case "zkapp": baseColor = "#ff57c1"; break;
-        }
-
-        // 🧊 Filter edges
-        if (commandTypeFilter.size > 0 && !commandTypeFilter.has(command)) {
-          return {
-            ...data,
-            color: isLightTheme() ? "#eee" : "#111",
-            size: 0.3,
-            opacity: 0.05,
-            zIndex: 0
-          };
-        }
-
-        if (focusNode) {
-          const source = graph.source(edge);
-          const target = graph.target(edge);
-          const neighbors = new Set(graph.neighbors(focusNode));
-
-          const isFocusEdge =
-            (source === focusNode && neighbors.has(target)) ||
-            (target === focusNode && neighbors.has(source));
-
-          if (isFocusEdge) {
-            return {
-              ...data,
-              color: baseColor,
-              size: 1.5,
-              opacity: 0.6,
-              zIndex: 2
-            };
-          } else {
-            return {
-              ...data,
-              color: isLightTheme() ? "#eee" : "#111",
-              size: 0.4,
-              opacity: 0.1,
-              zIndex: 0
-            };
-          }
-        }
-
-        // 🌐 Default
-        return {
-          ...data,
-          color: baseColor,
-          size: 0.8,
-          opacity: 0.3,
-          zIndex: 0
-        };
-      });
-    }
-
-
-
-    function setupInteractions() {
-      renderer.on("enterNode", ({ node }) => {
-        hoveredNode = node;
-        tooltip.style.display = "block";
-        tooltip.innerText = graph.getNodeAttribute(node, "label");
-        
-        const pos = renderer.getNodeDisplayData(node);
-        const halo = document.createElement("div");
-        halo.className = "node-halo";
-        halo.style.left = `${pos.x}px`;
-        halo.style.top = `${pos.y}px`;
-        halo.id = "node-halo";
-        document.getElementById("sigma-container").appendChild(halo);        
-        
-        renderer.refresh();
-      });
-
-      renderer.on("leaveNode", () => {
-        hoveredNode = null;
-        tooltip.style.display = "none";
-        const halo = document.getElementById("node-halo");
-        if (halo) halo.remove();        
-        renderer.refresh();
-      });
-
-      renderer.on("clickNode", ({ node }) => {
-        selectedNode = node;
-        showNodePanel(node);
-        renderer.refresh();
-      });
-
-      renderer.on("clickStage", () => {
-        hideNodePanel();
-      });
-      
-      if (renderer) {
-        renderer.getContainer().addEventListener("mousemove", e => {
-          tooltip.style.left = e.pageX + 10 + "px";
-          tooltip.style.top = e.pageY + 10 + "px";
-        });
-      }
-    }
-
-    function setupSearch() {
-      const searchInput = document.getElementById("search-input");
-      const clearBtn = document.getElementById("clear-search");
-
-      searchInput.addEventListener("input", e => {
-        const query = e.target.value.toLowerCase();
-        clearBtn.style.display = query ? "block" : "none";
-
-        if (!query) {
-          selectedNode = null;
-          panel.style.display = "none";
-          renderer.refresh();
-          return;
-        }
-
-        const match = graph.nodes().find(n =>
-          graph.getNodeAttribute(n, "label").toLowerCase().includes(query)
-        );
-
-        selectedNode = match || null;
-
-        if (match) {
-          //showNodePanel(match);
-          //panel.style.display = "flex";
-        } else {
-          panel.style.display = "none";
-        }
-
-        renderer.refresh();
-      });
-
-      clearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        selectedNode = null;
-        clearBtn.style.display = "none";
-        panel.style.display = "none";
-        renderer.refresh();
-      });
-    }
-
-
-    async function main(depth = 2) {
-      showLoader(); // ✅ show modal
-
-      totalSteps = 1;
-      currentStep = 0;
-      visitedKeys.clear();
-
-      // Rebuild the graph object BEFORE rendering
-      graph = new Graph({ multi: true });
-
-      await buildGraphRecursively(BASE_KEY, depth);
-
-      applyNodeSizesByDegree();
-      //fruchtermanReingold(graph);
-
-      // Only now, create the renderer
-      const container = document.getElementById("sigma-container");
-      container.innerHTML = ""; // ✅ clears canvas and attached DOM elements
-      tooltip.style.display = "none";
-      panel.style.display = "none";
-      hoveredNode = null;
-      selectedNode = null;      
-
-      param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
-      
-      //renderer = new Sigma(graph, container);
-
-      renderer = new Sigma(graph,container,param);
-     
-      // Apply reducers and interactions
-      setupReducers();
-      setupInteractions();
-      setupSearch();
-
-      renderer.refresh();
-
-      animateLayout();
-      
-      hideLoader(); // ✅ hide modal
-      
-      setTimeout(() => updateProgressBar(0, 1), 500); // clear bar after delay
-      
-      setupDateSlicer();  // 👈 à ajouter à la fin de main()
-      
-    }
-
-
-
-
-    function exportJSON() {
-      const json = {
-        nodes: graph.nodes().map(n => ({ id: n, ...graph.getNodeAttributes(n) })),
-        edges: graph.edges().map(e => ({
-          id: e,
-          source: graph.source(e),
-          target: graph.target(e),
-          ...graph.getEdgeAttributes(e)
-        }))
-      };
-      const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "mina-graph.json";
-      a.click();
-    }
-
-    function importJSON(file) {
-      if (!graph || !renderer) {
-        initRenderer();
-      }
-   
-      hoveredNode = null;
-      selectedNode = null;
-
-      const reader = new FileReader();
-      const progressBar = document.getElementById("progress-bar");
-
-      reader.onload = function (event) {
-        try {
-          const data = JSON.parse(event.target.result);
-
-          if (!data.nodes || !data.edges) {
-            alert("Invalid JSON format (missing 'nodes' or 'edges')");
-            return;
-          }
-
-          graph.clear();
-          const total = data.nodes.length + data.edges.length;
-          let current = 0;
-          updateProgressBar(current, total);
-
-          data.nodes.forEach((n) => {
-            graph.addNode(n.id, n);
-            current++;
-            updateProgressBar(current, total);
-          });
-
-          data.edges.forEach((e) => {
-            graph.addEdgeWithKey(e.id, e.source, e.target, e);
-            current++;
-            updateProgressBar(current, total);
-          });
-
-          applyNodeSizesByDegree();     // reuse your logic
-          //fruchtermanReingold(graph);   // optional
-          renderer.refresh();
-
-          // Reset bar
-          setTimeout(() => {
-            progressBar.value = 0;
-            document.getElementById("progress-text").textContent = "";
-          }, 300);
-
-          alert("Graph imported successfully!");
-        } catch (e) {
-          console.error("Failed to load graph JSON:", e);
-          alert("Failed to load graph JSON. See console for details.");
-        }
-      };
-
-      reader.readAsText(file);
-    }
-
-
-    function exportPNG() {
-      const canvas = document.querySelector("canvas");
-      const img = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = img;
-      a.download = "mina-graph.png";
-      a.click();
-    }
-
 
     //initRenderer();
     
@@ -1567,22 +1785,22 @@ body.fullscreen-mode #legend.legend-box {
  
   </script>
 
-<button id="exit-fullscreen-btn" style="
-  display: none;
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.7);
+  <button id="exit-fullscreen-btn" style="
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 30px;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.7);
     color: white;
-  border: none;
-  padding: 10px 16px;
+    border: none;
+    padding: 10px 16px;
     font-size: 14px;
-  border-radius: 6px;
-  cursor: pointer;
+    border-radius: 6px;
+    cursor: pointer;
   ">
-  ⛶ Exit Fullscreen
-</button>  
+    ⛶ Exit Fullscreen
+  </button>  
   
   <div id="legend" class="legend-box">
     <strong>Legend</strong><br />
@@ -1591,6 +1809,7 @@ body.fullscreen-mode #legend.legend-box {
     <div class="legend-item" data-command-type="zkapp" style="color:#9c27b0; cursor:pointer;">● zkApp</div>
     <div class="legend-item" data-command-type="" style="color:#aaa; cursor:pointer; margin-top: 6px;">✖ Reset</div>
   </div>
+  
   <script>
     document.querySelectorAll('.legend-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -1614,8 +1833,8 @@ body.fullscreen-mode #legend.legend-box {
         renderer.refresh();
       });
     });
-
   </script>  
+  
   <script>
     document.getElementById("import-json").addEventListener("change", (event) => {
       const file = event.target.files[0];
@@ -1624,6 +1843,7 @@ body.fullscreen-mode #legend.legend-box {
       }
     });
    </script>
+   
    <script>
     document.getElementById("toggle-labels").addEventListener("change", (e) => {
       showAllLabels = e.target.checked;
@@ -1637,207 +1857,318 @@ body.fullscreen-mode #legend.legend-box {
       });
     });    
    </script>
-   
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const toggleBtn = document.getElementById("theme-toggle-btn");
 
-    function applyTheme(theme) {
-      currentTheme = theme;
-      const isLight = theme === "light";
-
-      // Update button text
-      if (toggleBtn) {
-        toggleBtn.textContent = isLight ? "Switch to Dark Theme" : "Switch to Light Theme";
-      }
-
-      // Apply styles only if elements exist
-      document.body.style.background = isLight ? "#f5f5f5" : "#000";
-
+   <script>
+    document.addEventListener("DOMContentLoaded", () => {
       const sidebar = document.getElementById("left-sidebar");
-      if (sidebar) {
-        sidebar.style.background = isLight ? "#fff" : "#1e1e1e";
-        sidebar.style.color = isLight ? "#111" : "#fff";
+      const appContainer = document.getElementById("app-container");
+
+      if (window.innerWidth >= 769) {
+        sidebar.classList.add("open"); // 👈 Ajoute cette ligne !
+        appContainer.classList.add("sidebar-open");
       }
 
-      const controls = document.getElementById("controls");
-      if (controls) {
-        controls.style.background = isLight ? "#eee" : "#222";
-        controls.style.color = isLight ? "#000" : "#fff";
+      if (window.innerWidth >= 769 && sidebar.classList.contains("open")) {
+        appContainer.classList.add("sidebar-open");
+      } else {
+      appContainer.classList.remove("sidebar-open");
+    }
+      
+      /*document.getElementById("menu-toggle").addEventListener("click", () => {
+        const sidebar = document.getElementById("left-sidebar");
+        sidebar.classList.toggle("open");
+        const app = document.getElementById("app-container");
+        if (window.innerWidth >= 769) {
+          if (sidebar.classList.contains("open")) {
+            app.classList.add("sidebar-open");
+          } else {
+            app.classList.remove("sidebar-open");
+          }
+        }     
+      });*/
+
+      document.getElementById("close-panel-btn").addEventListener("click", () => {
+        document.getElementById("side-panel").classList.remove("open");
+      });
+    });    
+    
+    function updateSlicerView() {
+      const slicerContainer = document.getElementById("date-slicer-container");
+      const chartCanvas = slicerContainer.querySelector("canvas");
+      const labels = slicerContainer.querySelectorAll("#slicer-start-label, #slicer-end-label");
+      const isMobile = window.innerWidth <= 768;
+
+      if (isMobile) {
+        document.body.classList.add("mobile-mode");
+        if (chartCanvas) chartCanvas.style.display = "none";
+        labels.forEach(label => label.style.display = "none");
+      } else {
+        document.body.classList.remove("mobile-mode");
+        if (chartCanvas) chartCanvas.style.display = "block";
+        labels.forEach(label => label.style.display = "inline-block");
+      }
+    }
+
+    window.addEventListener("resize", updateSlicerView);
+    window.addEventListener("DOMContentLoaded", updateSlicerView);   
+   </script>   
+   
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("theme-toggle-btn");
+
+      function applyTheme(theme) {
+        currentTheme = theme;
+        const isLight = theme === "light";
+
+        // Update button text
+        if (toggleBtn) {
+          toggleBtn.textContent = isLight ? "Switch to Dark Theme" : "Switch to Light Theme";
+        }
+
+        // Apply styles only if elements exist
+        document.body.style.background = isLight ? "#f5f5f5" : "#000";
+
+        const sidebar = document.getElementById("left-sidebar");
+        if (sidebar) {
+          sidebar.style.background = isLight ? "#fff" : "#1e1e1e";
+          sidebar.style.color = isLight ? "#111" : "#fff";
+        }
+
+        const controls = document.getElementById("controls");
+        if (controls) {
+          controls.style.background = isLight ? "#eee" : "#222";
+          controls.style.color = isLight ? "#000" : "#fff";
+        }
+
+        const footer = document.getElementById("footer");
+        if (footer) {
+          footer.style.color = isLight ? "#333" : "#aaa";
+          footer.style.borderTop = isLight ? "1px solid #aaa" : "1px solid #333";
+        }
+
+        const sigmaContainer = document.getElementById("sigma-container");
+        if (sigmaContainer) {
+          sigmaContainer.style.background = isLight ? "#fff" : "#000";
+        }
+
+        document.querySelectorAll("#left-sidebar input, #controls input").forEach(input => {
+          input.style.background = isLight ? "#fff" : "#222";
+          input.style.color = isLight ? "#000" : "#fff";
+        });
+
+        // Apply to Sigma renderer
+        if (typeof renderer !== "undefined") {
+          //console.log("Inside applyTheme");
+          renderer.setSetting("labelColor", {color: isLightTheme() ? "#000" : "#9999ff"});
+          renderer.setSetting("labelBackground", {color: isLightTheme() ? "#fff" : "#000"});
+          //console.log(isLight ? "Label Color switched to #000" : "Label Color switched to #fff");
+          renderer.setSetting("defaultNodeColor", isLight ? "#444" : "#ccc");
+          renderer.setSetting("defaultEdgeColor", isLight ? "#aaa" : "#555");
+          renderer.refresh();
+          renderer.render();
+        }
       }
 
-      const footer = document.getElementById("footer");
-      if (footer) {
-        footer.style.color = isLight ? "#333" : "#aaa";
-        footer.style.borderTop = isLight ? "1px solid #aaa" : "1px solid #333";
-      }
-
-      const sigmaContainer = document.getElementById("sigma-container");
-      if (sigmaContainer) {
-        sigmaContainer.style.background = isLight ? "#fff" : "#000";
-      }
-
-      document.querySelectorAll("#left-sidebar input, #controls input").forEach(input => {
-        input.style.background = isLight ? "#fff" : "#222";
-        input.style.color = isLight ? "#000" : "#fff";
+      toggleBtn?.addEventListener("click", () => {
+        applyTheme(currentTheme === "dark" ? "light" : "dark");
+        setupReducers(); // 👈 Ajout essentiel
+        renderer.refresh(); // 👈 Pour forcer le redraw après les nouveaux reducers
+        renderer.render();
       });
 
-      // Apply to Sigma renderer
-      if (typeof renderer !== "undefined") {
-        //console.log("Inside applyTheme");
-        renderer.setSetting("labelColor", {color: isLightTheme() ? "#000" : "#9999ff"});
-        renderer.setSetting("labelBackground", {color: isLightTheme() ? "#fff" : "#000"});
-        //console.log(isLight ? "Label Color switched to #000" : "Label Color switched to #fff");
-        renderer.setSetting("defaultNodeColor", isLight ? "#444" : "#ccc");
-        renderer.setSetting("defaultEdgeColor", isLight ? "#aaa" : "#555");
-        renderer.refresh();
-        renderer.render();
-      }
-    }
 
-    toggleBtn?.addEventListener("click", () => {
-      applyTheme(currentTheme === "dark" ? "light" : "dark");
-      setupReducers(); // 👈 Ajout essentiel
-      renderer.refresh(); // 👈 Pour forcer le redraw après les nouveaux reducers
-      renderer.render();
+      applyTheme("dark"); // init
     });
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const tokenInput = document.getElementById("param-api-token");
 
+      // Charger le token depuis localStorage s’il existe
+      const savedToken = localStorage.getItem("minataurToken");
+      if (savedToken) tokenInput.value = savedToken;
 
-    applyTheme("dark"); // init
-  });
-</script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const tokenInput = document.getElementById("param-api-token");
+      // Sauvegarder à chaque changement
+      tokenInput.addEventListener("input", () => {
+        localStorage.setItem("minataurToken", tokenInput.value);
+      });
 
-    // Charger le token depuis localStorage s’il existe
-    const savedToken = localStorage.getItem("minataurToken");
-    if (savedToken) tokenInput.value = savedToken;
+      const layoutBtn = document.getElementById("layout-toggle-btn");
 
-    // Sauvegarder à chaque changement
-    tokenInput.addEventListener("input", () => {
-      localStorage.setItem("minataurToken", tokenInput.value);
+      layoutBtn.addEventListener("click", () => {
+        if (isLayoutRunning) {
+          stopLayoutInWorker();
+          layoutBtn.textContent = "Apply Layout";
+          isLayoutRunning = false;
+        } else {
+          runLayoutInWorker();
+          layoutBtn.textContent = "Stop Layout";
+          isLayoutRunning = true;
+        }
+      });    
     });
+  </script>
+  <script type="module">
+    import bs58 from 'https://cdn.skypack.dev/bs58';
 
-    const layoutBtn = document.getElementById("layout-toggle-btn");
+    function encodeMemoToBase58(memo) {
+      const bytes = new TextEncoder().encode(memo);
+      return bs58.encode(bytes);
+    }
 
-    layoutBtn.addEventListener("click", () => {
-      if (isLayoutRunning) {
-        stopLayoutInWorker();
-        layoutBtn.textContent = "Apply Layout";
-        isLayoutRunning = false;
-      } else {
-        runLayoutInWorker();
-        layoutBtn.textContent = "Stop Layout";
-        isLayoutRunning = true;
+    // Make function globally available if needed
+    window.encodeMemoToBase58 = encodeMemoToBase58;
+  </script>
+
+  <script>
+    const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
+
+    async function connectAuroAndSend() {
+      const email = document.getElementById("minataur-email").value.trim();
+      if (!email || !email.includes("@")) {
+        alert("Merci d'entrer un email valide");
+        return;
       }
-    });    
-  });
-</script>
-<script type="module">
-  import bs58 from 'https://cdn.skypack.dev/bs58';
 
-  function encodeMemoToBase58(memo) {
-    const bytes = new TextEncoder().encode(memo);
-    return bs58.encode(bytes);
-  }
+      if (!window.mina) {
+        alert("Auro Wallet n'est pas détecté. Installez-le depuis https://www.aurowallet.com/");
+        return;
+      }
 
-  // Make function globally available if needed
-  window.encodeMemoToBase58 = encodeMemoToBase58;
-</script>
+      try {
+        const accounts = await window.mina.requestAccounts();
+        const publicKey = accounts[0];
+        console.log("Wallet connecté :", publicKey);
 
-<script>
-  const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
-  async function connectAuroAndSend() {
-    const email = document.getElementById("minataur-email").value.trim();
-    if (!email || !email.includes("@")) {
-      alert("Merci d'entrer un email valide");
-      return;
-    }
-
-    if (!window.mina) {
-      alert("Auro Wallet n'est pas détecté. Installez-le depuis https://www.aurowallet.com/");
-      return;
-    }
-
-    try {
-      const accounts = await window.mina.requestAccounts();
-      const publicKey = accounts[0];
-      console.log("Wallet connecté :", publicKey);
-
-      // Construction transaction
-      const { hash } = await window.mina.sendPayment({
+        // Construction transaction
+        const { hash } = await window.mina.sendPayment({
           to: MINATAUR_API_ADDRESS,
-        amount: "1.0",
+          amount: "1.0",
           fee: "0.01",
           memo: email
-      });
+        });
 
-      alert("Transaction envoyée ! Hash : " + hash + "\nVotre token arrivera bientôt par email.");
+        alert("Transaction envoyée ! Hash : " + hash + "\nVotre token arrivera bientôt par email.");
 
-      // Fold the section after success
-      const tokenSection = document.getElementById("minataur-token-section");
+        // Fold the section after success
+        const tokenSection = document.getElementById("minataur-token-section");
+        const arrow = document.getElementById("toggle-token-arrow");
+        tokenSection.style.display = "none";
+        if (arrow) arrow.textContent = "▸";
+      } catch (err) {
+        console.error("Erreur avec Auro :", err);
+        alert("Erreur lors de l'envoi : " + err.message);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("toggle-token-section");
       const arrow = document.getElementById("toggle-token-arrow");
-      tokenSection.style.display = "none";
-      if (arrow) arrow.textContent = "▸";
-    } catch (err) {
-      console.error("Erreur avec Auro :", err);
-      alert("Erreur lors de l'envoi : " + err.message);
-    }
-  }
+      const tokenSection = document.getElementById("minataur-token-section");
 
-  document.addEventListener("DOMContentLoaded", () => {
-
-    const toggleBtn = document.getElementById("toggle-token-section");
-    const arrow = document.getElementById("toggle-token-arrow");
-    const tokenSection = document.getElementById("minataur-token-section");
-
-    toggleBtn?.addEventListener("click", () => {
-      const isHidden = tokenSection.style.display === "none";
-      tokenSection.style.display = isHidden ? "block" : "none";
-      arrow.textContent = isHidden ? "▾" : "▸";
-    });
-
-    document.getElementById("connect-auro-btn")?.addEventListener("click", connectAuroAndSend);
-  });
-</script>
-
-<script>
-  const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
-
-  async function sendDonation() {
-    const amount = parseFloat(document.getElementById("donation-amount").value);
-    if (!amount || amount <= 0) {
-      alert("Please enter a valid donation amount (at least 0.1 MINA).");
-      return;
-    }
-
-    if (!window.mina) {
-      alert("Auro Wallet not detected. Please install it from https://www.aurowallet.com/");
-      return;
-    }
-
-    try {
-      const accounts = await window.mina.requestAccounts();
-      const sender = accounts[0];
-      console.log("Donating from:", sender);
-
-      const { hash } = await window.mina.sendPayment({
-        to: DONATION_ADDRESS,
-        amount: amount.toString(),
-        fee: "0.01",
-        memo: "Thanks for Mina Graph!"
+      toggleBtn?.addEventListener("click", () => {
+        const isHidden = tokenSection.style.display === "none";
+        tokenSection.style.display = isHidden ? "block" : "none";
+        arrow.textContent = isHidden ? "▾" : "▸";
       });
 
-      alert("Thanks for your donation! Tx hash: " + hash);
-    } catch (err) {
-      console.error("Donation error:", err);
-      alert("Error while sending donation: " + err.message);
-    }
-  }
+      document.getElementById("connect-auro-btn")?.addEventListener("click", connectAuroAndSend);
+    });
+  </script>
 
-  document.getElementById("donate-btn").addEventListener("click", sendDonation);
-</script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const sidebar = document.getElementById("left-sidebar");
+      const appContainer = document.getElementById("app-container");
+
+      function adjustSidebarState() {
+        if (window.innerWidth >= 769) {
+          sidebar.classList.add("open");
+          appContainer.classList.add("sidebar-open");
+        } else {
+          sidebar.classList.remove("open");
+          appContainer.classList.remove("sidebar-open");
+        }
+
+        updateLegendOffset(); // 👈 met aussi à jour la légende
+      }
+
+      adjustSidebarState(); // Appel initial
+
+      // Responsive: surveille resize
+      window.addEventListener("resize", adjustSidebarState);
+      window.addEventListener("resize", updateLegendOffset);
+
+
+      /*document.getElementById("menu-toggle").addEventListener("click", () => {
+        const sidebar = document.getElementById("left-sidebar");
+        sidebar.classList.toggle("open");
+        const app = document.getElementById("app-container");
+        if (window.innerWidth >= 769) {
+          if (sidebar.classList.contains("open")) {
+            app.classList.add("sidebar-open");
+          } else {
+            app.classList.remove("sidebar-open");
+          }
+        }     
+      });*/
+
+      document.getElementById("menu-toggle").addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+
+        if (window.innerWidth >= 769) {
+          // Desktop: toggle margin class
+          appContainer.classList.toggle("sidebar-open");
+        } else {
+            appContainer.classList.remove("sidebar-open");
+          }
+
+        updateLegendOffset();
+      });
+
+       document.getElementById("close-panel-btn").addEventListener("click", () => {
+        document.getElementById("side-panel").classList.remove("open");
+      });
+    });
+  </script>
+
+  <script>
+    const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
+
+    async function sendDonation() {
+      const amount = parseFloat(document.getElementById("donation-amount").value);
+      if (!amount || amount <= 0) {
+        alert("Please enter a valid donation amount (at least 0.1 MINA).");
+        return;
+      }
+
+      if (!window.mina) {
+        alert("Auro Wallet not detected. Please install it from https://www.aurowallet.com/");
+        return;
+      }
+
+      try {
+        const accounts = await window.mina.requestAccounts();
+        const sender = accounts[0];
+        console.log("Donating from:", sender);
+
+        const { hash } = await window.mina.sendPayment({
+          to: DONATION_ADDRESS,
+          amount: amount.toString(),
+          fee: "0.01",
+          memo: "Thanks for Mina Graph!"
+        });
+
+        alert("Thanks for your donation! Tx hash: " + hash);
+      } catch (err) {
+        console.error("Donation error:", err);
+        alert("Error while sending donation: " + err.message);
+      }
+    }
+
+    document.getElementById("donate-btn").addEventListener("click", sendDonation);
+  </script>
 
 <script>
   const sidebar = document.getElementById("left-sidebar");
@@ -1846,198 +2177,250 @@ body.fullscreen-mode #legend.legend-box {
   const fullscreenBtn = document.getElementById("fullscreen-toggle");
   const sigmaContainer = document.getElementById("sigma-container");
   const exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
+  const appContainer = document.getElementById("app-container");
   let isFullscreen = false;
 
   function toggleFullscreen(forceExit = false) {
     isFullscreen = forceExit ? false : !isFullscreen;
+    const legend = document.getElementById("legend");
+    const menu = document.getElementById("menu-toggle");
 
     if (isFullscreen) {
       sidebar.style.display = "none";
       controls.style.display = "none";
       if (footer) footer.style.display = "none";
-      sigmaContainer.style.marginLeft = "0";
+      appContainer.classList.remove("sidebar-open"); // 👈 remove margin
+      //sidebar.classList.remove("open"); // 👈 remove margin
       fullscreenBtn.textContent = "Exit Fullscreen";
       exitFullscreenBtn.style.display = "block";
-      document.body.classList.add("fullscreen-mode"); // ✅ add class
+      document.body.classList.add("fullscreen-mode");
+      legend.style.left = "20px";
+      menu.style.display="none"
     } else {
       sidebar.style.display = "block";
       controls.style.display = "flex";
       if (footer) footer.style.display = "block";
-      sigmaContainer.style.marginLeft = "320px";
+      menu.style.display="block"
+
+      // 👇 Only add sidebar-open on desktop
+      if (window.innerWidth >= 769 && sidebar.classList.contains("open")) {
+        appContainer.classList.add("sidebar-open");
+        legend.style.left = "300px"; // sidebar + margin
+      } else { 
+        appContainer.classList.remove("sidebar-open");
+        legend.style.left = "20px";
+      }
+
       fullscreenBtn.textContent = "⛶";
       exitFullscreenBtn.style.display = "none";
-      document.body.classList.remove("fullscreen-mode"); // ✅ remove class
+      document.body.classList.remove("fullscreen-mode");
+      updateLegendOffset(); // 👈 and here too
     }
   }
 
   fullscreenBtn.addEventListener("click", () => toggleFullscreen());
   exitFullscreenBtn.addEventListener("click", () => toggleFullscreen(true));
+  window.dispatchEvent(new Event("resize"));  
 </script>
 
-<script>
-let allTimestamps = [];  // 🔁 collected from edges
-let currentRange = [0, 0];
-let histogramChart;
+  <script>
+    let allTimestamps = [];  // 🔁 collected from edges
+    let currentRange = [0, 0];
+    let histogramChart;
 
-function setupDateSlicer() {
-  if (!graph || !graph.edges) return;
+    function setupDateSlicer() {
+      if (!graph || !graph.edges) return;
 
-  const timestamps = graph.edges().map(id => {
-    const ts = graph.getEdgeAttribute(id, "timestamp");
-    return typeof ts === "string" ? parseInt(ts) : ts;
-  }).filter(t => !isNaN(t)).sort((a, b) => a - b);
+      const timestamps = graph.edges().map(id => {
+        const ts = graph.getEdgeAttribute(id, "timestamp");
+        return typeof ts === "string" ? parseInt(ts) : ts;
+      }).filter(t => !isNaN(t)).sort((a, b) => a - b);
 
-  if (!timestamps.length) return;
+      if (!timestamps.length) return;
 
-  allTimestamps = timestamps;
+      allTimestamps = timestamps;
 
-  const minTimestamp = Math.min(...timestamps);
-  const maxTimestamp = Math.max(...timestamps);
-  const binCount = 20;
-  const binSize = Math.ceil((maxTimestamp - minTimestamp) / binCount);
-  currentRange = [minTimestamp, maxTimestamp];
+      const minTimestamp = Math.min(...timestamps);
+      const maxTimestamp = Math.max(...timestamps);
+      const binCount = 20;
+      const binSize = Math.ceil((maxTimestamp - minTimestamp) / binCount);
+      currentRange = [minTimestamp, maxTimestamp];
 
-  const bins = new Array(binCount).fill(0);
-  timestamps.forEach(ts => {
-    const index = Math.min(Math.floor((ts - minTimestamp) / binSize), binCount - 1);
-    bins[index]++;
-  });
+      const bins = new Array(binCount).fill(0);
+      timestamps.forEach(ts => {
+        const index = Math.min(Math.floor((ts - minTimestamp) / binSize), binCount - 1);
+        bins[index]++;
+      });
 
-  const ctx = document.getElementById("slicer-chart").getContext("2d");
-  if (histogramChart) histogramChart.destroy();
+      const ctx = document.getElementById("slicer-chart").getContext("2d");
+      if (histogramChart) histogramChart.destroy();
 
-  histogramChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: bins.map((_, i) => {
-        const d = new Date(minTimestamp + i * binSize);
-        return d.toLocaleDateString(); // or d.toISOString().slice(0, 10)
-      }),
-      datasets: [{
-        label: 'Tx Count',
-        data: bins,
-        backgroundColor: '#4fc3f7'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (tooltipItems) => {
-              const index = tooltipItems[0].dataIndex;
-              const startDate = new Date(minTimestamp + index * binSize);
-              const endDate = new Date(minTimestamp + (index + 1) * binSize);
-              return `${startDate.toLocaleDateString()} – ${endDate.toLocaleDateString()}`;
+      histogramChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: bins.map((_, i) => {
+            const d = new Date(minTimestamp + i * binSize);
+            return d.toLocaleDateString(); // or d.toISOString().slice(0, 10)
+          }),
+          datasets: [{
+            label: 'Tx Count',
+            data: bins,
+            backgroundColor: '#4fc3f7'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (tooltipItems) => {
+                  const index = tooltipItems[0].dataIndex;
+                  const startDate = new Date(minTimestamp + index * binSize);
+                  const endDate = new Date(minTimestamp + (index + 1) * binSize);
+                  return `${startDate.toLocaleDateString()} – ${endDate.toLocaleDateString()}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Transaction Date'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Count'
+              }
             }
           }
         }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Transaction Date'
-          }
+      });
+
+      // Create noUiSlider range control
+      const slider = document.getElementById("slicer-range");
+      slider.innerHTML = ""; // Clear any previous
+
+      // 💥 Prevent re-initialization
+      if (slider.noUiSlider) {
+        slider.noUiSlider.destroy();
+      }
+
+      noUiSlider.create(slider, {
+        start: [minTimestamp, maxTimestamp],
+        connect: true,
+        range: {
+          min: minTimestamp,
+          max: maxTimestamp
         },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Count'
-          }
+        step: 24 * 60 * 60 * 1000, // 1 day in ms
+        tooltips: [false, false], // start with no tooltip
+        format: {
+          to: value => Math.round(value),
+          from: Number
         }
-      }
+      });
+
+      const handles = slider.querySelectorAll('.noUi-handle');
+
+      // On drag start: add tooltip divs
+      slider.noUiSlider.on("start", () => {
+        handles.forEach((handle, i) => {
+          if (!handle.querySelector('.tooltip')) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.style.position = 'absolute';
+            tooltip.style.top = '-28px';
+            tooltip.style.left = '50%';
+            tooltip.style.transform = 'translateX(-50%)';
+            tooltip.style.background = '#000';
+            tooltip.style.color = '#fff';
+            tooltip.style.padding = '2px 6px';
+            tooltip.style.borderRadius = '4px';
+            tooltip.style.fontSize = '11px';
+            tooltip.style.whiteSpace = 'nowrap';
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.opacity = '0.9';
+            handle.appendChild(tooltip);
+          }
+        });
+      });
+
+      // On slide: update tooltip content
+      slider.noUiSlider.on("slide", (values) => {
+        handles.forEach((handle, i) => {
+          const tooltip = handle.querySelector('.tooltip');
+          if (tooltip) {
+            tooltip.textContent = new Date(+values[i]).toLocaleDateString();
+          }
+        });
+      });
+
+      // On end: remove tooltips
+      slider.noUiSlider.on("end", () => {
+        handles.forEach(handle => {
+          const tooltip = handle.querySelector('.tooltip');
+          if (tooltip) tooltip.remove();
+        });
+      });
+
+      // Update range filter
+      slider.noUiSlider.on("update", function (values) {
+        currentRange = values.map(v => parseInt(v));
+        applyDateFilter(); // filter the graph dynamically
+      });
+
+
+      applyDateFilter(); // Initial filtering
     }
-  });
 
-  // Create noUiSlider range control
-  const slider = document.getElementById("slicer-range");
-  slider.innerHTML = ""; // Clear any previous
 
-  // 💥 Prevent re-initialization
-  if (slider.noUiSlider) {
-    slider.noUiSlider.destroy();
-  }
+    function applyDateFilter() {
+      const [min, max] = currentRange;
 
-  noUiSlider.create(slider, {
-    start: [minTimestamp, maxTimestamp],
-    connect: true,
-    range: {
-      min: minTimestamp,
-      max: maxTimestamp
-    },
-    step: 24 * 60 * 60 * 1000, // 1 day in ms
-    tooltips: [
-      {
-        to: value => new Date(+value).toLocaleDateString(),
-        from: Number
-      },
-      {
-        to: value => new Date(+value).toLocaleDateString(),
-        from: Number
-      }
-    ],
-    format: {
-      to: value => Math.round(value),
-      from: Number
+      const formatter = ts => new Date(ts).toLocaleDateString();
+      document.getElementById("slicer-start-label").textContent = `From: ${formatter(min)}`;
+      document.getElementById("slicer-end-label").textContent = `To: ${formatter(max)}`;
+
+      graph.forEachEdge((e, attrs) => {
+        const ts = parseInt(attrs.timestamp);
+        const keep = ts >= min && ts <= max;
+        graph.setEdgeAttribute(e, "hidden", !keep);
+      });
+
+      const visibleNodes = new Set();
+      graph.forEachEdge((e) => {
+        if (!graph.getEdgeAttribute(e, "hidden")) {
+          visibleNodes.add(graph.source(e));
+          visibleNodes.add(graph.target(e));
+        }
+      });
+
+      graph.forEachNode((n) => {
+        graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
+      });
+
+      renderer.refresh();
     }
-  });
 
-  // Update range filter
-  slider.noUiSlider.on("update", function (values) {
-    currentRange = values.map(v => parseInt(v));
-    applyDateFilter(); // filter the graph dynamically
-  });
+    function hideNodePanel() {
+      const panel = document.getElementById("side-panel");
+      const slicer = document.getElementById("date-slicer-container");
+      
+      document.getElementById("side-panel").classList.remove("open");
 
+      panel.style.display = "none";
+      slicer.classList.remove("on-left");
 
-  applyDateFilter(); // Initial filtering
-}
-
-
-function applyDateFilter() {
-  const [min, max] = currentRange;
-
-  const formatter = ts => new Date(ts).toLocaleDateString();
-  document.getElementById("slicer-start-label").textContent = `From: ${formatter(min)}`;
-  document.getElementById("slicer-end-label").textContent = `To: ${formatter(max)}`;
-
-  graph.forEachEdge((e, attrs) => {
-    const ts = parseInt(attrs.timestamp);
-    const keep = ts >= min && ts <= max;
-    graph.setEdgeAttribute(e, "hidden", !keep);
-  });
-
-  const visibleNodes = new Set();
-  graph.forEachEdge((e) => {
-    if (!graph.getEdgeAttribute(e, "hidden")) {
-      visibleNodes.add(graph.source(e));
-      visibleNodes.add(graph.target(e));
+      selectedNode = null;
+      renderer.refresh();
     }
-  });
-
-  graph.forEachNode((n) => {
-    graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
-  });
-
-  renderer.refresh();
-}
-
-function hideNodePanel() {
-  const panel = document.getElementById("side-panel");
-  const slicer = document.getElementById("date-slicer-container");
-
-  panel.style.display = "none";
-  slicer.classList.remove("on-left");
-
-  selectedNode = null;
-  renderer.refresh();
-}
-
-
-</script>
+  </script>
 
    
    
@@ -2105,6 +2488,5 @@ function hideNodePanel() {
     border-radius: 4px;
   ">Close</button>
 </div>   
-  
 </body>
 </html>
