@@ -2100,49 +2100,58 @@ html, body {
     function updateSlicerView() {
       const slicerContainer = document.getElementById("date-slicer-container");
       const slicerInner = document.getElementById("slicer-container");
-      const chartCanvas = slicerContainer.querySelector("canvas");
+      const chartCanvas = document.getElementById("slicer-chart");
       const labels = slicerContainer.querySelectorAll("#slicer-start-label, #slicer-end-label");
       const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
       if (isMobile) {
         document.body.classList.add("mobile-mode");
-        if (chartCanvas) chartCanvas.style.display = "none";
-        labels.forEach(label => label.style.display = "none");
-      } else {
-        document.body.classList.remove("mobile-mode");
-        if (chartCanvas) chartCanvas.style.display = "block";
-        labels.forEach(label => label.style.display = "inline-block");
+
+        if (chartCanvas) {
+          chartCanvas.style.display = "none";
+          chartCanvas.style.height = "0";
       }
       
-      // ✅ Force reflow or re-render if necessary
-      slicerContainer.style.display = "block";      
-     
-      if (document.body.classList.contains("mobile-mode")) {
-        // Hide chart properly
-        const chart = document.getElementById("slicer-chart");
-        if (chart) {
-          chart.style.display = "none";
-          chart.style.height = "0";
-        }
-
         if (slicerInner) {
           slicerInner.style.height = "auto";
         }
 
-        slicerContainer.style.height = "auto"; // force container to shrink
+        if (slicerContainer) {
+          slicerContainer.style.height = "auto";
+      slicerContainer.style.display = "block";      
+        }
+
+        labels.forEach(label => label.style.display = "none");
+      } else {
+        document.body.classList.remove("mobile-mode");
+     
+        if (chartCanvas) {
+          chartCanvas.style.display = "block";
+          chartCanvas.style.height = "150px";
+        }
+
+        if (slicerInner) {
+          slicerInner.style.height = "140px";
+        }
+
+        labels.forEach(label => label.style.display = "inline-block");
+
+        slicerContainer.style.display = "block";
+        slicerContainer.style.height = "auto";
       }
      
+      // Slider refresh or rebuild
       if (slider && slider.noUiSlider) {
         try {
-          slider.noUiSlider.refresh(); // if this fails, we rebuild
+          slider.noUiSlider.refresh?.(); // Optional chaining for non-standard APIs
         } catch (err) {
           console.warn("⚠️ noUiSlider.refresh failed, reinitializing...");
 
           try {
-            // 👇 Check if timestamps are still valid
             if (!Array.isArray(allTimestamps) || allTimestamps.length < 2) {
               console.error("❌ allTimestamps are invalid, cannot rebuild slider.");
+              slicerContainer.style.display = "none";
               return;
             }
 
@@ -2150,20 +2159,15 @@ html, body {
             const min = allTimestamps[0];
             const max = allTimestamps[allTimestamps.length - 1];
 
-            // 👇 Destroy and clear
           slider.noUiSlider.destroy();
             slider.innerHTML = "";
 
-            // 👇 Ensure re-init only after DOM reflow
             setTimeout(() => {
           noUiSlider.create(slider, {
             start: values.map(v => parseInt(v)),
             connect: true,
-            range: {
-                  min,
-                  max
-            },
-                step: 24 * 60 * 60 * 1000, // 1 day
+                range: { min, max },
+                step: 24 * 60 * 60 * 1000,
             format: {
               to: value => Math.round(value),
               from: Number
@@ -2172,7 +2176,6 @@ html, body {
 
               console.log("✅ noUiSlider reinitialized");
 
-              // 👇 Restore tooltip or listeners if needed
               slider.noUiSlider.on("update", function (values) {
                 currentRange = values.map(v => parseInt(v));
                 applyDateFilter();
@@ -2180,7 +2183,7 @@ html, body {
 
               applyDateFilter();
 
-            }, 50); // give DOM a beat to settle
+            }, 50);
           } catch (e2) {
             console.error("🔥 Rebuild of noUiSlider failed:", e2);
           }
