@@ -7,9 +7,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">  
   <meta name="theme-color" content="#000000">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VR50WVP209"></script>
+  
   
   <style>
-html, body {
+    html, body {
       margin: 0;
       padding: 0;
       height: 100%;
@@ -622,6 +624,12 @@ html, body {
     });
   }
 
+  <!-- Google tag (gtag.js) -->
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-VR50WVP209');
+
   function updateLegendOffset() {
     const legend = document.getElementById("legend");
     const appContainer = document.getElementById("app-container");
@@ -777,7 +785,7 @@ html, body {
   function applyLayout() {
       const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 5000;
       const gravity = parseFloat(document.getElementById("layout-gravity").value, 10) || 0.01;
-      const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 10;
+      const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 1000;
       const width = parseInt(document.getElementById("layout-width").value, 10) || 2000;
       const height = parseInt(document.getElementById("layout-height").value, 10) || 2000;        
       
