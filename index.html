@@ -899,7 +899,7 @@
   function runLayoutInWorker() {
     const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
     const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-    const scale = parseFloat(document.getElementById("layout-scale").value) || 10;
+    const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
     const width = parseInt(document.getElementById("layout-width").value) || 2000;
     const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
@@ -1845,7 +1845,7 @@
       <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="10" style="width: 100%; margin-bottom: 10px;"></label>
+      <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
       <input type="checkbox" id="toggle-labels" checked style="vertical-align: middle;">
       <label for="toggle-labels" style="color:#aaa; display: inline-block; margin-left: 5px; vertical-align: middle;">SHOW LABELS</label><br/><br/>
       <button id="layout-toggle-btn"
