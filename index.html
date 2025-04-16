@@ -2940,25 +2940,41 @@
       if (!legend) return;
 
       legend.style.cursor = "move";
-      legend.style.userSelect = "none"; // prevent text selection while dragging
+      legend.style.userSelect = "none"; // prevent text selection
+      legend.style.touchAction = "none"; // important for touch dragging
 
-      legend.addEventListener("mousedown", (e) => {
+      const startDrag = (e) => {
         isDragging = true;
-        offsetX = e.clientX - legend.offsetLeft;
-        offsetY = e.clientY - legend.offsetTop;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        offsetX = clientX - legend.offsetLeft;
+        offsetY = clientY - legend.offsetTop;
         legend.style.transition = "none";
-      });
+      };
 
-      document.addEventListener("mousemove", (e) => {
+      const onDrag = (e) => {
         if (!isDragging) return;
-        legend.style.left = `${e.clientX - offsetX}px`;
-        legend.style.top = `${e.clientY - offsetY}px`;
-      });
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        legend.style.left = `${clientX - offsetX}px`;
+        legend.style.top = `${clientY - offsetY}px`;
+        if (e.cancelable) e.preventDefault(); // avoid scrolling on touch
+      };
 
-      document.addEventListener("mouseup", () => {
+      const stopDrag = () => {
         isDragging = false;
-        legend.style.transition = ""; // restore transition if needed
-      });
+        legend.style.transition = "";
+      };
+
+      // Mouse events
+      legend.addEventListener("mousedown", startDrag);
+      document.addEventListener("mousemove", onDrag);
+      document.addEventListener("mouseup", stopDrag);
+
+      // Touch events
+      legend.addEventListener("touchstart", startDrag, { passive: false });
+      document.addEventListener("touchmove", onDrag, { passive: false });
+      document.addEventListener("touchend", stopDrag);
     });
   </script>
 
