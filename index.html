@@ -848,9 +848,13 @@
     const width = parseInt(document.getElementById("layout-width").value) || 2000;
     const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
-    if (layoutWorker) layoutWorker.terminate();
+    const algorithm = document.getElementById("layout-algorithm").value;
+    const workerFile = algorithm === "fa" ? "forceAtlas.js" : "fruchtermanReingold.js";
 
-    layoutWorker = new Worker("./scripts/layoutWorker.js");
+    console.log(workerFile);
+
+    if (layoutWorker) layoutWorker.terminate();
+    layoutWorker = new Worker(`./scripts/${workerFile}`);
 
     const nodes = graph.nodes().map(id => ({
       id,
@@ -862,6 +866,20 @@
       source: graph.source(id),
       target: graph.target(id)
     }));
+
+    // ✅ Define settings first
+    const settings = {
+      iterations,
+      gravity,
+      scalingRatio: scale,
+      width,
+      height
+    };
+
+    if (algorithm === "fa") {
+      settings.linLogMode = document.getElementById("layout-linlog").checked;
+      settings.outboundAttractionDistribution = document.getElementById("layout-outbound").checked;
+    }
 
     layoutWorker.postMessage({
       nodes,
@@ -897,16 +915,14 @@
         }
         renderer.refresh();
         
-        // 🔁 Auto reset button and flag
+        // Reset state
         const layoutBtn = document.getElementById("layout-toggle-btn");
         if (layoutBtn) layoutBtn.textContent = "Apply Layout";
         isLayoutRunning = false;          
       }
     };
+  }
 
-
-
-  };
 
   function updateProgress() {
     const bar = document.getElementById("progress-bar");
@@ -1032,7 +1048,7 @@
     });
   }
 
-  function animateLayout(iterations = 200) {
+  function animateLayout(iterations = 2000) {
     for (let i = 0; i < iterations; i++) {
       setTimeout(() => {
         fruchtermanReingold(graph, { iterations: 1 });
@@ -1690,6 +1706,27 @@
           <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
       </div>
       <h2 style="font-size: 16px; margin-bottom: 10px;">Graph Parameters</h2>
+     
+      <label for="layout-algorithm">ALGORITHM</label>
+      <select id="layout-algorithm">
+        <option value="fr" selected>Fruchterman-Reingold</option>
+        <option value="fa">ForceAtlas2</option>
+      </select>
+      
+      <!-- ForceAtlas2-only settings -->
+      <div id="forceatlas-settings" style="display: none; margin-top: 10px;">
+        <label>
+          <input type="checkbox" id="layout-linlog" />
+          LinLog Mode
+        </label>
+        <br />
+        <label>
+          <input type="checkbox" id="layout-outbound" />
+          Outbound Attraction Dist.
+        </label>
+        <br/>
+      </div>      
+      
       <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="5000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
@@ -2065,6 +2102,17 @@
       document.addEventListener("click", (e) => {
         if (!searchDiv.contains(e.target) && !toggleBtn.contains(e.target)) {
           searchDiv.style.display = "none";
+        }
+      });
+      
+      const algorithmSelect = document.getElementById("layout-algorithm");
+      const faSettings = document.getElementById("forceatlas-settings");
+
+      algorithmSelect.addEventListener("change", () => {
+        if (algorithmSelect.value === "fa") {
+          faSettings.style.display = "block";
+        } else {
+          faSettings.style.display = "none";
         }
       });
     });    
