@@ -882,11 +882,16 @@
     if (layoutWorker) {
       layoutWorker.terminate();
       layoutWorker = null;
+      isLayoutRunning = false;
 
       document.getElementById("layout-progress").value = 0;
       document.getElementById("layout-progress-text").textContent = "Stopped";
 
       console.log("⛔ Layout stopped by user");
+      // ✅ Reset previous layout since it's been cancelled
+      // 🧠 Correctly track what was actually running
+      previousLayout = currentLayout;
+      currentLayout = null;
     }
   }
 
@@ -899,6 +904,8 @@
     const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
     const algorithm = document.getElementById("layout-algorithm").value;
+    currentLayout = algorithm; // 🧠 store the currently launched one
+
 
     let workerFile;
     // ✅ Define settings first
@@ -919,6 +926,11 @@
       case "ord":
         workerFile = "openOrd.js";
         // Ajoute ici les paramètres spécifiques à OpenOrd si besoin
+        settings.edgeWeightInfluence = parseFloat(document.getElementById("layout-ewi")?.value) || 0.5;
+        settings.coolingFactor = parseFloat(document.getElementById("layout-cooling")?.value) || 0.95;
+        settings.attractionMultiplier = parseFloat(document.getElementById("layout-attraction")?.value) || 0.1;
+        settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1.0;
+        settings.initialClusterCount = parseInt(document.getElementById("layout-clusters")?.value) || 5;
         break;
       case "fr":
       default:
@@ -926,7 +938,23 @@
         // Aucun paramètre spécifique à ajouter ici
         break;
     }
+
+    console.log(workerFile);
+
     if (layoutWorker) layoutWorker.terminate();
+    isLayoutRunning = false;
+    
+    // 🧪 Force a refresh baseline before applying new layout
+    if (previousLayout === "ord" && algorithm !== "ord") {
+      console.log("Resetting positions before switching from OpenOrd to another layout...");
+      graph.forEachNode(id => {
+        graph.setNodeAttribute(id, "x", Math.random() * 1000 - 500);
+        graph.setNodeAttribute(id, "y", Math.random() * 1000 - 500);
+      });
+      renderer.refresh();
+    }
+   
+    
     layoutWorker = new Worker(`./scripts/${workerFile}`);
 
     const nodes = graph.nodes().map(id => ({
@@ -937,7 +965,8 @@
 
     const edges = graph.edges().map(id => ({
       source: graph.source(id),
-      target: graph.target(id)
+      target: graph.target(id),
+      weight: graph.getEdgeAttribute(id, "weight") || 1 // Fallback if undefined
     }));
 
 
@@ -957,6 +986,10 @@
         const now = performance.now();
         if (now - lastRenderTime > 300) { // only update every 300ms
           for (const id in positions) {
+            const { x, y } = positions[id];
+            if (isNaN(x) || isNaN(y)) {
+              console.warn("💥 NaN detected during OpenOrd progress:", id, positions[id]);
+            }          
             graph.setNodeAttribute(id, "x", positions[id].x);
             graph.setNodeAttribute(id, "y", positions[id].y);
           }
@@ -967,15 +1000,29 @@
 
       if (type === "done") {
         for (const id in positions) {
+          const { x, y } = positions[id];
+          if (isNaN(x) || isNaN(y)) {
+            console.warn("💥 NaN detected in node position:", id, positions[id]);
+          }        
           graph.setNodeAttribute(id, "x", positions[id].x);
           graph.setNodeAttribute(id, "y", positions[id].y);
         }
         renderer.refresh();
         
-        // Reset state
+        // ✅ Terminate worker to clean up
+        if (layoutWorker) {
+          layoutWorker.terminate();
+          layoutWorker = null;
+        }
+
+        // ✅ Reset UI state
         const layoutBtn = document.getElementById("layout-toggle-btn");
         if (layoutBtn) layoutBtn.textContent = "Apply Layout";
         isLayoutRunning = false;          
+        
+        // ✅ Update previousLayout state
+        previousLayout = currentLayout;
+        currentLayout = null;
       }
     };
   }
@@ -1785,6 +1832,15 @@
         <br/>
       </div>      
       
+      <div id="openord-settings" style="display: none;">
+        <label>Edge Weight Influence <input id="layout-ewi" type="number" min="0" max="2" step="0.1" value="0.5"></label>
+        <label>Cooling Factor <input id="layout-cooling" type="number" min="0.5" max="1" step="0.01" value="0.95"></label>
+        <label>Attraction Multiplier <input id="layout-attraction" type="number" min="0.01" max="1" step="0.01" value="0.1"></label>
+        <label>Repulsion Multiplier <input id="layout-repulsion" type="number" min="0.1" max="10" step="0.1" value="1.0"></label>
+        <label>Initial Cluster Count <input id="layout-clusters" type="number" min="1" max="20" step="1" value="5"></label>
+      </div>
+      
+      
       <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="5000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
@@ -2038,6 +2094,10 @@
 
     let layoutWorker;
 
+    let currentLayout = null;  // the one currently running
+    let previousLayout = null;
+    
+
     //initRenderer();
     
     document.getElementById("start-graph-btn").addEventListener("click", () => {
@@ -2165,13 +2225,12 @@
       
       const algorithmSelect = document.getElementById("layout-algorithm");
       const faSettings = document.getElementById("forceatlas-settings");
+      const ordSettings = document.getElementById("openord-settings");
 
       algorithmSelect.addEventListener("change", () => {
-        if (algorithmSelect.value === "fa") {
-          faSettings.style.display = "block";
-        } else {
-          faSettings.style.display = "none";
-        }
+        const value = algorithmSelect.value;
+        faSettings.style.display = value === "fa" ? "block" : "none";
+        ordSettings.style.display = value === "ord" ? "block" : "none";
       });
     });    
    </script>

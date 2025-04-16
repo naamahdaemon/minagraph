@@ -1,4 +1,4 @@
-// layoutWorker.js
+// fruchtermanReingold.js
 self.onmessage = function (e) {
   const { nodes, edges, settings } = e.data;
   const positions = {};
