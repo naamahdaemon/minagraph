@@ -604,6 +604,26 @@
   background: white;
   color: black;
 }   
+
+  #left-sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: black transparent;
+  }
+
+  #left-sidebar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #left-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #left-sidebar::-webkit-scrollbar-thumb {
+    background-color: black;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
@@ -851,7 +871,7 @@
     const algorithm = document.getElementById("layout-algorithm").value;
     const workerFile = algorithm === "fa" ? "forceAtlas.js" : "fruchtermanReingold.js";
 
-    console.log(workerFile);
+    //console.log(workerFile);
 
     if (layoutWorker) layoutWorker.terminate();
     layoutWorker = new Worker(`./scripts/${workerFile}`);
@@ -1048,7 +1068,7 @@
     });
   }
 
-  function animateLayout(iterations = 2000) {
+  function animateLayout(iterations = 200) {
     for (let i = 0; i < iterations; i++) {
       setTimeout(() => {
         fruchtermanReingold(graph, { iterations: 1 });
@@ -2246,7 +2266,7 @@
             }
           });
 
-              console.log("✅ noUiSlider reinitialized");
+              //console.log("✅ noUiSlider reinitialized");
 
               slider.noUiSlider.on("update", function (values) {
                 currentRange = values.map(v => parseInt(v));
