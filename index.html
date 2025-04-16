@@ -378,6 +378,11 @@
       color: #4fc3f7;
     }
 
+    #legend {
+      font-family: 'Coda', sans-serif;
+    }
+
+
     /* Base legend style */
     #legend.legend-box {
       position: fixed;
@@ -644,6 +649,11 @@
     border: 2px solid transparent;
     background-clip: content-box;
   }
+  
+  #legend.legend-box {
+    cursor: move;
+  }
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
@@ -2861,6 +2871,38 @@
       renderer.refresh();
     }
   </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const legend = document.getElementById("legend");
+      let isDragging = false;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (!legend) return;
+
+      legend.style.cursor = "move";
+      legend.style.userSelect = "none"; // prevent text selection while dragging
+
+      legend.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        offsetX = e.clientX - legend.offsetLeft;
+        offsetY = e.clientY - legend.offsetTop;
+        legend.style.transition = "none";
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        legend.style.left = `${e.clientX - offsetX}px`;
+        legend.style.top = `${e.clientY - offsetY}px`;
+      });
+
+      document.addEventListener("mouseup", () => {
+        isDragging = false;
+        legend.style.transition = ""; // restore transition if needed
+      });
+    });
+  </script>
+
 
    
    
