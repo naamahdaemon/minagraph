@@ -889,10 +889,33 @@
     const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
     const algorithm = document.getElementById("layout-algorithm").value;
-    const workerFile = algorithm === "fa" ? "forceAtlas.js" : "fruchtermanReingold.js";
 
-    //console.log(workerFile);
+    let workerFile;
+    // ✅ Define settings first
+    const settings = {
+      iterations,
+      gravity,
+      scalingRatio: scale,
+      width,
+      height,
+    };
 
+    switch (algorithm) {
+      case "fa":
+        workerFile = "forceAtlas.js";
+        settings.linLogMode = document.getElementById("layout-linlog")?.checked || false;
+        settings.outboundAttractionDistribution = document.getElementById("layout-outbound")?.checked || false;
+        break;
+      case "ord":
+        workerFile = "openOrd.js";
+        // Ajoute ici les paramètres spécifiques à OpenOrd si besoin
+        break;
+      case "fr":
+      default:
+        workerFile = "fruchtermanReingold.js";
+        // Aucun paramètre spécifique à ajouter ici
+        break;
+    }
     if (layoutWorker) layoutWorker.terminate();
     layoutWorker = new Worker(`./scripts/${workerFile}`);
 
@@ -907,25 +930,9 @@
       target: graph.target(id)
     }));
 
-    // ✅ Define settings first
-    const settings = {
-      iterations,
-      gravity,
-      scalingRatio: scale,
-      width,
-      height
-    };
 
-    if (algorithm === "fa") {
-      settings.linLogMode = document.getElementById("layout-linlog").checked;
-      settings.outboundAttractionDistribution = document.getElementById("layout-outbound").checked;
-    }
 
-    layoutWorker.postMessage({
-      nodes,
-      edges,
-      settings: { iterations, gravity, scalingRatio: scale, width, height }
-    });
+    layoutWorker.postMessage({ nodes, edges, settings });
 
     let lastRenderTime = 0;
 
@@ -1751,6 +1758,7 @@
       <select id="layout-algorithm">
         <option value="fr" selected>Fruchterman-Reingold</option>
         <option value="fa">ForceAtlas2</option>
+        <option value="ord">OpenOrd</option>
       </select>
       
       <!-- ForceAtlas2-only settings -->
