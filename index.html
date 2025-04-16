@@ -1738,6 +1738,9 @@
         });
 
         data.edges.forEach((e) => {
+          if (e.timestamp) {
+            e.timestamp = parseInt(e.timestamp); // 🛠️ Convert back to number
+          }        
           graph.addEdgeWithKey(e.id, e.source, e.target, e);
           current++;
           updateProgressBar(current, total);
@@ -1754,6 +1757,8 @@
         }, 300);
 
         alert("Graph imported successfully!");
+        rebuildTransactionsByNeighbor();
+        setupDateSlicer();
       } catch (e) {
         console.error("Failed to load graph JSON:", e);
         alert("Failed to load graph JSON. See console for details.");
@@ -2066,7 +2071,7 @@
     const HEIGHT = 3000;
     const visitedKeys = new Set();
     const nameColorMap = new Map();
-    const transactionsByNeighbor = {};
+    let transactionsByNeighbor = {};
     
     let totalSteps = 0;
     let currentStep = 0;
@@ -2978,8 +2983,34 @@
     });
   </script>
 
+  <script>
+    function rebuildTransactionsByNeighbor() {
+      transactionsByNeighbor = {}; // ⚠️ Assure-toi que cette variable est bien déclarée globalement avec let
 
+      graph.forEachEdge((edge, attrs, source, target) => {
+        const tx = {
+          sender_key: source,
+          receiver_key: target,
+          command_type: attrs.label,
+          status: attrs.status,
+          timestamp: attrs.timestamp,
+          hash: edge,
+          fee: attrs.fee,
+          amount: attrs.amount,
+          block_id: attrs.block_id,
+          block_hash: attrs.block_hash,
+          memo: attrs.memo,
+          label: attrs.label
+        };
+
+        if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
+        if (!transactionsByNeighbor[target]) transactionsByNeighbor[target] = [];
    
+        transactionsByNeighbor[source].push(tx);
+        transactionsByNeighbor[target].push(tx);
+      });
+    }
+  </script>
    
   <div id="loader-modal" style="
     position: fixed;
