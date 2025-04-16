@@ -654,6 +654,55 @@
     cursor: move;
   }
 
+  #splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: black;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeOut 0.5s ease-out 4s forwards;
+  }
+
+  .splash-content {
+    text-align: center;
+  }
+
+  #splash-screen h1 {
+    font-size: 64px;
+    margin-top: 20px;
+    opacity: 0;
+    animation: fadeIn 4s ease-in-out forwards;
+    animation-delay: 0.4s;
+    color: #222;
+  }
+
+  #splash-screen img {
+    width: 512px;
+    height: 512px;
+    opacity: 0;
+    animation: fadeIn 4s ease-in-out forwards;
+    animation-delay: 0.2s;
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
@@ -3076,5 +3125,12 @@
     border-radius: 4px;
   ">Close</button>
 </div>   
+
+<div id="splash-screen">
+  <div class="splash-content">
+    <img src="./icons/icon-512.png" alt="MinaGraph" />
+    <h1>Mina Graph Explorer</h1>
+  </div>
+</div>
 </body>
 </html>
