@@ -708,6 +708,11 @@
     }
   }
 
+  #param-base-key::placeholder {
+    color: #888;
+    font-style: italic;
+    font-size: 12px;
+  }
 
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
@@ -1936,8 +1941,14 @@
     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); // YYYYMMDDHHMMSS
+    const algorithm = document.getElementById("layout-algorithm")?.value || "unknown";
+    const address = (BASE_KEY || "address").substring(0, 8);
+    const filename = `${selectedBlockchain}-${algorithm}-${address}_${timestamp}.json`;
+
     a.href = url;
-    a.download = "mina-graph.json";
+    a.download = filename;
     a.click();
   }
 
@@ -2038,8 +2049,18 @@
       <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
       <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>START KEY<br /><input id="param-base-key" type="text" value="B62..." style="width: 100%; margin-bottom: 10px;"></label>
-      <label>API KEY
+      <label>
+        START KEY<br />
+        <input 
+          id="param-base-key" 
+          type="text" 
+          placeholder="Starting wallet address to explore"
+          style="width: 100%; margin-bottom: 10px;"
+        >
+      </label>      
+      <div style="position: relative; margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 4px;">
+          API KEY
       <span 
         onclick="document.getElementById('token-help-overlay').style.display = 'block';" 
         title="Click for more info" 
@@ -2049,10 +2070,39 @@
           <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
         </svg>
       </span>       
-      <br />
-      <b style="font-size:9px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED FOR MINA</b>
-        <input id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;">
       </label>
+
+        <div style="font-size: 8px; color: #FF3333; margin-bottom: 6px;">
+          TRIAL PERIOD - NO TOKEN REQUIRED FOR MINA
+        </div>
+
+        <!-- Input container with relative positioning -->
+        <div style="position: relative;">
+          <input id="param-api-token" type="text" style="width: 100%; padding-right: 24px; height: 32px; padding: 6px 8px; border-radius: 6px;" />
+
+          <!-- ✖ button INSIDE the input -->
+          <button 
+            id="clear-token-button" 
+            title="Clear token for current blockchain" 
+            onclick="document.getElementById('param-api-token').value = ''"
+            style="
+              position: absolute;
+              top: 6px;
+              right: 6px;
+              background: none;
+              border: none;
+              color: #ccc;
+              font-size: 12px;
+              cursor: pointer;
+              padding: 0;
+              line-height: 1;
+            "
+          >✖</button>
+        </div>
+      </div>
+
+
+
       <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
       <span id="toggle-token-arrow">▸</span> Get new API token
       <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
@@ -2394,7 +2444,7 @@
     const { Graph } = graphology;
     let currentTheme = "dark"; // 👈 Declare it globally so reducers and other functions can use it
     let API_TOKEN = "minataur-token:your_minataur_token_here";
-    let BASE_KEY = "B62...";
+    let BASE_KEY = "";
     let LIMIT = 10;
     let FIRST_ITERATION_LIMIT = 10;
     let DEPTH = 2;
@@ -2425,7 +2475,7 @@
     let selectedBlockchain = "mina"; // 👈 default value
     const delayByBlockchain = {
       mina: 0,
-      ethereum: 300,
+      ethereum: 1000,
       polygon: 1000,
     };
     
@@ -2442,6 +2492,55 @@
     let currentLayout = null;  // the one currently running
     let previousLayout = null;
     
+    const apiTokenInput = document.getElementById("param-api-token");
+    const blockchainSelect = document.getElementById("blockchain-select");    
+
+    const LAYOUT_STORAGE_KEY = "layoutSettings";
+
+    // Save current layout parameters
+    function saveLayoutSettings(algorithm) {
+      const settings = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)) || {};
+
+      const inputIds = {
+        fr: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
+        fa: ["layout-iterations", "layout-width", "layout-height", "layout-linlog", "layout-outbound"],
+        ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion", "layout-clusters"]
+      };
+
+      settings[algorithm] = {};
+
+      inputIds[algorithm].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        settings[algorithm][id] = el.type === "checkbox" ? el.checked : parseFloat(el.value);
+      });
+
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(settings));
+    }
+
+    // Load layout parameters
+    function loadLayoutSettings(algorithm) {
+      const settings = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY));
+      if (!settings || !settings[algorithm]) return;
+
+      Object.entries(settings[algorithm]).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === "checkbox") el.checked = val;
+        else el.value = val;
+      });
+    }
+
+    document.getElementById("layout-algorithm").addEventListener("change", (e) => {
+      const algorithm = e.target.value;
+      loadLayoutSettings(algorithm);
+    });
+
+    document.getElementById("layout-toggle-btn").addEventListener("click", () => {
+      const algorithm = document.getElementById("layout-algorithm").value;
+      saveLayoutSettings(algorithm);
+    });
+
 
     //initRenderer();
     
@@ -2492,6 +2591,92 @@
       const chain = blockchain?.toLowerCase?.();
       return explorerMap[chain]?.[type] || "#";
     }
+
+    function saveApiToken(chain, token) {
+      const tokens = JSON.parse(localStorage.getItem("apiTokens") || "{}");
+      tokens[chain] = token;
+      localStorage.setItem("apiTokens", JSON.stringify(tokens));
+    }
+
+    function getApiToken(chain) {
+      const tokens = JSON.parse(localStorage.getItem("apiTokens") || "{}");
+      return tokens[chain] || "";
+    }
+
+    function clearApiToken(chain) {
+      const tokens = JSON.parse(localStorage.getItem("apiTokens") || "{}");
+      delete tokens[chain];
+      localStorage.setItem("apiTokens", JSON.stringify(tokens));
+    }
+
+    function loadFetchParams() {
+      const storedDepth = localStorage.getItem("param-depth");
+      const storedLimit = localStorage.getItem("param-limit");
+      const storedFirstLimit = localStorage.getItem("param-first-iteration");
+
+      if (storedDepth !== null) document.getElementById("param-depth").value = storedDepth;
+      if (storedLimit !== null) document.getElementById("param-limit").value = storedLimit;
+      if (storedFirstLimit !== null) document.getElementById("param-first-iteration").value = storedFirstLimit;
+    }
+
+    // Run on load
+    window.addEventListener("DOMContentLoaded", loadFetchParams);
+
+    function setupFetchParamListeners() {
+      document.getElementById("param-depth").addEventListener("input", e => {
+        localStorage.setItem("param-depth", e.target.value);
+      });
+      document.getElementById("param-limit").addEventListener("input", e => {
+        localStorage.setItem("param-limit", e.target.value);
+      });
+      document.getElementById("param-first-iteration").addEventListener("input", e => {
+        localStorage.setItem("param-first-iteration", e.target.value);
+      });
+    }
+
+    // Setup listeners
+    window.addEventListener("DOMContentLoaded", setupFetchParamListeners);
+
+
+    document.getElementById("clear-token-button").addEventListener("click", () => {
+      const chain = blockchainSelect.value;
+      clearApiToken(chain);
+      apiTokenInput.value = "";
+    });
+
+    // Load token when blockchain changes
+    blockchainSelect.addEventListener("change", () => {
+      const chain = blockchainSelect.value;
+      apiTokenInput.value = getApiToken(chain);
+      loadStartKeyForBlockchain(chain);
+    });
+
+    // Save token on change
+    apiTokenInput.addEventListener("input", () => {
+      const chain = blockchainSelect.value;
+      saveApiToken(chain, apiTokenInput.value.trim());
+    });
+
+    document.getElementById("param-base-key").addEventListener("input", (e) => {
+      const key = e.target.value;
+      localStorage.setItem(`start-key-${selectedBlockchain}`, key);
+    });
+
+    function loadStartKeyForBlockchain(blockchain) {
+      const savedKey = localStorage.getItem(`start-key-${blockchain}`);
+      if (savedKey) {
+        document.getElementById("param-base-key").value = savedKey;
+        BASE_KEY = savedKey;
+      }
+    }
+
+    // Initial load
+    window.addEventListener("DOMContentLoaded", () => {
+      const chain = blockchainSelect.value;
+      apiTokenInput.value = getApiToken(chain);
+      loadStartKeyForBlockchain(chain);
+    });
+
 
   </script>
 
@@ -2893,13 +3078,13 @@
       const tokenInput = document.getElementById("param-api-token");
 
       // Charger le token depuis localStorage s’il existe
-      const savedToken = localStorage.getItem("minataurToken");
-      if (savedToken) tokenInput.value = savedToken;
+      //const savedToken = localStorage.getItem("minataurToken");
+      //if (savedToken) tokenInput.value = savedToken;
 
       // Sauvegarder à chaque changement
-      tokenInput.addEventListener("input", () => {
-        localStorage.setItem("minataurToken", tokenInput.value);
-      });
+      //tokenInput.addEventListener("input", () => {
+      //  localStorage.setItem("minataurToken", tokenInput.value);
+      //});
 
       const layoutBtn = document.getElementById("layout-toggle-btn");
 
