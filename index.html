@@ -764,6 +764,26 @@
     return luminance > 0.6 ? "#000" : "#fff";
   }
 
+  function getDecimalsForBlockchain(chain) {
+    switch (chain) {
+      case "ethereum":
+      case "polygon":
+        return 18;
+      case "mina":
+        return 9;
+      default:
+        return 18; // Default fallback
+    }
+  }
+
+  function formatAmount(amount, decimals = 9) {
+    if (!amount) return "-";
+    try {
+      return (parseFloat(amount) / Math.pow(10, decimals)).toFixed(2);
+    } catch (e) {
+      return "-";
+    }
+  }
 
   function showLoader() {
     cancelRequested = false;
@@ -1507,8 +1527,8 @@
                           </a>`
                         : (tx.label || "-")}
                     </td>
-                    <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(2) + "" : "-"}</td>
-                    <td>${tx.fee ? (parseFloat(tx.fee) / 1e9).toFixed(2) + "" : "-"}</td>
+                    <td>${formatAmount(tx.amount, getDecimalsForBlockchain(selectedBlockchain))}</td>
+                    <td>${formatAmount(tx.fee, getDecimalsForBlockchain(selectedBlockchain))}</td>
                     <td>${tx.status || "-"}</td>
                     <!--<td>${tx.chain_status || "-"}</td>-->
                   </tr>
