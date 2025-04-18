@@ -545,7 +545,7 @@
     color: #4fc3f7;
   }
   
-  #help-overlay {
+  #help-overlay, #token-help-overlay {
     position: fixed;
     top: 80px;
     left: 10vw;
@@ -565,7 +565,7 @@
   }
 
 @media screen and (max-width: 768px) {
-  #help-overlay {
+    #help-overlay, #token-help-overlay {
     top: 0;
     left: 0;
     right: 0;
@@ -575,15 +575,15 @@
     font-size: 13px;
   }
 
-  #help-overlay h1 {
+    #help-overlay h1, #token-help-overlay h1 {
     font-size: 20px;
   }
 
-  #help-overlay ul {
+    #help-overlay ul, #token-help-overlay ul {
     padding-left: 16px;
   }
 
-  #help-overlay button {
+    #help-overlay button, #token-help-overlay button {
     top: 10px !important;
     right: 10px !important;
     padding: 6px 12px !important;
@@ -591,7 +591,7 @@
   }
 }
 
-#help-overlay button {
+  #help-overlay button, token-help-overlay button {
   position: absolute;
   top: 20px;
   right: 20px;
@@ -605,7 +605,7 @@
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-#help-overlay button:hover {
+  #help-overlay button:hover, #token-help-overlay button:hover {
   background: white;
   color: black;
 }   
@@ -1097,14 +1097,25 @@
   }
 
 
-  async function fetchTransactionsForKey(publicKey) {
-      if (visitedKeys.has(publicKey))
-          return [];
-      visitedKeys.add(publicKey);
+  async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
+      const normalizedKey = blockchain === "polygon" ? publicKey.toLowerCase() : publicKey;
+      delay = delayByBlockchain[blockchain] || delay;
+      console.log("selectedBlockchain : ", selectedBlockchain);
+      console.log("Normalized Key : ", normalizedKey);
 
-      const limit = (publicKey === BASE_KEY) ? FIRST_ITERATION_LIMIT : LIMIT;
+      if (visitedKeys.has(normalizedKey)) return [];
+      visitedKeys.add(normalizedKey);
+
+      const limit = (normalizedKey === BASE_KEY) ? FIRST_ITERATION_LIMIT : LIMIT;
 
       try {
+          if (delay > 0) {
+              await new Promise(resolve => setTimeout(resolve, delay));
+          }
+
+          let transactions = [];
+
+          if (blockchain === 'mina') {
           const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
               method: "POST",
               headers: {
@@ -1112,11 +1123,10 @@
                   'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
                   "Content-Type": "application/json"
               },
-              body: JSON.stringify({
-                  publicKey,
-                  limit
-              })
+                  body: JSON.stringify({ publicKey: normalizedKey, limit })
           });
+
+              console.log("Calling Minataur API");
 
           if (!res.ok) {
               throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
@@ -1127,14 +1137,123 @@
               throw new Error("Unexpected response format from Minataur API");
           }
 
-          const transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+              transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+
+          } else if (blockchain === 'polygon') {
+              const polygonscanApiKey = API_TOKEN;
+              const url = `https://api.polygonscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${polygonscanApiKey}`;
+
+              console.log("Calling Polygonscan API");
+
+              const res = await fetch(url);
+              if (!res.ok) {
+                  throw new Error(`PolygonScan API error: ${res.status} ${res.statusText}`);
+              }
+
+              const json = await res.json();
+              if (!json || json.status !== "1" || !json.result) {
+                  throw new Error("Unexpected response format from PolygonScan API");
+              }
+
+
+              transactions = json.result.map(tx => {
+                const isContractCreation = !tx.to; // ✅ Now tx is defined
+
+                return {
+                  block_id: parseInt(tx.blockNumber),
+                  height: parseInt(tx.blockNumber),
+                  timestamp: `${parseInt(tx.timeStamp) * 1000}`,
+                  hash: tx.hash,
+                  command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                  nonce: tx.nonce,
+                  amount: tx.value,
+                  fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
+                  memo: "",
+                  sequence_no: null,
+                  status: tx.isError === "0" ? "applied" : "failed",
+                  failure_reason: tx.isError === "0" ? null : "error",
+                  confirm: null,
+                  sender_id: null,
+                  sender_key: tx.from.toLowerCase(),
+                  receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
+                  sender_name: "noname",
+                  receiver_id: null,
+                  receiver_name: isContractCreation ? "contract_creation" : "noname",
+                  fee_payer_id: null,
+                  fee_payer_key: tx.from.toLowerCase(),
+                  fee_payer_name: null,
+                  chain_status: "canonical",
+                  block_hash: tx.blockHash,
+                  r_thief: 0,
+                  s_thief: 0,
+                  r_scammer: 0,
+                  s_scammer: 0,
+                  r_spammer: 0,
+                  s_spammer: 0
+                };
+              });
+          } else if (blockchain === 'ethereum') {
+              const etherscanApiKey = API_TOKEN;
+              const url = `https://api.etherscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${etherscanApiKey}`;
+
+              console.log("Calling Etherscan API");
+
+              const res = await fetch(url);
+              if (!res.ok) {
+                  throw new Error(`Etherscan API error: ${res.status} ${res.statusText}`);
+              }
+
+              const json = await res.json();
+              if (!json || json.status !== "1" || !json.result) {
+                  throw new Error("Unexpected response format from EtherScan API");
+              }
+
+
+              transactions = json.result.map(tx => {
+                const isContractCreation = !tx.to; // ✅ Now tx is defined
+
+                return {
+                  block_id: parseInt(tx.blockNumber),
+                  height: parseInt(tx.blockNumber),
+                  timestamp: `${parseInt(tx.timeStamp) * 1000}`,
+                  hash: tx.hash,
+                  command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                  nonce: tx.nonce,
+                  amount: tx.value,
+                  fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
+                  memo: "",
+                  sequence_no: null,
+                  status: tx.isError === "0" ? "applied" : "failed",
+                  failure_reason: tx.isError === "0" ? null : "error",
+                  confirm: null,
+                  sender_id: null,
+                  sender_key: tx.from.toLowerCase(),
+                  receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
+                  sender_name: "noname",
+                  receiver_id: null,
+                  receiver_name: isContractCreation ? "contract_creation" : "noname",
+                  fee_payer_id: null,
+                  fee_payer_key: tx.from.toLowerCase(),
+                  fee_payer_name: null,
+                  chain_status: "canonical",
+                  block_hash: tx.blockHash,
+                  r_thief: 0,
+                  s_thief: 0,
+                  r_scammer: 0,
+                  s_scammer: 0,
+                  r_spammer: 0,
+                  s_spammer: 0
+                };
+              });
+          }
+
+          console.log(transactions);
 
           currentStep++;
           updateProgressBar(currentStep, totalSteps);
 
           return transactions;
       } catch (error) {
-          // Cancel processing
           cancelRequested = true;
           hideLoader();
           showErrorPopup(error.message || "An unknown error occurred");
@@ -1143,13 +1262,17 @@
   }
 
   async function buildGraphRecursively(publicKey, depth, level = 0) {
-    if (depth < 0 || visitedKeys.has(publicKey) || cancelRequested) return;
+    const normalizedKey = ["polygon", "ethereum"].includes(selectedBlockchain)
+      ? publicKey.toLowerCase()
+      : publicKey;
+      
+    if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
     while (pause) await new Promise(r => setTimeout(r, 100));
-    const transactions = await fetchTransactionsForKey(publicKey);
+    const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000);
 
-    transactionsByNeighbor[publicKey] = transactions; // ✅ ici
+    transactionsByNeighbor[normalizedKey] = transactions; // ✅ ici
 
-    appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${publicKey.slice(0, 6)}…${publicKey.slice(-6)} at depth ${level}`);
+    appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 6)}…${normalizedKey.slice(-6)} at depth ${level}`);
 
 
     for (const tx of transactions) {
@@ -1272,6 +1395,7 @@
 
 
   function showNodePanel(node) {
+    //rebuildTransactionsByNeighbor();
     const data = graph.getNodeAttributes(node);
     const neighbors = graph.neighbors(node);
     
@@ -1279,17 +1403,28 @@
     
     selectedNode = node; // Ensure selection from side panel works too
 
-    let tx = 0, del = 0, failed = 0;
+    let tx = 0, del = 0, failed = 0, sc = 0;
     graph.forEachEdge((e, attr, src, tgt) => {
       if ((src === node || tgt === node)) {
         if (attr.status !== "canonical") failed++;
         else if (attr.label === "delegation") del++;
-        else if (attr.label === "payment") tx++;
+        else if (attr.label === "payment" || attr.label === "transfer") tx++;
+        else if (attr.label === "contract_call") sc++;
       }
     });
 
+    console.log('transactionsByNeighbor keys:', Object.keys(transactionsByNeighbor));
+    console.log('Looking for node:', node);
+    neighbors.forEach(n => {
+      console.log('Looking for neighbor:', n);
+    });
+    
     const html = `
-      <h3><a href="https://minascan.io/mainnet/account/${node}" target="_blank" style="color:#4fc3f7">${data.label}</a></h3>
+      <h3>
+        <a href="${getExplorerURL('account', node, selectedBlockchain)}" target="_blank" style="color:#4fc3f7">
+          ${data.label}
+        </a>
+      </h3>      
       <button onclick="deleteSelectedNode('${node}')" style="
         margin: 5px 0;
         background: #e53935;
@@ -1303,6 +1438,7 @@
       <p><strong>Degree:</strong> ${graph.degree(node)}</p>
       <p><strong>#Transactions:</strong> ${tx}</p>
       <p><strong>#Delegations:</strong> ${del}</p>
+      <p><strong>#Smart Contracts:</strong> ${sc}</p>
       <p><strong>#Failed Transactions:</strong> ${failed}</p>
       <p><strong>Linked Nodes & Transactions:</strong></p>
       <div>
@@ -1310,16 +1446,31 @@
           const label = graph.getNodeAttribute(n, 'label');
 
           // Transactions initiées par le voisin vers le nœud sélectionné
+          /*const fromNeighbor = (transactionsByNeighbor[n.toUpperCase()] || []).filter(tx =>
+            (tx.sender_key.toUpperCase() === n.toUpperCase() && tx.receiver_key.toUpperCase() === node.toUpperCase()) ||
+            (tx.receiver_key.toUpperCase() === n.toUpperCase() && tx.sender_key.toUpperCase() === node.toUpperCase())
+          );*/
+          
           const fromNeighbor = (transactionsByNeighbor[n] || []).filter(tx =>
             tx.sender_key === n && tx.receiver_key === node ||
             tx.receiver_key === n && tx.sender_key === node
           );
 
+          console.log('node:', node);
+          console.log('transactionsByNeighbor[node]:', transactionsByNeighbor[node]);
+
           // Transactions initiées par le nœud sélectionné vers ce voisin
+          /*const fromNode = (transactionsByNeighbor[node.toUpperCase()] || []).filter(tx =>
+            (tx.sender_key.toUpperCase() === n.toUpperCase() && tx.receiver_key.toUpperCase() === node.toUpperCase()) ||
+            (tx.receiver_key.toUpperCase() === n.toUpperCase() && tx.sender_key.toUpperCase() === node.toUpperCase())
+          );*/
+          
           const fromNode = (transactionsByNeighbor[node] || []).filter(tx =>
             tx.sender_key === n && tx.receiver_key === node ||
             tx.receiver_key === n && tx.sender_key === node
           );
+
+          console.log(fromNode);
 
           // Concatène et déduplique (via hash par exemple si dispo)
           const interactions = [...fromNeighbor, ...fromNode];
@@ -1344,12 +1495,16 @@
                     <td>${formatTimestamp(tx.timestamp)}</td>
                     <td>
                       ${tx.block_id
-                        ? `<a href="https://minascan.io/mainnet/block/${tx.block_hash}/txs" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">${tx.block_id}</a> <span style="font-size: 9px; opacity: 0.7;">🔗</span>`
+                        ? `<a href="${getExplorerURL('block', tx.block_hash, selectedBlockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                            ${tx.block_id}
+                          </a> <span style="font-size: 9px; opacity: 0.7;">🔗</span>`
                         : "-"}
                     </td>
                     <td>
                       ${tx.command_type
-                        ? `<a href="https://minascan.io/mainnet/tx/${tx.hash}/txInfo" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">${tx.command_type} <span style="font-size: 9px; opacity: 0.7;">🔗</span></a>`
+                        ? `<a href="${getExplorerURL('transaction', tx.hash, selectedBlockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                            ${tx.command_type} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
+                          </a>`
                         : (tx.label || "-")}
                     </td>
                     <td>${tx.amount ? (parseFloat(tx.amount) / 1e9).toFixed(2) + "" : "-"}</td>
@@ -1420,10 +1575,12 @@
 
 
       // 🎯 Filter by command type
-      if (commandTypeFilter.size > 0) {
+      const visibleTypes = expandedCommandTypeFilter();
+
+      if (visibleTypes.size > 0) {
         const hasVisibleEdge = graph.edges(node).some(e => {
           const command = graph.getEdgeAttribute(e, "command_type") || graph.getEdgeAttribute(e, "label");
-          return commandTypeFilter.has(command);
+          return visibleTypes.has(command);
         });
 
         if (!hasVisibleEdge) {
@@ -1544,12 +1701,15 @@
       let baseColor = "#666";
       switch (command) {
         case "payment": baseColor = "#4caf50"; break;
+        case "transfer": baseColor = "#4caf50"; break;
         case "delegation": baseColor = "#2196f3"; break;
         case "zkapp": baseColor = "#ff57c1"; break;
+        case "contract_call": baseColor = "#ff57c1"; break;
       }
 
       // 🧊 Filter edges
-      if (commandTypeFilter.size > 0 && !commandTypeFilter.has(command)) {
+      const visibleTypes = expandedCommandTypeFilter();
+      if (visibleTypes.size > 0 && !visibleTypes.has(command)) {
         return {
           ...data,
           color: isLightTheme() ? "#eee" : "#111",
@@ -1846,12 +2006,33 @@
       font-family: sans-serif;
       border-right: 1px solid #444;
     "><br/>
+      <h2 style="font-size: 16px; margin-bottom: 10px;">Blockchain</h2>
+      <label for="blockchain-select">Select Blockchain</label>
+      <select id="blockchain-select" style="margin-bottom: 20px;">
+        <option value="mina" selected>Mina Protocol</option>
+        <option value="ethereum">Ethereum</option>
+        <option value="polygon">Polygon</option>
+      </select>
+
       <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
       <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
       <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
       <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
       <label>START KEY<br /><input id="param-base-key" type="text" value="B62..." style="width: 100%; margin-bottom: 10px;"></label>
-      <label>MINATAUR API KEY<br /><b style="font-size:9px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED</b><input readonly disabled id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;"></label>
+      <label>API KEY
+      <span 
+        onclick="document.getElementById('token-help-overlay').style.display = 'block';" 
+        title="Click for more info" 
+        style="cursor: pointer; margin-left: 5px; vertical-align: middle;"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+        </svg>
+      </span>       
+      <br />
+      <b style="font-size:9px; color:#FF3333;">TRIAL PERIOD - NO TOKEN REQUIRED FOR MINA</b>
+        <input id="param-api-token" type="password" value="" style="width: 100%; margin-bottom: 20px;">
+      </label>
       <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
       <span id="toggle-token-arrow">▸</span> Get new API token
       <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
@@ -2105,6 +2286,83 @@
         </ul>
     </div>
 
+     <!-- Get Token Help overlay -->
+    <div id="token-help-overlay">
+      <button onclick="document.getElementById('token-help-overlay').style.display='none'" style="
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: none;
+        color: white;
+        border: 2px solid white;
+        font-size: 18px;
+        padding: 8px 16px;
+        cursor: pointer;
+        border-radius: 5px;
+      ">CLOSE</button>
+        <h1>🔑 How to get your API Token</h1>
+        <p style="font-size: 18px; line-height: 1.6;">
+          This app needs an API token to fetch transactions from the selected blockchain.<br />
+          Here's how to get a token depending on the blockchain you're using:
+        </p>
+
+        <hr style="margin: 20px 0; border: 1px solid #555;" />
+
+        <h2 style="color:#4fc3f7">🪶 Mina (Minataur)</h2>
+        <p style="font-size: 16px; line-height: 1.6;">
+          <strong>No token required during the trial period.</strong><br />
+          However, once the trial period is over, for authenticated requests, you'll need a minataur token you can obtain by following these steps :
+        </p>
+        <ol style="font-size: 16px; line-height: 1.8;">
+          <li>Head over <a href="https://minataur.net/api/restful" target="_blank" style="color:#4fc3f7">Minataur.net</a></li>
+          <li>Follow the instructions to receive your token by email</li>
+          <li>Copy your Minataur API token</li>
+        </ol>
+        <p style="font-size: 16px; line-height: 1.6;">
+          You can also send the transaction directly through Mina Graph Explorer by entering the email address where you want to receive your token, and using Auro Wallet to send 1 MINA to the Minataur API service.
+          Mina Graph Explorer (and myself) does not take any commission on this transaction !
+          The transaction is as safe as it can be.
+        </p>       
+        <p>
+          📄 <a href="https://minataur.net/api/restful" target="_blank" style="color:#4fc3f7">Read Minataur API Docs</a>
+        </p>
+
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
+        <h2 style="color:#4fc3f7">🟣 Polygon (Polygonscan)</h2>
+        <ol style="font-size: 16px; line-height: 1.8;">
+          <li>Visit <a href="https://polygonscan.com/register" target="_blank" style="color:#4fc3f7">Polygonscan Register</a> and create an account</li>
+          <li>Go to your <a href="https://polygonscan.com/myapikey" target="_blank" style="color:#4fc3f7">API Keys page</a></li>
+          <li>Click “+ Add” to generate a new API key</li>
+          <li>Copy the key and paste it in the “API KEY” field</li>
+        </ol>
+        <p>
+          📊 <strong>Free Tier:</strong> 5 calls/sec, 100,000/day<br />
+          📄 <a href="https://docs.polygonscan.com/" target="_blank" style="color:#4fc3f7">View Polygonscan API Docs</a>
+        </p>
+
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
+        <h2 style="color:#4fc3f7">🟡 Ethereum (Etherscan)</h2>
+        <ol style="font-size: 16px; line-height: 1.8;">
+          <li>Visit <a href="https://etherscan.io/register" target="_blank" style="color:#4fc3f7">Etherscan Register</a> and create an account</li>
+          <li>Navigate to <a href="https://etherscan.io/myapikey" target="_blank" style="color:#4fc3f7">API Keys</a></li>
+          <li>Click “Add” to create a new API token</li>
+          <li>Use the key in your request field</li>
+        </ol>
+        <p>
+          ⛽ <strong>Free Tier:</strong> 5 calls/sec, 100,000/day<br />
+          📄 <a href="https://docs.etherscan.io/" target="_blank" style="color:#4fc3f7">Check Etherscan API Docs</a>
+        </p>
+
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
+        <p style="font-size: 16px; line-height: 1.6;">
+          ⚠️ Rate limits may apply depending on your tier or usage.<br />
+          You can upgrade your plans on each explorer site for higher throughput if needed.
+        </p>
+    </div>
+
     <footer style="font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
       &copy; naamahdaemon – <a href="https://mina.naamahdaemon.eu" target="_blank" style="color: #4fc3f7; text-decoration: none;">mina.naamahdaemon.eu</a><br/>
       Minataur API by Serhii Pimenov - <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net/api/restful</a>
@@ -2143,6 +2401,13 @@
     const commandTypeFilter = new Set(); // allows multiple command types
 
     let showAllLabels = true;
+    
+    let selectedBlockchain = "mina"; // 👈 default value
+    const delayByBlockchain = {
+      mina: 0,
+      ethereum: 300,
+      polygon: 1000,
+    };
     
     let cancelRequested = false;
 
@@ -2185,6 +2450,29 @@
 
     //main(DEPTH).catch(console.error);
  
+    function getExplorerURL(type, value, blockchain) {
+      const explorerMap = {
+        mina: {
+          block: `https://minascan.io/mainnet/block/${value}/txs`,
+          transaction: `https://minascan.io/mainnet/tx/${value}/txInfo`,
+          account: `https://minascan.io/mainnet/account/${value}`,
+        },
+        ethereum: {
+          block: `https://etherscan.io/block/${value}`,
+          transaction: `https://etherscan.io/tx/${value}`,
+          account: `https://etherscan.io/address/${value}`,
+        },
+        polygon: {
+          block: `https://polygonscan.com/block/${value}`,
+          transaction: `https://polygonscan.com/tx/${value}`,
+          account: `https://polygonscan.com/address/${value}`,
+        },
+      };
+
+      const chain = blockchain?.toLowerCase?.();
+      return explorerMap[chain]?.[type] || "#";
+    }
+
   </script>
 
   <button id="exit-fullscreen-btn" style="
@@ -2213,25 +2501,61 @@
   </div>
   
   <script>
+  //const commandTypeFilter = new Set();
+
+  const commandTypeAliases = {
+    payment: ["payment", "transfer"],
+    zkapp: ["zkapp", "contract_call"],
+    delegation: ["delegation"]
+  };
+
+  // Reverse map: actual command types → legend alias(es)
+  const expandedCommandTypeFilter = () => {
+    const expanded = new Set();
+    commandTypeFilter.forEach(alias => {
+      const realTypes = commandTypeAliases[alias] || [alias];
+      realTypes.forEach(t => expanded.add(t));
+    });
+    return expanded;
+  };
+
     document.querySelectorAll('.legend-item').forEach(item => {
       item.addEventListener('click', () => {
         const type = item.getAttribute('data-command-type');
 
         if (!type) {
+        // Reset filter
           commandTypeFilter.clear();
-        } else if (commandTypeFilter.has(type)) {
-          commandTypeFilter.delete(type);
+        console.log("🔄 Filter reset");
+      } else {
+        const aliases = commandTypeAliases[type] || [type];
+        const isActive = aliases.every(t => commandTypeFilter.has(t));
+
+        if (isActive) {
+          // Remove all aliases
+          aliases.forEach(t => commandTypeFilter.delete(t));
+          console.log("❌ Removed aliases:", aliases);
         } else {
-          commandTypeFilter.add(type);
+          // Add all aliases
+          aliases.forEach(t => commandTypeFilter.add(t));
+          console.log("✅ Added aliases:", aliases);
+        }
         }
 
-        // Update legend visual state
+      // Update visual state
         document.querySelectorAll('.legend-item').forEach(el => {
           const t = el.getAttribute('data-command-type');
-          if (!t) return el.classList.remove('active');
-          el.classList.toggle('active', commandTypeFilter.has(t));
+        if (!t) {
+          el.classList.remove('active');
+          return;
+        }
+
+        const aliases = commandTypeAliases[t] || [t];
+        const active = aliases.every(type => commandTypeFilter.has(type));
+        el.classList.toggle('active', active);
         });
 
+      console.log("🧪 Final filter set:", Array.from(commandTypeFilter));
         renderer.refresh();
       });
     });
@@ -2262,6 +2586,8 @@
       const toggleBtn = document.getElementById("search-icon");
       const searchDiv = document.getElementById("searchdiv");
       const searchInput = document.getElementById("search-input");
+      const blockchainSelect = document.getElementById("blockchain-select");
+      
 
       toggleBtn.addEventListener("click", (e) => {
         e.stopPropagation(); // prevent bubbling to the outside click
@@ -2292,6 +2618,17 @@
         faSettings.style.display = value === "fa" ? "block" : "none";
         ordSettings.style.display = value === "ord" ? "block" : "none";
       });
+            
+      if (blockchainSelect) {
+        // Ensure selectedBlockchain is synced with current value on page load
+        selectedBlockchain = blockchainSelect.value;
+        console.log("🌐 Initial selected blockchain:", selectedBlockchain);      
+        blockchainSelect.addEventListener("change", (e) => {
+          selectedBlockchain = e.target.value;
+          console.log("🌐 Selected blockchain:", selectedBlockchain);
+        });
+      }
+            
     });    
    </script>
 
@@ -3090,7 +3427,7 @@
       border-radius: 6px;
       max-height: 250px;
       overflow-y: auto;
-      width: 430px;
+      width: 400px;
       font-size: 13px;
     "></pre>
     <button id="stop-loading-btn" style="
