@@ -830,6 +830,24 @@
     return nameColorMap.get(name);
   }
 
+  function getColorByDegree(degree, minDeg, maxDeg) {
+    if (maxDeg === minDeg) return "#FFD700"; // Gold if all nodes have same degree
+    const ratio = (degree - minDeg) / (maxDeg - minDeg);
+
+    // 🎨 Accentuer les contrastes pour les hauts degrés
+    // Teinte allant de 300 (violet) à 330 (rose/jaune)
+    const hue = 300 + ratio * 30;
+
+    // Saturation plus élevée pour les nœuds avec beaucoup de liens
+    const saturation = 80 + ratio * 20; // de 80% à 100%
+
+    // Luminosité augmentée aussi
+    const lightness = 40 + ratio * 40; // de 40% à 80%
+
+    return hslToHex(hue, saturation, lightness);
+  }
+
+
   // Converts HSL to HEX
   function hslToHex(h, s, l) {
     s /= 100;
@@ -1272,7 +1290,7 @@
               });
           }
 
-          console.log(transactions);
+          //console.log(transactions);
 
           currentStep++;
           updateProgressBar(currentStep, totalSteps);
@@ -1338,6 +1356,26 @@
       }
     }
 
+    // 🎨 Set node color by degree for Ethereum/Polygon
+    if (["polygon", "ethereum"].includes(selectedBlockchain)) {
+      const degrees = graph.nodes().map(n => graph.degree(n));
+      const minDeg = Math.min(...degrees);
+      const maxDeg = Math.max(...degrees);
+
+      graph.forEachNode((node) => {
+        const degree = graph.degree(node);
+        const color = getColorByDegree(degree, minDeg, maxDeg);
+        //console.log(degree," : ",color);
+        graph.setNodeAttribute(node, 'colorByDegree', color);
+      });
+    } else if (selectedBlockchain === "mina") {
+      graph.forEachNode((node) => {
+        const name = graph.getNodeAttribute(node, 'name') || "noname";
+        const color = getBrightColorByName(name);
+        graph.setNodeAttribute(node, 'colorByDegree', color);
+      });
+    }
+
     const newReceivers = [...new Set(transactions.map(t => t.receiver_key))];
     totalSteps += newReceivers.length;
     updateProgressBar(currentStep, totalSteps);
@@ -1366,6 +1404,13 @@
   
   function deleteSelectedNode(nodeId) {
     if (!graph.hasNode(nodeId)) return;
+    const layoutBtn = document.getElementById("layout-toggle-btn");
+
+    if (isLayoutRunning) {
+      stopLayoutInWorker();
+      layoutBtn.textContent = "Apply Layout";
+      isLayoutRunning = false;
+    }
 
     const neighbors = graph.neighbors(nodeId);
     const toDelete = new Set([nodeId]); // Start with selected node
@@ -1438,11 +1483,11 @@
       }
     });
 
-    console.log('transactionsByNeighbor keys:', Object.keys(transactionsByNeighbor));
-    console.log('Looking for node:', node);
-    neighbors.forEach(n => {
-      console.log('Looking for neighbor:', n);
-    });
+    //console.log('transactionsByNeighbor keys:', Object.keys(transactionsByNeighbor));
+    //console.log('Looking for node:', node);
+    //neighbors.forEach(n => {
+    //  console.log('Looking for neighbor:', n);
+    //});
     
     const html = `
       <h3>
@@ -1481,8 +1526,8 @@
             tx.receiver_key === n && tx.sender_key === node
           );
 
-          console.log('node:', node);
-          console.log('transactionsByNeighbor[node]:', transactionsByNeighbor[node]);
+          //console.log('node:', node);
+          //console.log('transactionsByNeighbor[node]:', transactionsByNeighbor[node]);
 
           // Transactions initiées par le nœud sélectionné vers ce voisin
           /*const fromNode = (transactionsByNeighbor[node.toUpperCase()] || []).filter(tx =>
@@ -1495,7 +1540,7 @@
             tx.receiver_key === n && tx.sender_key === node
           );
 
-          console.log(fromNode);
+          //console.log(fromNode);
 
           // Concatène et déduplique (via hash par exemple si dispo)
           const interactions = [...fromNeighbor, ...fromNode];
@@ -1588,13 +1633,35 @@
   }
 
   function setupReducers() {
+    // 🔢 Precompute min/max degree for color gradient (used only for Polygon & Ethereum)
+    let minDegree = Infinity;
+    let maxDegree = -Infinity;
+
+    if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum") {
+      graph.forEachNode(node => {
+        const deg = graph.degree(node);
+        if (deg < minDegree) minDegree = deg;
+        if (deg > maxDegree) maxDegree = deg;
+      });
+    }
+    
     renderer.setSetting("nodeReducer", (node, data) => {
       const focusNode = hoveredNode || selectedNode;
       const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
       const isFocus = focusNode === node;
       const isNeighbor = neighbors?.has(node);
       //console.log("getBrightColorByName " + data.name); 
-      const glowColor =  getBrightColorByName(data.name || "noname");
+      //const glowColor =  getBrightColorByName(data.name || "noname");
+      //const glowColor =  data.color;
+      
+
+      // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
+      // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
+      const isMina = selectedBlockchain === "mina";
+      const glowColor = isMina
+        ? getBrightColorByName(data.name || "noname")
+        : getColorByDegree(graph.degree(node), minDegree, maxDegree);     
+      
       const defaultSize = data.size || 5;
       //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
