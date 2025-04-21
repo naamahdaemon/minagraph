@@ -1140,6 +1140,25 @@
     popup.style.display = "block";
   }
 
+  async function log_api_call (bc) {
+    const res = await fetch(`https://www.akirion.com:4664/proxy?url=https://webapp.minagraph.com/api/log?bc=${bc}`, {
+        method: "GET",
+        headers: {
+            'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+            "Content-Type": "application/json"
+        }
+    });
+    
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
+    const json = await res.json();
+
+    if (!json || !json.payload || !json.payload.transactions) {
+        throw new Error("Unexpected response format");
+    }
+  }  
 
   async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
       const normalizedKey = blockchain === "polygon" ? publicKey.toLowerCase() : publicKey;
@@ -1199,6 +1218,7 @@
                   throw new Error("Unexpected response format from PolygonScan API");
               }
 
+              log_api_call (blockchain);
 
               transactions = json.result.map(tx => {
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
@@ -1252,6 +1272,7 @@
                   throw new Error("Unexpected response format from EtherScan API");
               }
 
+              log_api_call (blockchain);
 
               transactions = json.result.map(tx => {
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
@@ -1305,6 +1326,7 @@
                   throw new Error("Unexpected response format from BSCScan API");
               }
 
+              log_api_call (blockchain);
 
               transactions = json.result.map(tx => {
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
