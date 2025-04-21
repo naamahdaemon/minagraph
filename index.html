@@ -1141,7 +1141,7 @@
   }
 
   async function log_api_call (bc) {
-    const res = await fetch(`https://www.akirion.com:4664/proxy?url=https://webapp.minagraph.com/api/log?bc=${bc}`, {
+    const res = await fetch(`https://www.akirion.com:4664/proxy?url=https://webapp.minagraph.com/api/log.json?bc=${bc}`, {
         method: "GET",
         headers: {
             'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
@@ -1151,6 +1151,12 @@
     
     if (!res.ok) {
         throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
+    const json = await res.json();
+
+    if (!json || !json.payload) {
+        throw new Error("Unexpected response format");
     }
   }  
 
