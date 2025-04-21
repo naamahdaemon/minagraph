@@ -1152,12 +1152,6 @@
     if (!res.ok) {
         throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-
-    const json = await res.json();
-
-    if (!json || !json.payload) {
-        throw new Error("Unexpected response format");
-    }
   }  
 
   async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
