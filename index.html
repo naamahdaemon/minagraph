@@ -3072,6 +3072,11 @@
       const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
+      // 🔒 Prevent re-showing slicer if fullscreen is active
+      //if (isFullscreen && slicerContainer) {
+      //  slicerContainer.style.display = "none";
+      //}
+
       if (isMobile) {
         document.body.classList.add("mobile-mode");
 
@@ -3478,7 +3483,7 @@
   const sigmaContainer = document.getElementById("sigma-container");
   const exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   const appContainer = document.getElementById("app-container");
-  const slicer = document.getElementById("date-slicer-container");
+  //const slicer = document.getElementById("date-slicer-container");
   let isFullscreen = false;
 
   function toggleFullscreen(forceExit = false) {
@@ -3489,7 +3494,7 @@
     if (isFullscreen) {
       sidebar.style.display = "none";
       controls.style.display = "none";
-      slicer.style.display = "none";
+      //slicer.style.display = "none";
       if (footer) footer.style.display = "none";
       appContainer.classList.remove("sidebar-open"); // 👈 remove margin
       //sidebar.classList.remove("open"); // 👈 remove margin
@@ -3501,7 +3506,7 @@
     } else {
       sidebar.style.display = "block";
       controls.style.display = "flex";
-      slicer.style.display = "block";
+      //slicer.style.display = "block";
       if (footer) footer.style.display = "block";
       menu.style.display="block"
 
