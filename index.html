@@ -5,6 +5,7 @@
   <title>Mina Graph Explorer</title>
   <link href="https://fonts.googleapis.com/css2?family=Coda&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">  
   <meta name="theme-color" content="#000000">
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-VR50WVP209"></script>
@@ -3071,6 +3072,12 @@
       const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
+      // 🔒 Prevent re-showing slicer if fullscreen is active
+      if (isFullscreen && slicerContainer) {
+        slicerContainer.style.display = "none";
+        return;
+      }
+
       if (isMobile) {
         document.body.classList.add("mobile-mode");
 
@@ -3357,9 +3364,17 @@
       
 
       function adjustSidebarState() {
-        if (window.innerWidth >= 769) {
+        if (window.innerWidth >= 769 && !isFullscreen) {
           sidebar.classList.add("open");
           appContainer.classList.add("sidebar-open");
+        } else {
+          sidebar.classList.remove("open");
+          appContainer.classList.remove("sidebar-open");
+        }
+
+        // 👇 Always hide the slicer in fullscreen mode
+        if (isFullscreen && slicer) {
+          slicer.style.display = "none";
         }
 
         updateLegendOffset(); // 👈 met aussi à jour la légende
