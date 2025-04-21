@@ -1155,13 +1155,17 @@
 
     const json = await res.json();
 
-    if (!json || !json.payload || !json.payload.transactions) {
+    if (!json || !json.payload) {
         throw new Error("Unexpected response format");
     }
   }  
 
   async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
       const normalizedKey = blockchain === "polygon" ? publicKey.toLowerCase() : publicKey;
+      
+      if (normalizedKey === "genesis") 
+        return;
+      
       delay = delayByBlockchain[blockchain] || delay;
       console.log("selectedBlockchain : ", selectedBlockchain);
       console.log("Normalized Key : ", normalizedKey);
@@ -1311,6 +1315,8 @@
                 };
               });
           } else if (blockchain === 'bsc') {
+              if (normalizedKey === 'genesis')
+                return;
               const bscscanApiKey = API_TOKEN;
               const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`;
 
