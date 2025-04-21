@@ -3072,12 +3072,6 @@
       const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
-      // 🔒 Prevent re-showing slicer if fullscreen is active
-      if (isFullscreen && slicerContainer) {
-        slicerContainer.style.display = "none";
-        return;
-      }
-
       if (isMobile) {
         document.body.classList.add("mobile-mode");
 
