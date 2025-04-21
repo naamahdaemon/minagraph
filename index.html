@@ -773,6 +773,7 @@
     switch (chain) {
       case "ethereum":
       case "polygon":
+      case "bsc":
         return 18;
       case "mina":
         return 9;
@@ -1288,6 +1289,59 @@
                   s_spammer: 0
                 };
               });
+          } else if (blockchain === 'bsc') {
+              const bscscanApiKey = API_TOKEN;
+              const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`;
+
+              console.log("Calling BSC API");
+
+              const res = await fetch(url);
+              if (!res.ok) {
+                  throw new Error(`BSCScan API error: ${res.status} ${res.statusText}`);
+              }
+
+              const json = await res.json();
+              if (!json || json.status !== "1" || !json.result) {
+                  throw new Error("Unexpected response format from BSCScan API");
+              }
+
+
+              transactions = json.result.map(tx => {
+                const isContractCreation = !tx.to; // ✅ Now tx is defined
+
+                return {
+                  block_id: parseInt(tx.blockNumber),
+                  height: parseInt(tx.blockNumber),
+                  timestamp: `${parseInt(tx.timeStamp) * 1000}`,
+                  hash: tx.hash,
+                  command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                  nonce: tx.nonce,
+                  amount: tx.value,
+                  fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
+                  memo: "",
+                  sequence_no: null,
+                  status: tx.isError === "0" ? "applied" : "failed",
+                  failure_reason: tx.isError === "0" ? null : "error",
+                  confirm: null,
+                  sender_id: null,
+                  sender_key: tx.from.toLowerCase(),
+                  receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
+                  sender_name: "noname",
+                  receiver_id: null,
+                  receiver_name: isContractCreation ? "contract_creation" : "noname",
+                  fee_payer_id: null,
+                  fee_payer_key: tx.from.toLowerCase(),
+                  fee_payer_name: null,
+                  chain_status: "canonical",
+                  block_hash: tx.blockHash,
+                  r_thief: 0,
+                  s_thief: 0,
+                  r_scammer: 0,
+                  s_scammer: 0,
+                  r_spammer: 0,
+                  s_spammer: 0
+                };
+              });
           }
 
           //console.log(transactions);
@@ -1305,7 +1359,7 @@
   }
 
   async function buildGraphRecursively(publicKey, depth, level = 0) {
-    const normalizedKey = ["polygon", "ethereum"].includes(selectedBlockchain)
+    const normalizedKey = ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
       ? publicKey.toLowerCase()
       : publicKey;
       
@@ -1357,7 +1411,7 @@
     }
 
     // 🎨 Set node color by degree for Ethereum/Polygon
-    if (["polygon", "ethereum"].includes(selectedBlockchain)) {
+    if (["polygon", "ethereum", "bsc"].includes(selectedBlockchain)) {
       const degrees = graph.nodes().map(n => graph.degree(n));
       const minDeg = Math.min(...degrees);
       const maxDeg = Math.max(...degrees);
@@ -1633,11 +1687,11 @@
   }
 
   function setupReducers() {
-    // 🔢 Precompute min/max degree for color gradient (used only for Polygon & Ethereum)
+    // 🔢 Precompute min/max degree for color gradient (used only for Polygon & Ethereum & BSC)
     let minDegree = Infinity;
     let maxDegree = -Infinity;
 
-    if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum") {
+    if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc") {
       graph.forEachNode(node => {
         const deg = graph.degree(node);
         if (deg < minDegree) minDegree = deg;
@@ -2110,6 +2164,7 @@
         <option value="mina" selected>Mina Protocol</option>
         <option value="ethereum">Ethereum</option>
         <option value="polygon">Polygon</option>
+        <option value="bsc">Binance Smart Chain</option>
       </select>
 
       <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
@@ -2494,6 +2549,20 @@
 
         <hr style="margin: 30px 0; border: 1px solid #555;" />
 
+        <h2 style="color:#4fc3f7">🔵 Binance Smart Chain (BSCScan)</h2>
+        <ol style="font-size: 16px; line-height: 1.8;">
+          <li>Visit <a href="https://bscscan.com/register" target="_blank" style="color:#4fc3f7">BSCScan Register</a> and create an account</li>
+          <li>Navigate to <a href="https://bscscan.com/myapikey" target="_blank" style="color:#4fc3f7">API Keys</a></li>
+          <li>Click “Add” to create a new API token</li>
+          <li>Use the key in your request field</li>
+        </ol>
+        <p>
+          ⛽ <strong>Free Tier:</strong> 5 calls/sec, 100,000/day<br />
+          📄 <a href="https://docs.bscscan.com/" target="_blank" style="color:#4fc3f7">Check BSCScan API Docs</a>
+        </p>
+
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
         <p style="font-size: 16px; line-height: 1.6;">
           ⚠️ Rate limits may apply depending on your tier or usage.<br />
           You can upgrade your plans on each explorer site for higher throughput if needed.
@@ -2544,6 +2613,7 @@
       mina: 0,
       ethereum: 1000,
       polygon: 1000,
+      bsc: 300,
     };
     
     let cancelRequested = false;
@@ -2652,6 +2722,11 @@
           block: `https://polygonscan.com/block/${value}`,
           transaction: `https://polygonscan.com/tx/${value}`,
           account: `https://polygonscan.com/address/${value}`,
+        },
+        bsc: {
+          block: `https://bscscan.com/block/${value}`,
+          transaction: `https://bscscan.com/tx/${value}`,
+          account: `https://bscscan.com/address/${value}`,
         },
       };
 
