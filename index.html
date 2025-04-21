@@ -665,7 +665,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    animation: fadeOut 0.5s ease-out 8s forwards;
+    animation: fadeOut 0.5s ease-out 6s forwards;
   }
 
   .splash-content {
@@ -1312,11 +1312,24 @@
               if (normalizedKey === 'genesis')
                 return;
               const bscscanApiKey = API_TOKEN;
-              const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`;
+              //const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`;
+
+              const encodedTargetUrl = encodeURIComponent(
+                `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`
+              );
+
+              const url = `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`;
+          
 
               console.log("Calling BSC API");
 
-              const res = await fetch(url);
+              const res = await fetch(url, {
+              headers: {
+                      'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+                      "Content-Type": "application/json"
+                  },
+              });
+              
               if (!res.ok) {
                   throw new Error(`BSCScan API error: ${res.status} ${res.statusText}`);
               }
@@ -1384,6 +1397,9 @@
     const normalizedKey = ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
       ? publicKey.toLowerCase()
       : publicKey;
+      
+    if (normalizedKey === "genesis")
+      return;
       
     if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
     while (pause) await new Promise(r => setTimeout(r, 100));
