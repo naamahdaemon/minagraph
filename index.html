@@ -3072,11 +3072,6 @@
       const slider = document.getElementById("slicer-range");
       const isMobile = window.innerWidth <= 768;
 
-      // 🔒 Prevent re-showing slicer if fullscreen is active
-      if (isFullscreen && slicerContainer) {
-        slicerContainer.style.display = "none";
-        return;
-      }
 
       if (isMobile) {
         document.body.classList.add("mobile-mode");
@@ -3167,7 +3162,14 @@
           }
         }
       }
+      
+      // 🔒 Prevent re-showing slicer if fullscreen is active
+      if (isFullscreen && slicerContainer) {
+        slicerContainer.style.display = "none";
+        return;
     }
+    }
+
 
     window.addEventListener("resize", updateSlicerView);
     window.addEventListener("DOMContentLoaded", updateSlicerView);   
@@ -3364,14 +3366,20 @@
       
 
       function adjustSidebarState() {
+        const activeElement = document.activeElement;
+        const isInputFocusedInSidebar = sidebar.contains(activeElement) &&
+          (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || activeElement.tagName === "SELECT");
+      
         if (window.innerWidth >= 769 && !isFullscreen) {
           sidebar.classList.add("open");
           appContainer.classList.add("sidebar-open");
-        } 
-        /*else {
+        } else {
+          // ✅ Ne ferme pas la sidebar si un champ est actif dedans (sur mobile)
+          if (!isInputFocusedInSidebar) {
           sidebar.classList.remove("open");
           appContainer.classList.remove("sidebar-open");
-        }*/
+          }
+        }
 
         // 👇 Always hide the slicer in fullscreen mode
         if (isFullscreen && slicer) {
