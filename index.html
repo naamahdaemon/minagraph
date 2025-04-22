@@ -397,7 +397,7 @@
       line-height: 1.6;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
       transition: left 0.3s ease;
-      z-index: 998;
+      z-index: 1000;
     }
 
     /* 💻 Desktop layout: shift legend if sidebar is visible */
@@ -3512,11 +3512,14 @@
       exitFullscreenBtn.style.display = "block";
       document.body.classList.add("fullscreen-mode");
       legend.style.left = "50px";
+      legend.style.display="none";
       menu.style.display="none"
     } else {
       sidebar.style.display = "block";
       controls.style.display = "flex";
       slicer.style.display = "block";
+      legend.style.display="block";
+      legend.style.top = "20px";
       if (footer) footer.style.display = "block";
       menu.style.display="block"
 
