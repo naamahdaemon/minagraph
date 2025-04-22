@@ -775,6 +775,7 @@
       case "ethereum":
       case "polygon":
       case "bsc":
+      case "solana":
         return 18;
       case "mina":
         return 9;
@@ -1155,6 +1156,44 @@
     }
     }
 
+
+  function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function getSolCommandType(tx) {
+    const instructions = tx.transaction.message.instructions || [];
+
+    for (const inst of instructions) {
+      // Handle parsed instructions (system, token, etc.)
+      if (inst.parsed?.type) {
+        const type = inst.parsed.type.toLowerCase();
+
+        if (inst.program === "system" && type === "transfer") return "transfer";
+        if (inst.program === "spl-token" && type === "transfer") return "token_transfer";
+        if (inst.program === "stake") return "stake";
+        if (inst.program === "vote") return "vote";
+        if (inst.program === "memo") return "memo";
+      }
+
+      // Handle raw programId-based logic
+      const programId = inst.programId;
+      if (programId === "11111111111111111111111111111111") return "transfer"; // system
+      if (programId.startsWith("Tokenkeg")) return "token_transfer"; // SPL Token Program
+      if (programId.startsWith("Stake111")) return "stake";
+      if (programId.startsWith("Vote111")) return "vote";
+      if (programId.startsWith("MemoSq4")) return "memo";
+      if (programId.startsWith("BPFLoader")) return "contract_deploy";
+      if (programId.startsWith("metaqb")) return "nft_mint";
+      if (programId.startsWith("cmtDvXum")) return "nft_collection";
+      if (programId.startsWith("9xQeW")) return "serum_order"; // Serum DEX
+      if (programId.startsWith("RVKd61")) return "raydium_swap";
+    }
+
+    return "contract_call"; // fallback
+  }
+
+
   async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
       const normalizedKey = blockchain === "polygon" ? publicKey.toLowerCase() : publicKey;
       
@@ -1378,6 +1417,157 @@
                   s_spammer: 0
                 };
               });
+          } else if (blockchain === 'solana') {
+          
+          // ======== SOLANA =========
+            console.log("Calling Helius Solana API");
+
+            const HELIUS_API_KEY = API_TOKEN;
+            const url = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+            const signaturesPayload = {
+              jsonrpc: "2.0",
+              id: 1,
+              method: "getSignaturesForAddress",
+              params: [
+                normalizedKey,
+                { limit: limit }
+              ]
+            };
+
+            const signaturesRes = await fetch(url, {
+              method: "POST",
+              headers: {
+                'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(signaturesPayload)
+            });
+
+            if (!signaturesRes.ok) {
+              throw new Error(`Helius API error: ${signaturesRes.status} ${signaturesRes.statusText}`);
+            }
+
+            const signaturesJson = await signaturesRes.json();
+
+            if (!signaturesJson || !signaturesJson.result) {
+              throw new Error("Unexpected response format from Helius API");
+            }
+            
+            console.log("signaturesJson : ", signaturesJson);
+
+            appendLoaderLog(`🔄 Loading ${signaturesJson.result.length} tx for ${normalizedKey.slice(0, 6)}…${normalizedKey.slice(-6)}`);
+
+            const txDetails = [];
+
+            for (const sig of signaturesJson.result) {
+              const txPayload = {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "getTransaction",
+                params: [
+                  sig.signature,
+                  {
+                    encoding: "jsonParsed",
+                    maxSupportedTransactionVersion: 0
+                  }
+                ]
+              };
+
+              const txRes = await fetch(url, {
+                method: "POST",
+                headers: {
+                  'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify(txPayload)
+              });
+
+              if (txRes.ok) {
+                const txJson = await txRes.json();
+                if (txJson && txJson.result) {
+                  txDetails.push(txJson.result);
+                }
+              }
+
+              await sleep(delay);
+          }
+
+            log_api_call(blockchain);
+
+            transactions = txDetails
+              .filter(tx => tx !== null)
+              .map(tx => {
+                const accountKeys = tx.transaction.message.accountKeys;
+                const senderKey = accountKeys[0].pubkey;
+
+                let receiverKey = senderKey;
+                if (tx.meta && tx.meta.postTokenBalances && tx.meta.postTokenBalances.length > 0) {
+                  const tokenRecipient = accountKeys[tx.meta.postTokenBalances[0].accountIndex];
+                  receiverKey = tokenRecipient.pubkey;
+                } else if (accountKeys.length > 1) {
+                  receiverKey = accountKeys[1].pubkey;
+                }
+
+                return {
+                  tx,
+                  senderKey,
+                  receiverKey
+                };
+              })
+              .filter(({ senderKey, receiverKey }) =>
+                senderKey === normalizedKey || receiverKey === normalizedKey
+              )
+              .map(({ tx, senderKey, receiverKey }) => {
+                const commandType = getSolCommandType(tx);
+                
+                const accountKeys = tx.transaction.message.accountKeys;
+
+                let amount = "0";
+                if (tx.meta && tx.meta.preBalances && tx.meta.postBalances) {
+                  const receiverIndex = accountKeys.findIndex(k => k.pubkey === receiverKey);
+                  if (receiverIndex >= 0) {
+                    const pre = tx.meta.preBalances[receiverIndex] || 0;
+                    const post = tx.meta.postBalances[receiverIndex] || 0;
+                    if (post - pre > 0) {
+                      amount = (post - pre).toString();
+                    }
+                  }
+                }
+
+                return {
+                  block_id: tx.slot,
+                  height: tx.slot,
+                  timestamp: tx.blockTime ? `${tx.blockTime * 1000}` : null,
+                  hash: tx.transaction.signatures[0],
+                  command_type: commandType,
+                  nonce: null,
+                  amount: amount,
+                  fee: tx.meta?.fee?.toString() || "0",
+                  memo: "",
+                  sequence_no: null,
+                  status: tx.meta?.err ? "failed" : "applied",
+                  failure_reason: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+                  confirm: null,
+                  sender_id: null,
+                  sender_key: senderKey,
+                  receiver_key: receiverKey,
+                  sender_name: "noname",
+                  receiver_id: null,
+                  receiver_name: "noname",
+                  fee_payer_id: null,
+                  fee_payer_key: senderKey,
+                  fee_payer_name: null,
+                  chain_status: "canonical",
+                  block_hash: tx.transaction.message.recentBlockhash,
+                  r_thief: 0,
+                  s_thief: 0,
+                  r_scammer: 0,
+                  s_scammer: 0,
+                  r_spammer: 0,
+                  s_spammer: 0
+                };
+              });
           }
 
           //console.log(transactions);
@@ -1450,7 +1640,7 @@
     }
 
     // 🎨 Set node color by degree for Ethereum/Polygon
-    if (["polygon", "ethereum", "bsc"].includes(selectedBlockchain)) {
+    if (["polygon", "ethereum", "bsc","solana"].includes(selectedBlockchain)) {
       const degrees = graph.nodes().map(n => graph.degree(n));
       const minDeg = Math.min(...degrees);
       const maxDeg = Math.max(...degrees);
@@ -1730,7 +1920,7 @@
     let minDegree = Infinity;
     let maxDegree = -Infinity;
 
-    if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc") {
+    if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana") {
       graph.forEachNode(node => {
         const deg = graph.degree(node);
         if (deg < minDegree) minDegree = deg;
@@ -2204,6 +2394,7 @@
         <option value="ethereum">Ethereum</option>
         <option value="polygon">Polygon</option>
         <option value="bsc">Binance Smart Chain</option>
+        <option value="solana">Solana</option>
       </select>
 
       <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
@@ -2602,6 +2793,21 @@
 
         <hr style="margin: 30px 0; border: 1px solid #555;" />
 
+        <h2 style="color:#4fc3f7">🟩 Solana (Helius RPC)</h2>
+        <ol style="font-size: 16px; line-height: 1.8;">
+          <li>Go to <a href="https://www.helius.xyz/" target="_blank" style="color:#4fc3f7">helius.xyz</a> and create a free account</li>
+          <li>After logging in, go to your <strong>Dashboard</strong></li>
+          <li>Click on <strong>“Create API Key”</strong> and give it a name</li>
+          <li>Copy the key and paste it in the “API KEY” field</li>
+        </ol>
+        <p>
+          ⚡ <strong>Free Tier:</strong> 250 req/min, 200k/day<br />
+          📄 <a href="https://docs.helius.xyz/" target="_blank" style="color:#4fc3f7">Read Helius API Docs</a>
+        </p>
+
+
+        <hr style="margin: 30px 0; border: 1px solid #555;" />
+
         <p style="font-size: 16px; line-height: 1.6;">
           ⚠️ Rate limits may apply depending on your tier or usage.<br />
           You can upgrade your plans on each explorer site for higher throughput if needed.
@@ -2653,6 +2859,7 @@
       ethereum: 1000,
       polygon: 1000,
       bsc: 300,
+      solana: 100,
     };
     
     let cancelRequested = false;
@@ -2766,6 +2973,11 @@
           block: `https://bscscan.com/block/${value}`,
           transaction: `https://bscscan.com/tx/${value}`,
           account: `https://bscscan.com/address/${value}`,
+        },
+        solana: {
+          block: `https://solscan.io/block/${value}`,
+          transaction: `https://solscan.io/tx/${value}`,
+          account: `https://solscan.io/account/${value}`,
         },
       };
 
