@@ -1240,6 +1240,11 @@
 
               transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
 
+              transactions.forEach(tx => {
+                tx.blockchain = 'mina';
+              });
+
+
           } else if (blockchain === 'polygon') {
               const polygonscanApiKey = API_TOKEN;
               const url = `https://api.polygonscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${polygonscanApiKey}`;
@@ -1636,7 +1641,7 @@
         const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
         graph.addEdgeWithKey(edgeId, sender, receiver, {
           label: tx.command_type,
-          status: tx.chain_status,
+          status: tx.status,
           timestamp: timestamp,
           fee: tx.fee,
           amount: tx.amount,
@@ -1644,7 +1649,7 @@
           block_hash: tx.block_hash,
           memo: tx.memo,
           blockchain: tx.blockchain, // ✅ This is critical
-          color: tx.chain_status === "canonical" ? "#ccc" : "#f66"
+          color: tx.status === "applied" ? "#ccc" : "#f66"
         });
       }
     }
@@ -1843,7 +1848,7 @@
             <table style="width:100%; border-collapse: collapse; font-size: 9px; margin-bottom: 20px;">
               <thead>
                 <tr>
-                  <th>Blockchain</th>
+                  <th>BC</th>
                   <th style="text-align:left;">Timestamp</th>
                   <th>Block</th>
                   <th>Type</th>
