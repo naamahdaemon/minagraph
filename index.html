@@ -1774,7 +1774,7 @@
     let tx = 0, del = 0, failed = 0, sc = 0;
     graph.forEachEdge((e, attr, src, tgt) => {
       if ((src === node || tgt === node)) {
-        if (attr.status !== "canonical") failed++;
+        if (attr.status !== "applied") failed++;
         else if (attr.label === "delegation") del++;
         else if (attr.label === "payment" || attr.label === "transfer") tx++;
         else if (attr.label === "contract_call") sc++;
@@ -1848,7 +1848,7 @@
             <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
               <thead>
                 <tr>
-                  <th>Blockchain</th>
+                  <th>Chain</th>
                   <th style="text-align:left;">Timestamp</th>
                   <th>Block</th>
                   <th>Type</th>
