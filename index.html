@@ -1262,6 +1262,7 @@
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
 
                 return {
+                  blockchain: blockchain,
                   block_id: parseInt(tx.blockNumber),
                   height: parseInt(tx.blockNumber),
                   timestamp: `${parseInt(tx.timeStamp) * 1000}`,
@@ -1316,6 +1317,7 @@
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
 
                 return {
+                  blockchain: blockchain,
                   block_id: parseInt(tx.blockNumber),
                   height: parseInt(tx.blockNumber),
                   timestamp: `${parseInt(tx.timeStamp) * 1000}`,
@@ -1385,6 +1387,7 @@
                 const isContractCreation = !tx.to; // ✅ Now tx is defined
 
                 return {
+                  blockchain: blockchain,
                   block_id: parseInt(tx.blockNumber),
                   height: parseInt(tx.blockNumber),
                   timestamp: `${parseInt(tx.timeStamp) * 1000}`,
@@ -1536,6 +1539,7 @@
                 }
 
                 return {
+                  blockchain: blockchain,
                   block_id: tx.slot,
                   height: tx.slot,
                   timestamp: tx.blockTime ? `${tx.blockTime * 1000}` : null,
@@ -1633,7 +1637,13 @@
         graph.addEdgeWithKey(edgeId, sender, receiver, {
           label: tx.command_type,
           status: tx.chain_status,
-          timestamp: timestamp, // ✅ Add timestamp here
+          timestamp: timestamp,
+          fee: tx.fee,
+          amount: tx.amount,
+          block_id: tx.block_id,
+          block_hash: tx.block_hash,
+          memo: tx.memo,
+          blockchain: tx.blockchain, // ✅ This is critical
           color: tx.chain_status === "canonical" ? "#ccc" : "#f66"
         });
       }
@@ -1833,6 +1843,7 @@
             <table style="width:100%; border-collapse: collapse; font-size: 9px; margin-bottom: 20px;">
               <thead>
                 <tr>
+                  <th>Blockchain</th>
                   <th style="text-align:left;">Timestamp</th>
                   <th>Block</th>
                   <th>Type</th>
@@ -1845,23 +1856,24 @@
               <tbody>
                 ${unique.map(tx => `
                   <tr title="${tx.memo || ''}">
+                    <td>${tx.blockchain}</td>
                     <td>${formatTimestamp(tx.timestamp)}</td>
                     <td>
                       ${tx.block_id
-                        ? `<a href="${getExplorerURL('block', tx.block_hash, selectedBlockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                        ? `<a href="${getExplorerURL('block', tx.block_hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
                             ${tx.block_id}
                           </a> <span style="font-size: 9px; opacity: 0.7;">🔗</span>`
                         : "-"}
                     </td>
                     <td>
                       ${tx.command_type
-                        ? `<a href="${getExplorerURL('transaction', tx.hash, selectedBlockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                        ? `<a href="${getExplorerURL('transaction', tx.hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
                             ${tx.command_type} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
                           </a>`
                         : (tx.label || "-")}
                     </td>
-                    <td>${formatAmount(tx.amount, getDecimalsForBlockchain(selectedBlockchain))}</td>
-                    <td>${formatAmount(tx.fee, getDecimalsForBlockchain(selectedBlockchain))}</td>
+                    <td>${formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
+                    <td>${formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                     <td>${tx.status || "-"}</td>
                     <!--<td>${tx.chain_status || "-"}</td>-->
                   </tr>
@@ -2264,6 +2276,9 @@
 
     renderer = new Sigma(graph,container,param);
     }
+   
+   if (!wipeGraph)
+    rebuildTransactionsByNeighbor();
    
     // Apply reducers and interactions
     setupReducers();
@@ -4026,6 +4041,7 @@
 
       graph.forEachEdge((edge, attrs, source, target) => {
         const tx = {
+          blockchain: attrs.blockchain,
           sender_key: source,
           receiver_key: target,
           command_type: attrs.label,
