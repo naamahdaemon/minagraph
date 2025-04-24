@@ -755,6 +755,18 @@
     }
   }
   
+  document.addEventListener("DOMContentLoaded", () => {
+    const tokenInput = document.getElementById("param-api-token");
+
+    tokenInput.addEventListener("focus", () => {
+      tokenInput.type = "text";
+    });
+
+    tokenInput.addEventListener("blur", () => {
+      tokenInput.type = "password";
+    });
+  });
+  
   function getContrastingLabelColor(bgColor) {
     if (!bgColor || typeof bgColor !== "string") return currentTheme === "light" ? "#000" : "#fff";
 
@@ -2465,7 +2477,7 @@
 
         <!-- Input container with relative positioning -->
         <div style="position: relative;">
-          <input id="param-api-token" type="text" style="width: 100%; padding-right: 24px; height: 32px; padding: 6px 8px; border-radius: 6px;" />
+          <input id="param-api-token" type="password" style="width: 100%; padding-right: 24px; height: 32px; padding: 6px 8px; border-radius: 6px;" />
 
           <!-- ✖ button INSIDE the input -->
           <button 
