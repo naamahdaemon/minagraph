@@ -1703,7 +1703,7 @@
     });
   }
 
-  function animateLayout(iterations = 200) {
+  function animateLayout(iterations = 500) {
     for (let i = 0; i < iterations; i++) {
       setTimeout(() => {
         fruchtermanReingold(graph, { iterations: 1 });
@@ -2341,7 +2341,8 @@
     a.click();
   }
 
-  function importJSON(file) {
+
+  function importJSON(file, mode="", iterations=500) {
     if (!graph || !renderer) {
       initRenderer();
     }
@@ -2391,9 +2392,15 @@
           document.getElementById("progress-text").textContent = "";
         }, 300);
 
+        if (mode === "")
         alert("Graph imported successfully!");
         rebuildTransactionsByNeighbor();
         setupDateSlicer();
+        setupReducers();
+        setupInteractions();
+        setupSearch();
+        renderer.refresh();
+        animateLayout(iterations);
       } catch (e) {
         console.error("Failed to load graph JSON:", e);
         alert("Failed to load graph JSON. See console for details.");
@@ -2412,6 +2419,47 @@
     a.download = "mina-graph.png";
     a.click();
   }    
+  async function demo() {
+    const sampleFiles = [
+      "sample1.json",
+      "sample2.json",
+    ];
+
+    const randomFile = sampleFiles[Math.floor(Math.random() * sampleFiles.length)];
+
+    try {
+      const response = await fetch(`./sample/${randomFile}`);
+      if (!response.ok) throw new Error(`Erreur chargement ${randomFile}`);
+
+      const blob = await response.blob();
+      const file = new File([blob], randomFile, { type: "application/json" });
+
+      // Injecter les valeurs spécifiques du layout dans l'UI
+      document.getElementById("layout-algorithm").value = "fr";
+      document.getElementById("layout-iterations").value = 5000;
+      document.getElementById("layout-gravity").value = 0.01;
+      document.getElementById("layout-scale").value = 5000;
+
+      // Largeur/hauteur par défaut si non initialisées
+      document.getElementById("layout-width").value = 2000;
+      document.getElementById("layout-height").value = 2000;
+
+      // Importer le graphe
+      importJSON(file, "demo", 2000);
+
+      // Lancer le layout avec petit délai (laisser le temps à importJSON de finir)
+      const layoutBtn = document.getElementById("layout-toggle-btn");
+      setTimeout(() => {
+        //runLayoutInWorker();
+        //layoutBtn.textContent = "Stop Layout";
+        //isLayoutRunning = true;
+        log_api_call("demo");
+      }, 1200); // ajustable si import plus long
+    } catch (error) {
+      console.error("Erreur lors du chargement du fichier de démo :", error);
+  }
+  }
+
 </script>
 
 <body>
@@ -2572,6 +2620,7 @@
       <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
       <input type="file" id="import-json" accept=".json" style="display: none;">
       <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
+      <button onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
       <div style="margin-top: 40px; text-align: center;">
         <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
       </div>  
