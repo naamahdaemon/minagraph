@@ -2229,16 +2229,20 @@
     });
   }  
   
-  async function main(depth = 2) {
+  async function main(depth = 2, wipeGraph = true) {
     showLoader(); // ✅ show modal
 
     totalSteps = 1;
     currentStep = 0;
-    visitedKeys.clear();
+    //visitedKeys.clear();
 
     // Rebuild the graph object BEFORE rendering
+    if (wipeGraph || !graph) {
     graph = new Graph({ multi: true });
 
+    }
+    
+    visitedKeys.clear();
     await buildGraphRecursively(BASE_KEY, depth);
 
     applyNodeSizesByDegree();
@@ -2246,6 +2250,8 @@
 
     // Only now, create the renderer
     const container = document.getElementById("sigma-container");
+    
+    if (wipeGraph || !renderer) {
     container.innerHTML = ""; // ✅ clears canvas and attached DOM elements
     tooltip.style.display = "none";
     panel.style.display = "none";
@@ -2257,6 +2263,7 @@
     //renderer = new Sigma(graph, container);
 
     renderer = new Sigma(graph,container,param);
+    }
    
     // Apply reducers and interactions
     setupReducers();
@@ -2396,6 +2403,14 @@
         <option value="bsc">Binance Smart Chain</option>
         <option value="solana">Solana</option>
       </select>
+
+      <div style="margin-top: 10px;">
+        <label for="wipe-select">Wipe graph data:</label>
+        <select id="wipe-select">
+          <option value="yes" selected>Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
 
       <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
       <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
@@ -2935,11 +2950,14 @@
       BASE_KEY = document.getElementById("param-base-key").value.trim();
       API_TOKEN = document.getElementById("param-api-token").value.trim();
 
+      // Get the wipe option
+      const wipeGraph = document.getElementById("wipe-select").value === "yes";
+
       // Reset visited keys
-      visitedKeys.clear();
+      //visitedKeys.clear();
 
       // Launch the graph builder
-      main(DEPTH).catch(console.error);
+      main(DEPTH, wipeGraph).catch(console.error);
       
       // 👉 Hide the sidebar after launching
       const sidebar = document.getElementById("left-sidebar");
