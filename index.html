@@ -1639,6 +1639,10 @@
     if (normalizedKey === "genesis")
       return;
       
+    if (!window.initialPublicKey) {
+      window.initialPublicKey = normalizedKey;
+    }
+      
     if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
     while (pause) await new Promise(r => setTimeout(r, 100));
     const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000);
@@ -1996,9 +2000,16 @@
       // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
       // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
       const isMina = selectedBlockchain === "mina";
-      const glowColor = isMina
+      let glowColor;
+
+      if (node === window.initialPublicKey) {
+        glowColor = "#FF0000"; // 🔥 Rouge pour la clé initiale
+      } else {
+        glowColor = isMina
         ? getBrightColorByName(data.name || "noname")
         : getColorByDegree(graph.degree(node), minDegree, maxDegree);     
+      }
+  
       
       const defaultSize = data.size || 5;
       //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
