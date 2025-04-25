@@ -1,0 +1,729 @@
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+
+      background: #fff;
+      color: #eee;
+    }
+
+    * {
+      box-sizing: border-box;
+
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+
+      background: #fff;
+      color: #eee;
+    } 
+
+    #app-container {
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+    }
+
+    #left-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 280px;
+      height: 100%;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      background: #1e1e1e;
+      z-index: 1001;
+    }
+
+    #left-sidebar.open {
+      transform: translateX(0);
+    }
+
+    #left-sidebar input[type="text"],
+    #left-sidebar input[type="number"],
+    #left-sidebar input[type="email"],
+    #left-sidebar input[type="password"],
+    #left-sidebar select {
+      width: 100%;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #eee;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      appearance: none;
+    }
+
+    #left-sidebar input[type="text"]:focus,
+    #left-sidebar input[type="number"]:focus,
+    #left-sidebar input[type="email"]:focus,
+    #left-sidebar input[type="password"]:focus,
+    #left-sidebar select:focus {
+      border-color: #4fc3f7;
+      background: #1e1e1e;
+    }
+
+    /* Custom arrow for number inputs (modern browsers) */
+    #left-sidebar input[type="number"]::-webkit-inner-spin-button,
+    #left-sidebar input[type="number"]::-webkit-outer-spin-button {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    #left-sidebar input[type="number"]:hover::-webkit-inner-spin-button,
+    #left-sidebar input[type="number"]:hover::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+
+    /* Checkbox style (optional improvement) */
+    #left-sidebar input[type="checkbox"] {
+      accent-color: #4fc3f7;
+      transform: scale(1.2);
+      margin-right: 6px;
+    }
+
+    #left-sidebar label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 4px;
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #left-sidebar h2 {
+      font-size: 16px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+      color: #4fc3f7;
+    }
+
+
+    #app-container.sidebar-open {
+      margin-left: 280px;
+    }
+
+    #main-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      flex-basis: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    #controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #222;
+      z-index: 999;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    #sigma-container {
+      flex: 1;
+      position: relative;
+
+      background: radial-gradient(circle at center, #0f0f0f, #000000);
+    }
+
+    #date-slicer-container {
+      position: relative;
+      width: 100%;
+      background: #1e1e1e;
+      padding: 10px;
+      border-top: 1px solid #444;
+    }
+
+    #side-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      max-width: 450px;
+      height: 100%;
+      background: #1c1c1c;
+      color: white;
+      overflow-y: auto;
+      padding: 20px;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 1001;
+    }
+
+    #side-panel.open {
+      transform: translateX(0);
+    }
+
+    #menu-toggle {
+      display: block;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: #1e1e1e;
+      border: none;
+      color: white;
+      font-size: 24px;
+      z-index: 1002;
+    }
+
+    @media screen and (max-width: 768px) {
+      #app-container {
+        flex-direction: column;
+      }
+
+      #menu-toggle {
+        display: block;
+      }
+
+      #sigma-container,
+      #date-slicer-container {
+        width: 100%;
+      }
+
+      #sigma-container {
+        height: 400px;
+      }
+
+      #date-slicer-container {
+        padding: 6px;
+        font-size: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      #date-slicer-container canvas,
+      #date-slicer-container .slicer-chart,
+      #date-slicer-container .slicer-histogram {
+        display: none !important;
+      }
+    }
+
+    body.mobile-mode #slicer-chart {
+      display: none !important;
+      height: 0 !important;
+    }
+
+    #tooltip {
+      position: absolute;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      pointer-events: none;
+      display: none;
+      z-index: 10;
+    }
+    #search-input, #layout-iterations, #layout-gravity, #layout-scale; #layout-width, #layout-height {
+      padding: 4px 8px;
+      font-size: 14px;
+    }
+
+    #side-panel h3 { margin-top: 0; }
+
+    #side-panel button {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 20px;
+
+      top: 0px;
+      right: 0px;
+      cursor: pointer;
+    }
+
+    #side-panel .mono,
+    #side-panel .mono table,
+    #side-panel .mono th,
+    #side-panel .mono td {
+      font-family: monospace !important;
+      font-size: 8px !important;
+    }
+
+    #date-slicer-container.on-left {
+      left: auto !important;
+      right: 530px !important; /* 👈 positions the slicer just left of the side panel */
+    }
+
+    #date-slicer-container {
+      transition: right 0.3s ease, left 0.3s ease;
+    }
+
+    .linked-node {
+      cursor: pointer;
+      color: #4fc3f7;
+      margin: 2px 0;
+    }
+
+    .search-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+
+    #clear-search {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      cursor: pointer;
+      display: none;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+
+    .node-halo {
+      border-radius: 50%;
+      background-color: white;
+      width: 12px;
+      height: 12px;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: pulse 1.5s infinite;
+      z-index: 1000;
+    }
+
+    .legend-item.active {
+      font-weight: bold;
+      text-decoration: underline;
+    }    
+
+    #close-panel-btn {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      font-size: 36px;
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      z-index: 9999; /* 👈 force it on top */
+    }
+
+    #node-details {
+      padding-top: 50px; /* enough room for the top button */
+    }    
+
+    #controls input,
+    #controls button,
+    #controls select,
+    #controls label {
+      height: 32px;
+      line-height: 32px;
+      box-sizing: border-box;
+    }
+
+    /* Optionnel : ajuster les checkboxes (qui sont plus petits) */
+    #controls input[type="checkbox"] {
+      height: auto;
+      vertical-align: middle;
+    }
+
+    #controls button,
+    #side-panel button,
+    #loader-modal button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      height: 32px; /* ou ta hauteur souhaitée */
+      line-height: normal;
+      padding: 0 12px;
+    }    
+
+    .sigma-label {
+      padding: 2px 4px;
+      border-radius: 4px;
+      background-color: rgba(0,0,0,0.4);
+      color: white;
+    }
+
+    .info-icon {
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 5px;
+      color: #4fc3f7;
+    }
+
+    #legend {
+      font-family: 'Coda', sans-serif;
+    }
+
+
+    /* Base legend style */
+    #legend.legend-box {
+      position: fixed;
+      top: 20px;
+      left: 50px;
+      background: #222;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      transition: left 0.3s ease;
+      z-index: 1000;
+    }
+
+    /* 💻 Desktop layout: shift legend if sidebar is visible */
+    @media screen and (min-width: 769px) {
+      #app-container.sidebar-open #legend.legend-box {
+        left: 330px; /* 280px sidebar + 50px margin */
+      }
+
+      /* If sidebar is hidden (fullscreen or collapsed) */
+      #app-container:not(.sidebar-open) #legend.legend-box {
+        left: 50px;
+      }
+    }
+
+    #date-slicer-container {
+      position: absolute;
+      bottom: 50px;
+      right: 20px;
+      width: 400px;
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.4);
+      z-index: 999;
+    }
+
+    #slicer-container {
+      position: relative; /* 👈 no longer absolute! */
+      height: auto;
+    }
+
+    #slicer-container canvas {
+      width: 100% !important;
+      height: 150px !important;
+    }
+
+    #slicer-range {
+      margin-top: 10px;
+    }
+
+    #slicer-range .noUi-target {
+      width: 100%;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+    }
+
+    #slicer-range .noUi-base {
+      width: 100%;
+      left: 0;
+      right: 0;
+    }
+
+    body.mobile-mode #sigma-container {
+      height: calc(100vh - 90px) !important;
+    }
+
+    body.mobile-mode #date-slicer-container {
+      position: absolute;
+      left: 50% !important;
+      transform: translateX(-50%);
+      bottom: 50px !important;
+      width: 80% !important;
+      padding: 6px 10px;
+      font-size: 12px;
+      height: auto !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      overflow: visible;
+      flex-shrink: 1;
+      min-height: 0;
+    }
+
+
+    body.mobile-mode #slicer-container {
+      height: auto !important;
+    }
+
+    body.mobile-mode #slicer-container canvas {
+      display: none !important;
+      height: 0 !important;
+    }
+
+    body.mobile-mode #slicer-range {
+      margin-top: 4px;
+    }
+
+    body.mobile-mode #slicer-start-label,
+    body.mobile-mode #slicer-end-label {
+      display: none !important;
+    }   
+
+    .noUi-handle {
+      width: 12px; /* or smaller, adjust as needed */
+      height: 24px;
+      border-radius: 2px;
+      box-shadow: none;
+      background: white;
+    }
+
+    /* Remove the transforms or adjust them to not overlap */
+    .noUi-handle-lower {
+      transform: translateX(0); /* Remove offset */
+    }
+    .noUi-handle-upper {
+      transform: translateX(0); /* Remove offset */
+    }
+
+    /* If you need visual separation, use margins instead */
+    .noUi-handle-lower .noUi-touch-area {
+      margin-right: 10px; /* Create space without affecting handle position */
+    }
+    .noUi-handle-upper .noUi-touch-area {
+      margin-left: 10px; /* Create space without affecting handle position */
+    }
+    /* Add padding to the slider track to contain handles */
+    .noUi-target {
+      padding: 0 12px; /* Add padding equal to half the handle width on each side */
+    }
+
+    /* Adjust the actual range within the padded container */
+    .noUi-connects {
+      margin: 0 -12px; /* Negative margin to offset the padding */
+      width: calc(100% + 24px); /* Expand to fill the padded area */
+    }
+
+    /* Adjust the handle positioning at the extremes */
+    .noUi-origin[style*="left: 0%"] .noUi-handle {
+      left: -10px; /* Pull in the left handle when at minimum */
+    }
+
+    .noUi-origin[style*="left: 100%"] .noUi-handle {
+      left: -2px; /* Pull in the right handle when at maximum */
+    }
+    #searchdiv {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      margin-top: 6px;
+    }
+
+    #searchdiv input {
+      padding: 6px 10px;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      background: #111;
+      color: white;
+      border-radius: 4px;
+    }
+
+    #searchdiv button {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      margin-left: 6px;
+      cursor: pointer;
+    }
+    
+  .info-icon:hover {
+    color: #4fc3f7;
+  }
+  
+  #help-overlay, #token-help-overlay {
+    position: fixed;
+    top: 80px;
+    left: 10vw;
+    right: 10vw;
+    bottom: 40px;
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    z-index: 9999;
+    font-size: 14px;
+    padding: 30px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  @media screen and (max-width: 768px) {
+    #help-overlay, #token-help-overlay {
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 0;
+      padding: 20px 16px;
+      font-size: 13px;
+    }
+
+    #help-overlay h1, #token-help-overlay h1 {
+      font-size: 20px;
+    }
+
+    #help-overlay ul, #token-help-overlay ul {
+      padding-left: 16px;
+    }
+
+    #help-overlay button, #token-help-overlay button {
+      top: 10px !important;
+      right: 10px !important;
+      padding: 6px 12px !important;
+      font-size: 13px !important;
+    }
+  }
+
+  #help-overlay button, token-help-overlay button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    color: white;
+    border: 2px solid white;
+    font-size: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  #help-overlay button:hover, #token-help-overlay button:hover {
+    background: white;
+    color: black;
+  }   
+
+  #left-sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: white transparent;
+  }
+
+  #left-sidebar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #left-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #left-sidebar::-webkit-scrollbar-thumb {
+    background-color: white;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  
+  #side-panel {
+    scrollbar-width: thin;
+    scrollbar-color: white transparent;
+  }
+
+  #side-panel::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #side-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #side-panel::-webkit-scrollbar-thumb {
+    background-color: white;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  
+  #legend.legend-box {
+    cursor: move;
+  }
+
+  #splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: black;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeOut 0.5s ease-out 6s forwards;
+  }
+
+  .splash-content {
+    text-align: center;
+  }
+
+  #splash-screen h1 {
+    font-size: 48px;
+    margin-top: 20px;
+    opacity: 0;
+    animation: fadeIn 6s ease-in-out forwards;
+    animation-delay: 0.2s;
+    color: #FFF;
+    text-shadow:
+      0 0 5px #ffffff,
+      0 0 10px #ffffff,
+      0 0 20px #a200ff,
+      0 0 30px #a200ff,
+      0 0 40px #a200ff;
+  }
+
+
+
+  #splash-screen img {
+    width: 256px;
+    height: 256px;
+    opacity: 0;
+    animation: fadeIn 4s ease-in-out forwards;
+    animation-delay: 0.2s;
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+
+  #param-base-key::placeholder {
+    color: #888;
+    font-style: italic;
+    font-size: 12px;
+  }
