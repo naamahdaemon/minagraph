@@ -91,6 +91,17 @@ let fullscreenBtn;
 let exitFullscreenBtn;
 let slicer;
 
+const knownTokens = {
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": { name: "USD Coin", symbol: "USDC", decimals: 6 },
+  "0x6b175474e89094c44da98b954eedeac495271d0f": { name: "Dai Stablecoin", symbol: "DAI", decimals: 18 },
+  "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": { name: "Wrapped Ether", symbol: "WETH", decimals: 18 },
+  "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": { name: "Wrapped Bitcoin", symbol: "WBTC", decimals: 8 },
+  "0x514910771af9ca656af840dff83e8264ecf986ca": { name: "ChainLink", symbol: "LINK", decimals: 18 },
+  "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": { name: "Aave", symbol: "AAVE", decimals: 18 },
+  "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": { name: "Uniswap", symbol: "UNI", decimals: 18 },
+  // Add more as needed
+};
 document.addEventListener("DOMContentLoaded", () => {
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
@@ -549,7 +560,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("touchend", stopDrag);
 });
 
-
+function getKnownTokenInfo(contractAddress) {
+  if (!contractAddress) return null;
+  return knownTokens[contractAddress.toLowerCase()] || null;
+}
 
 function updateLegendOffset() {
   const legend = document.getElementById("legend");
@@ -1057,6 +1071,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
               tx.token_contract = null;
               tx.token_receiver = null;
               tx.token_amount = null;                                   
+              tx.token_name = null,
+              tx.token_decimals = null
             });
 
 
@@ -1116,7 +1132,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 // 🔵 New fields added for ERC-20 Tokens
                 token_contract: null,
                 token_receiver: null,
-                token_amount: null                        
+                token_amount: null,
+                token_name: null,
+                token_decimals: null
               };
             });
         } else if (blockchain === 'ethereum') {
@@ -1142,11 +1160,18 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
               const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb"); // methodId = ERC20 transfer
               let tokenReceiver = null;
               let tokenAmount = null;
+              let tokenName = null;
+              let tokenDecimals = null;              
               
               if (isTokenTransfer && tx.input.length >= 138) { // "0x" + 8 + 64 + 64 chars
                   try {
                       tokenReceiver = "0x" + tx.input.slice(34, 74); // 20 bytes address
                       tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString(); // uint256 amount
+                      const tokenInfo = getKnownTokenInfo(tx.to);
+                      if (tokenInfo) {
+                        tokenName = tokenInfo.symbol;    // Example: USDT
+                        tokenDecimals = tokenInfo.decimals; // Example: 6
+                      }
                   } catch (err) {
                       console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
                   }
@@ -1188,7 +1213,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 // 🔵 New fields added for ERC-20 Tokens
                 token_contract: isTokenTransfer ? tx.to.toLowerCase() : null,
                 token_receiver: tokenReceiver ? tokenReceiver.toLowerCase() : null,
-                token_amount: tokenAmount                
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals
               };
             });
         } else if (blockchain === 'bsc') {
@@ -1262,7 +1289,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 // 🔵 New fields added for ERC-20 Tokens
                 token_contract: null,
                 token_receiver: null,
-                token_amount: null                  
+                token_amount: null,
+                token_name: null,
+                token_decimals: null                
               };
             });
         } else if (blockchain === 'solana') {
@@ -1418,7 +1447,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 // 🔵 New fields added for ERC-20 Tokens
                 token_contract: null,
                 token_receiver: null,
-                token_amount: null                        
+                token_amount: null,
+                token_name: null,
+                token_decimals: null
               };
             });
         }
@@ -1500,6 +1531,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
         token_contract: tx.token_contract,
         token_receiver: tx.token_receiver,
         token_amount: tx.token_amount,        
+        token_name: tx.token_name,
+        token_decimals: tx.token_decimals,
         color: tx.status === "applied" ? "#ccc" : "#f66"
       });
     }
@@ -1631,13 +1664,14 @@ function showNodePanel(node) {
   
   selectedNode = node; // Ensure selection from side panel works too
 
-  let tx = 0, del = 0, failed = 0, sc = 0;
+  let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
   graph.forEachEdge((e, attr, src, tgt) => {
     if ((src === node || tgt === node)) {
       if (attr.status !== "applied") failed++;
       else if (attr.label === "delegation") del++;
       else if (attr.label === "payment" || attr.label === "transfer") tx++;
       else if (attr.label === "contract_call") sc++;
+      else if (attr.label === "token_transfer") tt++;
     }
   });
 
@@ -1667,6 +1701,7 @@ function showNodePanel(node) {
     <p><strong>#Transactions:</strong> ${tx}</p>
     <p><strong>#Delegations:</strong> ${del}</p>
     <p><strong>#Smart Contracts:</strong> ${sc}</p>
+    <p><strong>#Token Transfers:</strong> ${tt}</p>
     <p><strong>#Failed Transactions:</strong> ${failed}</p>
     <p><strong>Linked Nodes & Transactions:</strong></p>
     <div>
@@ -1743,15 +1778,11 @@ function showNodePanel(node) {
                 ${tx.command_type === "token_transfer" ? `
                   <tr style="opacity: 0.7;">
                     <td></td>
-                    <td></td>
-                    <td></td>
-                    <td style="text-align: left;">
-                      <span style="font-size: 9px;">
-                        ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown receiver")}
-                      </span>
+                    <td colspan=2 style="text-align: right;">
+                        Receiver : ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown receiver")}
                     </td>
-                    <td colspan=3>
-                      ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"}                      
+                    <td colspan=4 style="text-align: right;">
+                        ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"} ${tx.token_name ? tx.token_name : "N/A"}
                     </td>
                   </tr>
                 ` : ""}
@@ -2927,7 +2958,9 @@ function rebuildTransactionsByNeighbor() {
       label: attrs.label,
       token_contract: attrs.token_contract,
       token_receiver: attrs.token_receiver,
-      token_amount: attrs.token_amount        
+      token_amount: attrs.token_amount,
+      token_name: attrs.token_name,
+      token_decimals: attrs.token_decimals      
     };
 
     if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
