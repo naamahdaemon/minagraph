@@ -500,15 +500,41 @@
       background: white;
     }
 
-    /* Override the centering offset */
+    /* Remove the transforms or adjust them to not overlap */
     .noUi-handle-lower {
-      transform: translateX(11px); /* slightly offset */
+      transform: translateX(0); /* Remove offset */
     }
 
     .noUi-handle-upper {
-      transform: translateX(-11px); /* (12px width) - 1px gap */
+      transform: translateX(0); /* Remove offset */
     }
 
+    /* If you need visual separation, use margins instead */
+    .noUi-handle-lower .noUi-touch-area {
+      margin-right: 10px; /* Create space without affecting handle position */
+    }
+    .noUi-handle-upper .noUi-touch-area {
+      margin-left: 10px; /* Create space without affecting handle position */
+    }
+    /* Add padding to the slider track to contain handles */
+    .noUi-target {
+      padding: 0 12px; /* Add padding equal to half the handle width on each side */
+    }
+
+    /* Adjust the actual range within the padded container */
+    .noUi-connects {
+      margin: 0 -12px; /* Negative margin to offset the padding */
+      width: calc(100% + 24px); /* Expand to fill the padded area */
+    }
+
+    /* Adjust the handle positioning at the extremes */
+    .noUi-origin[style*="left: 0%"] .noUi-handle {
+      left: -10px; /* Pull in the left handle when at minimum */
+    }
+
+    .noUi-origin[style*="left: 100%"] .noUi-handle {
+      left: -2px; /* Pull in the right handle when at maximum */
+    }
     #searchdiv {
       position: absolute;
       top: 100%;
