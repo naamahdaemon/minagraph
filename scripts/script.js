@@ -45,7 +45,8 @@ const LAYOUT_STORAGE_KEY = "layoutSettings";
 const commandTypeAliases = {
   payment: ["payment", "transfer"],
   zkapp: ["zkapp", "contract_call"],
-  delegation: ["delegation"]
+  delegation: ["delegation"],
+  token_tranfer: ["token_transfer"],
 };  
 // Reverse map: actual command types → legend alias(es)
 const expandedCommandTypeFilter = () => {
@@ -1052,6 +1053,10 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
             transactions.forEach(tx => {
               tx.blockchain = 'mina';
+              // 🔵 New fields added for ERC-20 Tokens
+              tx.token_contract = null;
+              tx.token_receiver = null;
+              tx.token_amount = null;                                   
             });
 
 
@@ -1107,7 +1112,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 r_scammer: 0,
                 s_scammer: 0,
                 r_spammer: 0,
-                s_spammer: 0
+                s_spammer: 0,
+                // 🔵 New fields added for ERC-20 Tokens
+                token_contract: null,
+                token_receiver: null,
+                token_amount: null                        
               };
             });
         } else if (blockchain === 'ethereum') {
@@ -1130,6 +1139,18 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             
             transactions = json.result.map(tx => {
               const isContractCreation = !tx.to; // ✅ Now tx is defined
+              const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb"); // methodId = ERC20 transfer
+              let tokenReceiver = null;
+              let tokenAmount = null;
+              
+              if (isTokenTransfer && tx.input.length >= 138) { // "0x" + 8 + 64 + 64 chars
+                  try {
+                      tokenReceiver = "0x" + tx.input.slice(34, 74); // 20 bytes address
+                      tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString(); // uint256 amount
+                  } catch (err) {
+                      console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
+                  }
+              }              
 
               return {
                 blockchain: blockchain,
@@ -1137,7 +1158,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 height: parseInt(tx.blockNumber),
                 timestamp: `${parseInt(tx.timeStamp) * 1000}`,
                 hash: tx.hash,
-                command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                command_type: isTokenTransfer ? "token_transfer" : (tx.input && tx.input !== "0x" ? "contract_call" : "transfer"),
                 nonce: tx.nonce,
                 amount: tx.value,
                 fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
@@ -1162,7 +1183,12 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 r_scammer: 0,
                 s_scammer: 0,
                 r_spammer: 0,
-                s_spammer: 0
+                s_spammer: 0,
+                
+                // 🔵 New fields added for ERC-20 Tokens
+                token_contract: isTokenTransfer ? tx.to.toLowerCase() : null,
+                token_receiver: tokenReceiver ? tokenReceiver.toLowerCase() : null,
+                token_amount: tokenAmount                
               };
             });
         } else if (blockchain === 'bsc') {
@@ -1232,7 +1258,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 r_scammer: 0,
                 s_scammer: 0,
                 r_spammer: 0,
-                s_spammer: 0
+                s_spammer: 0,
+                // 🔵 New fields added for ERC-20 Tokens
+                token_contract: null,
+                token_receiver: null,
+                token_amount: null                  
               };
             });
         } else if (blockchain === 'solana') {
@@ -1384,7 +1414,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 r_scammer: 0,
                 s_scammer: 0,
                 r_spammer: 0,
-                s_spammer: 0
+                s_spammer: 0,
+                // 🔵 New fields added for ERC-20 Tokens
+                token_contract: null,
+                token_receiver: null,
+                token_amount: null                        
               };
             });
         }
@@ -1462,7 +1496,10 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
         block_id: tx.block_id,
         block_hash: tx.block_hash,
         memo: tx.memo,
-        blockchain: tx.blockchain, // ✅ This is critical
+        blockchain: tx.blockchain, // ✅ This is critical,
+        token_contract: tx.token_contract,
+        token_receiver: tx.token_receiver,
+        token_amount: tx.token_amount,        
         color: tx.status === "applied" ? "#ccc" : "#f66"
       });
     }
@@ -1576,6 +1613,12 @@ function formatTimestamp(timestamp) {
   return date.toISOString().replace(/:\d{2}\.\d{3}Z$/, "Z");
 }
 
+function formatTokenAmount(amount, decimals = 18) {
+  if (!amount) return "0";
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const value = (BigInt(amount) * BigInt(10000)) / divisor; // keep 4 decimals
+  return (Number(value) / 10000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 });
+}
 
 
 function showNodePanel(node) {
@@ -1688,17 +1731,30 @@ function showNodePanel(node) {
                       : "-"}
                   </td>                    
                   <td>
-                    ${tx.command_type
-                      ? `<a href="${getExplorerURL('transaction', tx.hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
-                          ${tx.command_type} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
-                        </a>`
-                      : (tx.label || "-")}
+                    <a href="${getExplorerURL('transaction', tx.hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                      ${tx.command_type || tx.label || "-"} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
+                    </a>
                   </td>
                   <td>${formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${tx.status || "-"}</td>
-                  <!--<td>${tx.chain_status || "-"}</td>-->
                 </tr>
+
+                ${tx.command_type === "token_transfer" ? `
+                  <tr style="opacity: 0.7;">
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td style="text-align: left;">
+                      <span style="font-size: 9px;">
+                        ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown receiver")}
+                      </span>
+                    </td>
+                    <td colspan=3>
+                      ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"}                      
+                    </td>
+                  </tr>
+                ` : ""}
                 `).join("")}
             </tbody>
           </table>
@@ -1918,6 +1974,7 @@ function setupReducers() {
       case "delegation": baseColor = "#2196f3"; break;
       case "zkapp": baseColor = "#ff57c1"; break;
       case "contract_call": baseColor = "#ff57c1"; break;
+      case "token_transfer": baseColor = "#f9a825"; break;
     }
 
     // 🧊 Filter edges
@@ -2264,6 +2321,7 @@ async function demo() {
     "sample1.json",
     "sample2.json",
     "sample3.json",
+    "sample4.json",
   ];
 
   const randomFile = sampleFiles[Math.floor(Math.random() * sampleFiles.length)];
@@ -2866,7 +2924,10 @@ function rebuildTransactionsByNeighbor() {
       block_id: attrs.block_id,
       block_hash: attrs.block_hash,
       memo: attrs.memo,
-      label: attrs.label
+      label: attrs.label,
+      token_contract: attrs.token_contract,
+      token_receiver: attrs.token_receiver,
+      token_amount: attrs.token_amount        
     };
 
     if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
