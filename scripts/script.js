@@ -100,6 +100,8 @@ const knownTokens = {
   "0x514910771af9ca656af840dff83e8264ecf986ca": { name: "ChainLink", symbol: "LINK", decimals: 18 },
   "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": { name: "Aave", symbol: "AAVE", decimals: 18 },
   "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": { name: "Uniswap", symbol: "UNI", decimals: 18 },
+  "0xaF4DcE16Da2877f8c9e00544c93B62Ac40631F16": { name: "Monetha", symbol: "MTH", decimals: 5 },
+  "0x54318a379935D545eB8e474A191E11faaC5a46e8": { name: "KKCOIN ", symbol: "KK", decimals: 8 },
   // Add more as needed
 };
 document.addEventListener("DOMContentLoaded", () => {
@@ -1713,11 +1715,11 @@ function showNodePanel(node) {
   
   document.getElementById("side-panel").classList.add("open");
   
-  selectedNode = node; // Ensure selection from side panel works too
+  selectedNode = node;
 
   let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
   graph.forEachEdge((e, attr, src, tgt) => {
-    if ((src === node || tgt === node)) {
+    if (src === node || tgt === node) {
       if (attr.status !== "applied") failed++;
       else if (attr.label === "delegation") del++;
       else if (attr.label === "payment" || attr.label === "transfer") tx++;
@@ -1759,38 +1761,15 @@ function showNodePanel(node) {
       ${neighbors.map(n => {
         const label = graph.getNodeAttribute(n, 'label');
 
-        // Transactions initiées par le voisin vers le nœud sélectionné
-        /*const fromNeighbor = (transactionsByNeighbor[n.toUpperCase()] || []).filter(tx =>
-          (tx.sender_key.toUpperCase() === n.toUpperCase() && tx.receiver_key.toUpperCase() === node.toUpperCase()) ||
-          (tx.receiver_key.toUpperCase() === n.toUpperCase() && tx.sender_key.toUpperCase() === node.toUpperCase())
-        );*/
-        
-        const fromNeighbor = (transactionsByNeighbor[n] || []).filter(tx =>
-          tx.sender_key === n && tx.receiver_key === node ||
-          tx.receiver_key === n && tx.sender_key === node
-        );
+        const directEdges = graph.edges().filter(e => {
+          const source = graph.source(e);
+          const target = graph.target(e);
+          return (source === node && target === n) || (source === n && target === node);
+        });
 
-        //console.log('node:', node);
-        //console.log('transactionsByNeighbor[node]:', transactionsByNeighbor[node]);
+        const interactions = directEdges.map(e => graph.getEdgeAttributes(e));
 
-        // Transactions initiées par le nœud sélectionné vers ce voisin
-        /*const fromNode = (transactionsByNeighbor[node.toUpperCase()] || []).filter(tx =>
-          (tx.sender_key.toUpperCase() === n.toUpperCase() && tx.receiver_key.toUpperCase() === node.toUpperCase()) ||
-          (tx.receiver_key.toUpperCase() === n.toUpperCase() && tx.sender_key.toUpperCase() === node.toUpperCase())
-        );*/
-        
-        const fromNode = (transactionsByNeighbor[node] || []).filter(tx =>
-          tx.sender_key === n && tx.receiver_key === node ||
-          tx.receiver_key === n && tx.sender_key === node
-        );
-
-        //console.log(fromNode);
-
-        // Concatène et déduplique (via hash par exemple si dispo)
-        const interactions = [...fromNeighbor, ...fromNode];
-        const unique = Array.from(new Map(interactions.map(tx => [tx.hash, tx])).values());
-
-        const txTable = unique.length > 0 ? `
+        const txTable = interactions.length > 0 ? `
           <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
             <thead>
               <tr>
@@ -1805,7 +1784,7 @@ function showNodePanel(node) {
               </tr>
             </thead>
             <tbody>
-              ${unique.map(tx => `
+              ${interactions.map(tx => `
                 <tr title="${tx.memo || ''}">
                   <td>${tx.blockchain}</td>
                   <td>${formatTimestamp(tx.timestamp)}</td>
@@ -1818,9 +1797,11 @@ function showNodePanel(node) {
                   </td>                    
                   <td>
                     ${(() => {
-                      const isTokenTransfer = tx.command_type === "token_transfer";
-                      const link = (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
-                      const label = tx.command_type || tx.label || "-";
+                      const isTokenTransfer = tx.label === "token_transfer";
+                      const link = isTokenTransfer
+                        ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
+                        : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
+                      const label = tx.label || "-";
                       return `
                         <a href="${link}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
                           ${label} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
@@ -1832,18 +1813,17 @@ function showNodePanel(node) {
                   <td>${formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${tx.status || "-"}</td>
                 </tr>
-
-                ${tx.command_type === "token_transfer" ? `
+                ${tx.label === "token_transfer" ? `
                   <tr style="opacity: 0.7;">
                     <td></td>
-                    <td colspan=2 style="text-align: right;">
-                        Receiver : ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown receiver")}
+                    <td colspan="2" style="text-align: right;">
+                      Receiver: ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown")}
                     </td>
-                    <td colspan=4 style="text-align: right;">
-                        ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"} ${tx.token_name ? tx.token_name : "N/A"}
+                    <td colspan="4" style="text-align: right;">
+                      ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"} 
+                      ${tx.token_name || (tx.token_contract ? tx.token_contract.slice(0,6)+"..."+tx.token_contract.slice(-6) : "UnknownToken")}
                     </td>
-                  </tr>
-                ` : ""}
+                  </tr>` : ""}
                 `).join("")}
             </tbody>
           </table>
