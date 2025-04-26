@@ -95,13 +95,14 @@ const knownTokens = {
   "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": { name: "USD Coin", symbol: "USDC", decimals: 6 },
   "0x6b175474e89094c44da98b954eedeac495271d0f": { name: "Dai Stablecoin", symbol: "DAI", decimals: 18 },
-  "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": { name: "Wrapped Ether", symbol: "WETH", decimals: 18 },
-  "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": { name: "Wrapped Bitcoin", symbol: "WBTC", decimals: 8 },
+  "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": { name: "Wrapped Ether", symbol: "WETH", decimals: 18 },
+  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": { name: "Wrapped Bitcoin", symbol: "WBTC", decimals: 8 },
   "0x514910771af9ca656af840dff83e8264ecf986ca": { name: "ChainLink", symbol: "LINK", decimals: 18 },
   "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": { name: "Aave", symbol: "AAVE", decimals: 18 },
   "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": { name: "Uniswap", symbol: "UNI", decimals: 18 },
-  "0xaF4DcE16Da2877f8c9e00544c93B62Ac40631F16": { name: "Monetha", symbol: "MTH", decimals: 5 },
-  "0x54318a379935D545eB8e474A191E11faaC5a46e8": { name: "KKCOIN ", symbol: "KK", decimals: 8 },
+  "0xaf4dce16da2877f8c9e00544c93b62ac40631f16": { name: "Monetha", symbol: "MTH", decimals: 5 },
+  "0x54318a379935d545eb8e474a191e11faac5a46e8": { name: "KKCOIN ", symbol: "KK", decimals: 8 },
+  "0x58d0a58e4b165a27e4e1b8c2a3ef39c89b581180": { name: "ShowCoin  ", symbol: "Show", decimals: 18 },
   // Add more as needed
 };
 document.addEventListener("DOMContentLoaded", () => {
@@ -1175,6 +1176,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                       if (tokenInfo) {
                   tokenName = tokenInfo.symbol;
                   tokenDecimals = tokenInfo.decimals;
+                  console.log(tokenInfo);
                       }
                   } catch (err) {
                       console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
@@ -1820,8 +1822,34 @@ function showNodePanel(node) {
                       Receiver: ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown")}
                     </td>
                     <td colspan="4" style="text-align: right;">
-                      ${tx.token_amount ? formatTokenAmount(tx.token_amount, tx.token_decimals || 6) : "-"} 
-                      ${tx.token_name || (tx.token_contract ? tx.token_contract.slice(0,6)+"..."+tx.token_contract.slice(-6) : "UnknownToken")}
+                      ${(() => {
+                        if (!tx.token_amount) return "-";
+                        const decimals = (tx.token_decimals !== undefined && tx.token_decimals !== null)
+                          ? tx.token_decimals
+                          : (getKnownTokenInfo(tx.token_contract)?.decimals ?? 6);
+                        return formatTokenAmount(tx.token_amount, decimals);
+                      })()} 
+                      ${(() => {
+                        const tokenLink = tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#";
+                        let tokenLabel = "UnknownToken";
+
+                        if (tx.token_name) {
+                          tokenLabel = tx.token_name;
+                        } else {
+                          const tokenInfo = getKnownTokenInfo(tx.token_contract);
+                          if (tokenInfo) {
+                            tokenLabel = tokenInfo.symbol;
+                          } else if (tx.token_contract) {
+                            tokenLabel = tx.token_contract.slice(0, 6) + "..." + tx.token_contract.slice(-6);
+                          }
+                        }
+
+                        return `
+                          <a href="${tokenLink}" target="_blank" rel="noopener noreferrer" style="color: #f9a825; text-decoration: none;">
+                            ${tokenLabel} 🔗
+                          </a>
+                        `;
+                      })()}
                     </td>
                   </tr>` : ""}
                 `).join("")}
