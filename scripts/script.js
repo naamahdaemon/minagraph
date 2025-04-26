@@ -1139,7 +1139,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
         } else if (blockchain === 'ethereum') {
             const etherscanApiKey = API_TOKEN;
-            const url = `https://api.etherscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${etherscanApiKey}`;
+          const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${etherscanApiKey}`;
 
             console.log("Calling Etherscan API");
 
@@ -1155,37 +1155,37 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
             log_api_call (blockchain);
             
-            transactions = json.result.map(tx => {
-              const isContractCreation = !tx.to; // ✅ Now tx is defined
-              const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb"); // methodId = ERC20 transfer
+          transactions = [];
+
+          for (const tx of json.result) {
+            const isContractCreation = !tx.to;
+            const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb");
               let tokenReceiver = null;
               let tokenAmount = null;
               let tokenName = null;
               let tokenDecimals = null;              
               
-              if (isTokenTransfer && tx.input.length >= 138) { // "0x" + 8 + 64 + 64 chars
+            if (isTokenTransfer && tx.input.length >= 138) {
                   try {
-                      tokenReceiver = "0x" + tx.input.slice(34, 74); // 20 bytes address
-                      tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString(); // uint256 amount
+                tokenReceiver = "0x" + tx.input.slice(34, 74);
+                tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString();
                       const tokenInfo = getKnownTokenInfo(tx.to);
                       if (tokenInfo) {
-                        tokenName = tokenInfo.symbol;    // Example: USDT
-                        tokenDecimals = tokenInfo.decimals; // Example: 6
+                  tokenName = tokenInfo.symbol;
+                  tokenDecimals = tokenInfo.decimals;
                       }
                   } catch (err) {
                       console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
                   }
               }              
 
-              return {
+            const baseTx = {
                 blockchain: blockchain,
                 block_id: parseInt(tx.blockNumber),
                 height: parseInt(tx.blockNumber),
                 timestamp: `${parseInt(tx.timeStamp) * 1000}`,
                 hash: tx.hash,
-                command_type: isTokenTransfer ? "token_transfer" : (tx.input && tx.input !== "0x" ? "contract_call" : "transfer"),
                 nonce: tx.nonce,
-                amount: tx.value,
                 fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
                 memo: "",
                 sequence_no: null,
@@ -1194,10 +1194,6 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 confirm: null,
                 sender_id: null,
                 sender_key: tx.from.toLowerCase(),
-                receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
-                sender_name: "noname",
-                receiver_id: null,
-                receiver_name: isContractCreation ? "contract_creation" : "noname",
                 fee_payer_id: null,
                 fee_payer_key: tx.from.toLowerCase(),
                 fee_payer_name: null,
@@ -1209,15 +1205,60 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 s_scammer: 0,
                 r_spammer: 0,
                 s_spammer: 0,
+              token_amount: tokenAmount,
+              token_name: tokenName,
+              token_decimals: tokenDecimals          
+            };
                 
-                // 🔵 New fields added for ERC-20 Tokens
-                token_contract: isTokenTransfer ? tx.to.toLowerCase() : null,
+            if (isTokenTransfer) {
+              // 1. First record: the contract execution itself
+              transactions.push({
+                ...baseTx,
+                command_type: "contract_call",
+                amount: tx.value,
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: tx.to.toLowerCase(),
+                receiver_name: "noname",
+                label: "contract_call",
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals   
+              });
+
+              // 2. Second record: the token transfer itself
+              transactions.push({
+                ...baseTx,
+                command_type: "token_transfer",
+                amount: "0", // direct token transfers don't move native ETH
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: tokenReceiver ? tokenReceiver.toLowerCase() : "unknown",
+                receiver_name: tokenReceiver ? tokenReceiver.toLowerCase().slice(0,6) + "..." + tokenReceiver.toLowerCase().slice(-6) : "unknown",
+                label: "token_transfer",
+                token_contract: tx.to ? tx.to.toLowerCase() : null,
                 token_receiver: tokenReceiver ? tokenReceiver.toLowerCase() : null,
                 token_amount: tokenAmount,
                 token_name: tokenName,
                 token_decimals: tokenDecimals
-              };
             });
+            } else {
+              // Simple ETH transfer or contract call
+              transactions.push({
+                ...baseTx,
+                command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                amount: tx.value,
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
+                receiver_name: isContractCreation ? "contract_creation" : "noname",
+                label: tx.input && tx.input !== "0x" ? "contract_call" : "payment",
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals   
+              });
+            }
+          }
         } else if (blockchain === 'bsc') {
             if (normalizedKey === 'genesis')
               return;
@@ -1515,7 +1556,16 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
       });
     }
 
-    const edgeId = tx.hash || `${sender}-${receiver}-${tx.nonce}`;
+    const edgeColor =
+      tx.command_type === "token_transfer"
+        ? "#f9a825" // 🟨 Dark Yellow for token transfers
+        : tx.status === "applied"
+          ? "#ccc"  // Light grey for normal applied tx
+          : "#f66"; // Red for failed
+
+    //const edgeId = tx.hash || `${sender}-${receiver}-${tx.nonce}`;
+    const edgeId = `${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.nonce}`;
+
     if (!graph.hasEdge(edgeId)) {
       const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
       graph.addEdgeWithKey(edgeId, sender, receiver, {
@@ -1533,7 +1583,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
         token_amount: tx.token_amount,        
         token_name: tx.token_name,
         token_decimals: tx.token_decimals,
-        color: tx.status === "applied" ? "#ccc" : "#f66"
+        color: edgeColor,
+        hash: tx.hash 
       });
     }
   }
@@ -1766,9 +1817,16 @@ function showNodePanel(node) {
                       : "-"}
                   </td>                    
                   <td>
-                    <a href="${getExplorerURL('transaction', tx.hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
-                      ${tx.command_type || tx.label || "-"} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
+                    ${(() => {
+                      const isTokenTransfer = tx.command_type === "token_transfer";
+                      const link = (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
+                      const label = tx.command_type || tx.label || "-";
+                      return `
+                        <a href="${link}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                          ${label} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
                     </a>
+                      `;
+                    })()}
                   </td>
                   <td>${formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
@@ -2949,7 +3007,7 @@ function rebuildTransactionsByNeighbor() {
       command_type: attrs.label,
       status: attrs.status,
       timestamp: attrs.timestamp,
-      hash: edge,
+      hash: attrs.hash,
       fee: attrs.fee,
       amount: attrs.amount,
       block_id: attrs.block_id,
