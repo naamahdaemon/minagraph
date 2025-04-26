@@ -1800,9 +1800,10 @@ function showNodePanel(node) {
                   <td>
                     ${(() => {
                       const isTokenTransfer = tx.label === "token_transfer";
-                      const link = isTokenTransfer
-                        ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
-                        : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
+                      //const link = isTokenTransfer
+                      //  ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
+                      //  : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
+                      const link = tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#";                        
                       const label = tx.label || "-";
                       return `
                         <a href="${link}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
