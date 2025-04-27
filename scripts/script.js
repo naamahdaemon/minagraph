@@ -90,6 +90,7 @@ let footer;
 let fullscreenBtn;
 let exitFullscreenBtn;
 let slicer;
+let extraTokens = {}; // New loaded tokens
 
 const knownTokens = {
   "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
@@ -563,9 +564,41 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("touchend", stopDrag);
 });
 
+init();
+
+async function init() {
+  await loadExtraTokensFromCSV('./tokens/tokens.csv');
+  // Ensuite tu peux continuer ton code ici
+}
+
+async function loadExtraTokensFromCSV(filePath) {
+  try {
+    const response = await fetch(filePath);
+    const csvText = await response.text();
+    const lines = csvText.split('\n');
+    
+    for (let line of lines) {
+      line = line.trim();
+      if (!line || line.startsWith("#")) continue; // skip empty or comment lines
+      const [address, name, symbol, decimals] = line.split(',').map(v => v.trim());
+      if (address && name && symbol && !isNaN(decimals)) {
+        extraTokens[address.toLowerCase()] = {
+          name,
+          symbol,
+          decimals: parseInt(decimals, 10)
+        };
+      }
+    }
+    console.log(`Loaded ${Object.keys(extraTokens).length} extra tokens.`);
+  } catch (err) {
+    console.error("Failed to load token CSV:", err);
+  }
+}
+
 function getKnownTokenInfo(contractAddress) {
   if (!contractAddress) return null;
-  return knownTokens[contractAddress.toLowerCase()] || null;
+  const addr = contractAddress.toLowerCase();
+  return knownTokens[addr] || extraTokens[addr] || null;
 }
 
 function updateLegendOffset() {
@@ -609,6 +642,14 @@ function getDecimalsForBlockchain(chain) {
     default:
       return 18; // Default fallback
   }
+}
+
+function saveToFile(filename, content) {
+  const blob = new Blob([content], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
 }
 
 function formatAmount(amount, decimals = 9) {
@@ -1818,16 +1859,15 @@ function showNodePanel(node) {
                 </tr>
                 ${tx.label === "token_transfer" ? `
                   <tr style="opacity: 0.7;">
-                    <td></td>
                     <td colspan="2" style="text-align: right;">
                       Receiver: ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown")}
                     </td>
-                    <td colspan="4" style="text-align: right;">
+                    <td colspan="5" style="text-align: right;">
                       ${(() => {
                         if (!tx.token_amount) return "-";
                         const decimals = (tx.token_decimals !== undefined && tx.token_decimals !== null)
                           ? tx.token_decimals
-                          : (getKnownTokenInfo(tx.token_contract)?.decimals ?? 6);
+                          : (getKnownTokenInfo(tx.token_contract)?.decimals ?? 18);
                         return formatTokenAmount(tx.token_amount, decimals);
                       })()} 
                       ${(() => {
@@ -1842,6 +1882,7 @@ function showNodePanel(node) {
                             tokenLabel = tokenInfo.symbol;
                           } else if (tx.token_contract) {
                             tokenLabel = tx.token_contract.slice(0, 6) + "..." + tx.token_contract.slice(-6);
+                            console.log ("\"" + tx.token_contract + "\",");
                           }
                         }
 
