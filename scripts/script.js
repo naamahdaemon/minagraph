@@ -1138,6 +1138,12 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
             log_api_call (blockchain);
             
+          if (json.status === "0" && json.message === "No transactions found") {
+            console.log(`No transactions found for ${normalizedKey} on ${blockchain.toUpperCase()}.`);
+            transactions = []; // Just return empty
+          } else if (json.status === "1") {
+            log_api_call(blockchain);
+
           transactions = [];
 
           for (const tx of json.result) {
@@ -1242,6 +1248,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 token_decimals: tokenDecimals   
               });
             }
+          }
           }
         } else if (blockchain === 'polygon' || blockchain === 'bsc') {
           const apiKey = API_TOKEN;
