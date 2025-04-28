@@ -1132,7 +1132,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             }
 
             const json = await res.json();
-            if (!json || json.status !== "1" || !json.result) {
+          
+          if (!json || !json.result) {
                 throw new Error("Unexpected response format from EtherScan API");
             }
 
