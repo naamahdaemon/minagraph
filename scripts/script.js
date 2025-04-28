@@ -1271,10 +1271,15 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             }
 
             const json = await res.json();
-            if (!json || json.status !== "1" || !json.result) {
+          // 🛡️ Proper handling if "no transactions found"
+          if (!json || !json.result) {
             throw new Error(`Unexpected response format from ${blockchain.toUpperCase()}Scan API`);
             }
 
+          if (json.status === "0" && json.message === "No transactions found") {
+            console.log(`No transactions found for ${normalizedKey} on ${blockchain.toUpperCase()}.`);
+            transactions = []; // Just return empty
+          } else if (json.status === "1") {
             log_api_call (blockchain);
 
           transactions = [];
@@ -1380,6 +1385,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 token_decimals: tokenDecimals
               });
             }
+          }
+          } else {
+             throw new Error(`Error from ${blockchain.toUpperCase()}Scan API: ${json.message || "Unknown error"}`);
           }
         } else if (blockchain === 'solana') {
         
@@ -1548,10 +1556,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         return transactions;
 
     } catch (error) {
+        console.error("Error occurred:", error);
         cancelRequested = true;
         hideLoader();
         showErrorPopup(error.message || "An unknown error occurred");
-        throw error;
+        return transactions || [];
     }
 }
 
