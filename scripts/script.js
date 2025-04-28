@@ -1120,67 +1120,6 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        } else if (blockchain === 'polygon') {
-            const polygonscanApiKey = API_TOKEN;
-            const url = `https://api.polygonscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${polygonscanApiKey}`;
-
-            console.log("Calling Polygonscan API");
-
-            const res = await fetch(url);
-            if (!res.ok) {
-                throw new Error(`PolygonScan API error: ${res.status} ${res.statusText}`);
-            }
-
-            const json = await res.json();
-            if (!json || json.status !== "1" || !json.result) {
-                throw new Error("Unexpected response format from PolygonScan API");
-            }
-
-            log_api_call (blockchain);
-
-            transactions = json.result.map(tx => {
-              const isContractCreation = !tx.to; // ✅ Now tx is defined
-
-              return {
-                blockchain: blockchain,
-                block_id: parseInt(tx.blockNumber),
-                height: parseInt(tx.blockNumber),
-                timestamp: `${parseInt(tx.timeStamp) * 1000}`,
-                hash: tx.hash,
-                command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
-                nonce: tx.nonce,
-                amount: tx.value,
-                fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
-                memo: "",
-                sequence_no: null,
-                status: tx.isError === "0" ? "applied" : "failed",
-                failure_reason: tx.isError === "0" ? null : "error",
-                confirm: null,
-                sender_id: null,
-                sender_key: tx.from.toLowerCase(),
-                receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
-                sender_name: "noname",
-                receiver_id: null,
-                receiver_name: isContractCreation ? "contract_creation" : "noname",
-                fee_payer_id: null,
-                fee_payer_key: tx.from.toLowerCase(),
-                fee_payer_name: null,
-                chain_status: "canonical",
-                block_hash: tx.blockHash,
-                r_thief: 0,
-                s_thief: 0,
-                r_scammer: 0,
-                s_scammer: 0,
-                r_spammer: 0,
-                s_spammer: 0,
-                // 🔵 New fields added for ERC-20 Tokens
-                token_contract: null,
-                token_receiver: null,
-                token_amount: null,
-                token_name: null,
-                token_decimals: null
-              };
-            });
         } else if (blockchain === 'ethereum') {
             const etherscanApiKey = API_TOKEN;
           const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${etherscanApiKey}`;
@@ -1304,51 +1243,72 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
               });
             }
           }
-        } else if (blockchain === 'bsc') {
-            if (normalizedKey === 'genesis')
-              return;
-            const bscscanApiKey = API_TOKEN;
-            //const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`;
+        } else if (blockchain === 'polygon' || blockchain === 'bsc') {
+          const apiKey = API_TOKEN;
+          const apiBaseUrl = blockchain === 'polygon'
+            ? 'https://api.polygonscan.com'
+            : 'https://api.bscscan.com';
             
             const encodedTargetUrl = encodeURIComponent(
-              `https://api.bscscan.com/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${bscscanApiKey}`
+            `${apiBaseUrl}/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${apiKey}`
             );
 
-            const url = `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`;
+          const url = blockchain === 'polygon'
+            ? `${apiBaseUrl}/api?module=account&action=txlist&address=${normalizedKey}&startblock=0&endblock=99999999&sort=asc&page=1&offset=${limit}&apikey=${apiKey}`
+            : `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`; // Use proxy for BSC
         
-
-            console.log("Calling BSC API");
+          console.log(`Calling ${blockchain.toUpperCase()}Scan API`);
 
             const res = await fetch(url, {
-            headers: {
+            headers: blockchain === 'bsc' ? {
                     'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
-                    "Content-Type": "application/json"
-                },
+              'Content-Type': 'application/json'
+            } : {}
             });
             
             if (!res.ok) {
-                throw new Error(`BSCScan API error: ${res.status} ${res.statusText}`);
+            throw new Error(`${blockchain.toUpperCase()}Scan API error: ${res.status} ${res.statusText}`);
             }
 
             const json = await res.json();
             if (!json || json.status !== "1" || !json.result) {
-                throw new Error("Unexpected response format from BSCScan API");
+            throw new Error(`Unexpected response format from ${blockchain.toUpperCase()}Scan API`);
             }
 
             log_api_call (blockchain);
 
-            transactions = json.result.map(tx => {
-              const isContractCreation = !tx.to; // ✅ Now tx is defined
+          transactions = [];
 
-              return {
+          for (const tx of json.result) {
+            const isContractCreation = !tx.to;
+            const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb");
+            let tokenReceiver = null;
+            let tokenAmount = null;
+            let tokenName = null;
+            let tokenDecimals = null;
+
+            if (isTokenTransfer && tx.input.length >= 138) {
+              try {
+                tokenReceiver = "0x" + tx.input.slice(34, 74);
+                tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString();
+                const tokenInfo = getKnownTokenInfo(tx.to); // You already have this for Ethereum
+                if (tokenInfo) {
+                  tokenName = tokenInfo.symbol;
+                  tokenDecimals = tokenInfo.decimals;
+                  console.log(tokenInfo);
+                }
+              } catch (err) {
+                console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
+              }
+            }
+
+            const baseTx = {
                 blockchain: blockchain,
                 block_id: parseInt(tx.blockNumber),
                 height: parseInt(tx.blockNumber),
                 timestamp: `${parseInt(tx.timeStamp) * 1000}`,
                 hash: tx.hash,
-                command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
                 nonce: tx.nonce,
-                amount: tx.value,
                 fee: (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString(),
                 memo: "",
                 sequence_no: null,
@@ -1357,10 +1317,6 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 confirm: null,
                 sender_id: null,
                 sender_key: tx.from.toLowerCase(),
-                receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
-                sender_name: "noname",
-                receiver_id: null,
-                receiver_name: isContractCreation ? "contract_creation" : "noname",
                 fee_payer_id: null,
                 fee_payer_key: tx.from.toLowerCase(),
                 fee_payer_name: null,
@@ -1372,14 +1328,59 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
                 s_scammer: 0,
                 r_spammer: 0,
                 s_spammer: 0,
-                // 🔵 New fields added for ERC-20 Tokens
-                token_contract: null,
-                token_receiver: null,
-                token_amount: null,
-                token_name: null,
-                token_decimals: null                
+              token_amount: tokenAmount,
+              token_name: tokenName,
+              token_decimals: tokenDecimals
               };
+
+            if (isTokenTransfer) {
+              // 1. Contract execution
+              transactions.push({
+                ...baseTx,
+                command_type: "contract_call",
+                amount: tx.value,
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: tx.to.toLowerCase(),
+                receiver_name: "noname",
+                label: "contract_call",
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals
             });
+
+              // 2. Token transfer
+              transactions.push({
+                ...baseTx,
+                command_type: "token_transfer",
+                amount: "0", // Token transfers do not move native coins
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: tokenReceiver ? tokenReceiver.toLowerCase() : "unknown",
+                receiver_name: tokenReceiver ? tokenReceiver.toLowerCase().slice(0,6) + "..." + tokenReceiver.toLowerCase().slice(-6) : "unknown",
+                label: "token_transfer",
+                token_contract: tx.to ? tx.to.toLowerCase() : null,
+                token_receiver: tokenReceiver ? tokenReceiver.toLowerCase() : null,
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals
+              });
+            } else {
+              transactions.push({
+                ...baseTx,
+                command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+                amount: tx.value,
+                sender_name: "noname",
+                receiver_id: null,
+                receiver_key: isContractCreation ? tx.from.toLowerCase() : tx.to.toLowerCase(),
+                receiver_name: isContractCreation ? "contract_creation" : "noname",
+                label: tx.input && tx.input !== "0x" ? "contract_call" : "payment",
+                token_amount: tokenAmount,
+                token_name: tokenName,
+                token_decimals: tokenDecimals
+              });
+            }
+          }
         } else if (blockchain === 'solana') {
         
         // ======== SOLANA =========
