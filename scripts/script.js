@@ -45,8 +45,8 @@ const LAYOUT_STORAGE_KEY = "layoutSettings";
 const commandTypeAliases = {
   payment: ["payment", "transfer"],
   zkapp: ["zkapp", "contract_call"],
-  delegation: ["delegation"],
-  token_tranfer: ["token_transfer"],
+  delegation: ["delegation","stake"],
+  token_transfer: ["token_transfer"],
 };  
 // Reverse map: actual command types → legend alias(es)
 const expandedCommandTypeFilter = () => {
@@ -1061,8 +1061,460 @@ function getSolCommandType(tx) {
   return "contract_call"; // fallback
 }
 
+// Analyse les changements de balances pour trouver sender et receiver token
+function getTokenTransferInfo(tx) {
+  const result = {
+    sender_key: null,
+    receiver_key: null,
+    token_receiver: null,
+    token_contract: null,
+    token_amount: null,
+    token_decimals: null,
+    token_name: null,
+  };
 
-async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
+  if (!tx.meta?.postTokenBalances || !tx.meta?.preTokenBalances) return result;
+
+  const preByIndex = Object.fromEntries(tx.meta.preTokenBalances.map(p => [p.accountIndex, p]));
+  const postByIndex = Object.fromEntries(tx.meta.postTokenBalances.map(p => [p.accountIndex, p]));
+
+  for (const index in postByIndex) {
+    const post = postByIndex[index];
+    const pre = preByIndex[index];
+    const change =
+      (parseFloat(post.uiTokenAmount?.uiAmount || "0") -
+        parseFloat(pre?.uiTokenAmount?.uiAmount || "0"));
+
+    const account = tx.transaction.message.accountKeys[post.accountIndex];
+    const owner = post.owner;
+    const mint = post.mint;
+
+    result.token_contract = mint;
+    result.token_decimals = post.uiTokenAmount?.decimals || null;
+
+    // optionnel : nom du token
+    const cached = getKnownTokenInfo?.(mint);
+    if (cached?.symbol) {
+      result.token_name = cached.symbol;
+    }
+
+    if (change > 0) {
+      result.receiver_key = owner;
+      result.token_receiver = account.pubkey;
+      result.token_amount = change.toString();  // ✅ ici le delta réel
+    } else if (change < 0) {
+      result.sender_key = owner;
+    }
+  }
+
+  return result;
+}
+
+async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
+  const headers = {
+    'x-api-key': '2c57fa11-3463-47fa-802d-116c2dfff660',
+    "Content-Type": "application/json"
+  };
+  
+  const transactions = [];
+
+  const signaturesPayload = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "getSignaturesForAddress",
+    params: [publicKey, { limit }]
+  };
+
+  const signaturesRes = await fetch(baseUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(signaturesPayload)
+  });
+
+  const signaturesJson = await signaturesRes.json();
+  if (!signaturesJson?.result) throw new Error("Invalid Solana signature response");
+
+  for (const sig of signaturesJson.result) {
+    const txPayload = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getTransaction",
+      params: [sig.signature, {
+        encoding: "jsonParsed",
+        commitment: "finalized",
+        maxSupportedTransactionVersion: 0
+      }]
+    };
+
+    const txRes = await fetch(baseUrl, { method: "POST", headers, body: JSON.stringify(txPayload) });
+    const txJson = await txRes.json();
+    const tx = txJson?.result;
+    if (!tx) continue;
+
+    const accountKeys = tx.transaction.message.accountKeys || [];
+    const fallbackSender = accountKeys?.[0]?.pubkey || null;
+    const blockTime = tx.blockTime ? `${tx.blockTime * 1000}` : null;
+    const command_type = getSolCommandType(tx);
+
+    console.log("Detected command type:", command_type, "for tx:", tx.transaction.signatures[0], " sender:", fallbackSender);
+
+
+
+    let hasTokenTransfer = false;
+    let hasSolTransfer = false;
+    let hasStakeTransaction = false;
+
+    // === 1. SPL TOKEN TRANSFERS ===
+    const preToken = tx.meta?.preTokenBalances || [];
+    const postToken = tx.meta?.postTokenBalances || [];
+
+    for (const post of postToken) {
+      const pre = preToken.find(p => p.accountIndex === post.accountIndex);
+      const preAmount = parseFloat(pre?.uiTokenAmount?.uiAmount || "0");
+      const postAmount = parseFloat(post.uiTokenAmount?.uiAmount || "0");
+      const delta = postAmount - preAmount;
+
+      if (delta === 0) continue;
+
+      const account = accountKeys[post.accountIndex];
+      const tokenMint = post.mint;
+      const tokenDecimals = post.uiTokenAmount?.decimals || null;
+      const tokenName = getKnownTokenInfo?.(tokenMint)?.symbol || null;
+
+      transactions.push({
+        blockchain: 'solana',
+        block_id: tx.slot,
+        height: tx.slot,
+        timestamp: blockTime,
+        hash: tx.transaction.signatures[0],
+        command_type: "token_transfer",
+        label: "token_transfer",
+        amount: "0",
+        fee: tx.meta?.fee?.toString() || "0",
+        memo: "",
+        status: tx.meta?.err ? "failed" : "applied",
+        failure_reason: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+        sender_key: delta < 0 ? post.owner : fallbackSender,
+        receiver_key: delta > 0 ? post.owner : null,
+        sender_name: "noname",
+        receiver_name: "noname",
+        fee_payer_key: fallbackSender,
+        chain_status: "canonical",
+        block_hash: tx.slot,
+        token_contract: tokenMint,
+        token_receiver: delta > 0 ? account.pubkey : null,
+        token_amount: Math.abs(delta).toString(),
+        token_name: tokenName,
+        token_decimals: tokenDecimals,
+        r_thief: 0, s_thief: 0, r_scammer: 0, s_scammer: 0, r_spammer: 0, s_spammer: 0
+      });
+
+      hasTokenTransfer = true;
+    }
+
+    // === 2. NATIVE SOL TRANSFERS ===
+    const preSol = tx.meta?.preBalances || [];
+    const postSol = tx.meta?.postBalances || [];
+    const deltaSol = preSol.map((pre, i) => (postSol[i] || 0) - pre);
+    const solTransfers = [];
+
+    for (let i = 0; i < deltaSol.length; i++) {
+      const delta = deltaSol[i];
+      if (delta !== 0) {
+        solTransfers.push({
+          key: accountKeys[i]?.pubkey || `unknown_${i}`,
+          delta,
+          index: i
+        });
+      }
+    }
+
+    const senders = solTransfers.filter(d => d.delta < 0).sort((a, b) => a.delta - b.delta);
+    const receivers = solTransfers.filter(d => d.delta > 0).sort((a, b) => b.delta - a.delta);
+
+    while (senders.length && receivers.length) {
+      const sender = senders.shift();
+      const receiver = receivers.shift();
+      const amount = Math.min(Math.abs(sender.delta), receiver.delta);
+
+      if (amount < 1) continue;
+      if (command_type === "token_transfer") continue;
+
+      transactions.push({
+        blockchain: 'solana',
+        block_id: tx.slot,
+        height: tx.slot,
+        timestamp: blockTime,
+        hash: tx.transaction.signatures[0],
+        command_type,
+        label: command_type === "transfer" ? "payment" : command_type,
+        amount: amount.toString(),
+        fee: tx.meta?.fee?.toString() || "0",
+        memo: "",
+        status: tx.meta?.err ? "failed" : "applied",
+        failure_reason: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+        sender_key: sender.key,
+        receiver_key: receiver.key,
+        sender_name: "noname",
+        receiver_name: "noname",
+        fee_payer_key: fallbackSender,
+        chain_status: "canonical",
+        block_hash: tx.slot,
+        token_contract: null,
+        token_receiver: null,
+        token_amount: null,
+        token_name: null,
+        token_decimals: null,
+        r_thief: 0, s_thief: 0, r_scammer: 0, s_scammer: 0, r_spammer: 0, s_spammer: 0
+      });
+
+      hasSolTransfer = true;
+
+      const remainingSender = Math.abs(sender.delta) - amount;
+      const remainingReceiver = receiver.delta - amount;
+
+      if (remainingSender > 0) {
+        senders.unshift({ ...sender, delta: -remainingSender });
+      }
+
+      if (remainingReceiver > 0) {
+        receivers.unshift({ ...receiver, delta: remainingReceiver });
+      }
+    }
+
+  // === 3. STAKE TRANSACTIONS ===
+  if (command_type === "stake") {
+    const stakeInstr = tx.transaction.message.instructions.find(
+      inst => inst.program === "stake" && inst.parsed?.info?.voteAccount
+    );
+    const voteAccount = stakeInstr?.parsed?.info?.voteAccount || null;
+
+    transactions.push({
+      blockchain: 'solana',
+      block_id: tx.slot,
+      height: tx.slot,
+      timestamp: blockTime,
+      hash: tx.transaction.signatures[0],
+      command_type: "stake",
+      label: "stake",
+      nonce: null,
+      amount: "0",
+      fee: tx.meta?.fee?.toString() || "0",
+      memo: "",
+      sequence_no: null,
+      status: tx.meta?.err ? "failed" : "applied",
+      failure_reason: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+      confirm: null,
+      sender_id: null,
+      receiver_id: null,
+      sender_key: fallbackSender,
+      receiver_key: voteAccount,
+      sender_name: "noname",
+      receiver_name: "validator",
+      fee_payer_id: null,
+      fee_payer_key: fallbackSender,
+      fee_payer_name: null,
+      chain_status: "canonical",
+      block_hash: tx.slot,
+      r_thief: 0, s_thief: 0,
+      r_scammer: 0, s_scammer: 0,
+      r_spammer: 0, s_spammer: 0,
+      token_contract: null,
+      token_receiver: null,
+      token_amount: null,
+      token_name: null,
+      token_decimals: null
+    });
+    
+    hasStakeTransaction = true;
+    
+  }
+
+    // === 3. CONTRACT / STAKE / MISC INTERACTIONS ===
+    if (!hasTokenTransfer && !hasSolTransfer && !hasStakeTransaction) {
+      transactions.push({
+        blockchain: 'solana',
+        block_id: tx.slot,
+        height: tx.slot,
+        timestamp: blockTime,
+        hash: tx.transaction.signatures[0],
+        command_type,
+        label: command_type,
+        amount: "0",
+        fee: tx.meta?.fee?.toString() || "0",
+        memo: "",
+        status: tx.meta?.err ? "failed" : "applied",
+        failure_reason: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+        sender_key: fallbackSender,
+        receiver_key: null,
+        sender_name: "noname",
+        receiver_name: "noname",
+        fee_payer_key: fallbackSender,
+        chain_status: "canonical",
+        block_hash: tx.slot,
+        token_contract: null,
+        token_receiver: null,
+        token_amount: null,
+        token_name: null,
+        token_decimals: null,
+        r_thief: 0, s_thief: 0, r_scammer: 0, s_scammer: 0, r_spammer: 0, s_spammer: 0
+      });
+    }
+  }
+
+
+
+  return transactions;
+}
+
+
+
+
+async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
+  const baseUrls = {
+    ethereum: `https://eth-mainnet.g.alchemy.com/v2/`,
+    polygon: `https://polygon-mainnet.g.alchemy.com/v2/`,
+    bsc: `https://bnb-mainnet.g.alchemy.com/v2/`,
+    solana: `https://solana-mainnet.g.alchemy.com/v2/`
+  };
+
+  const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
+  const url = `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`;
+  const apiKeyHeader = { 'x-api-key': '2c57fa11-3463-47fa-802d-116c2dfff660' };
+  const toMillis = iso => iso ? new Date(iso).getTime().toString() : null;
+
+  console.log(`Calling ${blockchain.toUpperCase()}Scan API`);
+
+  if (blockchain === 'solana') {
+    return await fetchSolanaTransactions(publicKey, limit, url);
+  }
+
+  // Set category for ETH, POLYGON, BSC
+  let category = ["external", "erc20"];
+  if (blockchain === "ethereum" || blockchain === "polygon") {
+    category.push("internal", "erc721", "erc1155");
+  }
+
+  // Setup query parameters for both directions
+  const baseParams = {
+    fromBlock: "0x0",
+    toBlock: "latest",
+    category,
+    withMetadata: true,
+    maxCount: `0x${limit.toString(16)}`
+  };
+
+  const toParams = { ...baseParams, toAddress: publicKey };
+  const fromParams = { ...baseParams, fromAddress: publicKey };
+
+  const [toRes, fromRes] = await Promise.all([
+    fetch(url, {
+      method: "POST",
+      headers: { ...apiKeyHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 0,
+        method: "alchemy_getAssetTransfers",
+        params: [toParams]
+      })
+    }),
+    fetch(url, {
+      method: "POST",
+      headers: { ...apiKeyHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "alchemy_getAssetTransfers",
+        params: [fromParams]
+      })
+    })
+  ]);
+
+  const [toJson, fromJson] = await Promise.all([toRes.json(), fromRes.json()]);
+  const transfers = [...(toJson?.result?.transfers || []), ...(fromJson?.result?.transfers || [])];
+
+  // Deduplicate by tx.hash
+  const seen = new Set();
+  const uniqueTransfers = transfers.filter(tx => {
+    if (!tx.hash || seen.has(tx.hash)) return false;
+    seen.add(tx.hash);
+    return true;
+  });
+
+  // Enrich with contract creation / call info
+  const enriched = await Promise.all(uniqueTransfers.map(async (tx) => {
+    const receiptBody = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_getTransactionReceipt",
+      params: [tx.hash]
+    };
+
+    let receiptData = null;
+    try {
+      const receiptRes = await fetch(url, {
+        method: "POST",
+        headers: { ...apiKeyHeader, "Content-Type": "application/json" },
+        body: JSON.stringify(receiptBody)
+      });
+      const receiptJson = await receiptRes.json();
+      receiptData = receiptJson?.result;
+    } catch (err) {
+      console.warn(`Receipt fetch failed for tx ${tx.hash}`, err.message);
+    }
+
+    const contractCreated = receiptData?.contractAddress != null;
+
+    const nativeAssets = {
+      ethereum: "ETH",
+      polygon: "MATIC",
+      bsc: "BNB"
+    };
+
+    const isNativeTransfer = (
+      tx.category?.includes("external") &&
+      tx.asset?.toUpperCase() === nativeAssets[blockchain]
+    );
+
+    const command_type = contractCreated
+      ? "contract_creation"
+      : isNativeTransfer
+        ? "transfer"
+        : tx.rawContract?.address
+          ? "token_transfer"
+          : "contract_call";
+
+    return {
+      blockchain,
+      block_id: parseInt(tx.blockNum, 16),
+      height: parseInt(tx.blockNum, 16),
+      timestamp: toMillis(tx.metadata?.blockTimestamp),
+      timestamp_iso: tx.metadata?.blockTimestamp || null,
+      hash: tx.hash,
+      amount: tx.value ? (parseFloat(tx.value)).toString() : "0",
+      fee: "0",
+      memo: "",
+      status: "applied",
+      sender_key: tx.from?.toLowerCase(),
+      receiver_key: tx.to?.toLowerCase(),
+      sender_name: tx.from ? tx.from.slice(0, 6) + "..." + tx.from.slice(-4) : "unknown",
+      receiver_name: tx.to ? tx.to.slice(0, 6) + "..." + tx.to.slice(-4) : "unknown",
+      command_type,
+      label: command_type,
+      token_contract: tx.rawContract?.address?.toLowerCase() || null,
+      token_receiver: tx.to?.toLowerCase() || null,
+      token_amount: tx.rawContract?.value || null,
+      token_name: tx.asset || null,
+      token_decimals: tx.rawContract?.decimals || null
+    };
+  }));
+
+  return enriched;
+}
+
+
+
+async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockchain, delay = 0) {
     const normalizedKey = blockchain === "polygon" ? publicKey.toLowerCase() : publicKey;
     
     if (normalizedKey === "genesis") 
@@ -1504,11 +1956,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
               const accountKeys = tx.transaction.message.accountKeys;
 
               let amount = "0";
-              if (tx.meta && tx.meta.preBalances && tx.meta.postBalances) {
+              if (tx.meta && tx.meta.preToken && tx.meta.postToken) {
                 const receiverIndex = accountKeys.findIndex(k => k.pubkey === receiverKey);
                 if (receiverIndex >= 0) {
-                  const pre = tx.meta.preBalances[receiverIndex] || 0;
-                  const post = tx.meta.postBalances[receiverIndex] || 0;
+                  const pre = tx.meta.preToken[receiverIndex] || 0;
+                  const post = tx.meta.postToken[receiverIndex] || 0;
                   if (post - pre > 0) {
                     amount = (post - pre).toString();
                   }
@@ -1572,6 +2024,89 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     }
 }
 
+async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
+    const normalizedKey = ["polygon", "ethereum", "bsc"].includes(blockchain)
+      ? publicKey.toLowerCase()
+      : publicKey;    
+      
+    if (normalizedKey === "genesis") 
+      return;
+    
+    delay = delayByBlockchain[blockchain] || delay;
+    console.log("selectedBlockchain : ", selectedBlockchain);
+    console.log("Normalized Key : ", normalizedKey);
+
+    if (visitedKeys.has(normalizedKey)) return [];
+    visitedKeys.add(normalizedKey);
+
+    const limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase()) ? FIRST_ITERATION_LIMIT : LIMIT;
+
+    console.log("normalizedKey=",normalizedKey, " | BASEKEY=",BASE_KEY);
+
+    try {
+        if (delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        let transactions = [];
+
+        //log_api_call(blockchain);
+
+        if (blockchain === 'mina') {
+            const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
+                method: "POST",
+                headers: {
+                    "Minataur-Authorization": API_TOKEN,
+                    'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ publicKey: normalizedKey, limit })
+            });
+            
+            console.log("Calling Minataur API");
+
+            if (!res.ok) {
+                throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
+            }
+
+            const json = await res.json();
+
+            if (!json || !json.payload || !json.payload.transactions) {
+                throw new Error("Unexpected response format from Minataur API");
+            }
+
+            transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+
+            transactions.forEach(tx => {
+              tx.blockchain = 'mina';
+              // 🔵 New fields added for ERC-20 Tokens
+              tx.token_contract = null;
+              tx.token_receiver = null;
+              tx.token_amount = null;                                   
+              tx.token_name = null,
+              tx.token_decimals = null
+            });
+
+
+        }  else if (["ethereum", "polygon", "bsc", "solana"].includes(blockchain)) {
+          transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
+        }
+
+        console.log(transactions);
+
+        currentStep++;
+        updateProgressBar(currentStep, totalSteps);
+        return transactions;
+
+    } catch (error) {
+        console.error("Error occurred:", error);
+        cancelRequested = true;
+        hideLoader();
+        showErrorPopup(error.message || "An unknown error occurred");
+        return transactions || [];
+    }
+}
+
 async function buildGraphRecursively(publicKey, depth, level = 0) {
   const normalizedKey = ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
     ? publicKey.toLowerCase()
@@ -1583,6 +2118,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
   if (!window.initialPublicKey) {
     window.initialPublicKey = normalizedKey;
   }
+
+  log_api_call(selectedBlockchain);
     
   if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
   while (pause) await new Promise(r => setTimeout(r, 100));
@@ -1592,10 +2129,21 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
 
   appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 6)}…${normalizedKey.slice(-6)} at depth ${level}`);
 
+  const isValidEdge = (tx) => tx?.sender_key && tx?.receiver_key && tx.sender_key !== tx.receiver_key;
 
   for (const tx of transactions) {
     const sender = tx.sender_key;
     const receiver = tx.receiver_key;
+    
+    if (tx.command_type === "stake") {
+      console.warn("🌱 Stake tx detected:", tx);
+    }
+    
+    if (!isValidEdge(tx)) {
+      console.warn(`⚠️ Skipping tx with missing or invalid sender/receiver:`, tx);
+      continue;
+    }    
+    
     const senderName = tx.sender_name;
     const receiverName = tx.receiver_name;
 
@@ -1672,14 +2220,47 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     });
   }
 
-  const newReceivers = [...new Set(transactions.map(t => t.receiver_key))];
-  totalSteps += newReceivers.length;
-  updateProgressBar(currentStep, totalSteps);
+  const normalize = (key) =>
+    ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
+      ? key?.toLowerCase()
+      : key;
 
-  for (const r of newReceivers) {
+  const nextKeys = [...new Set(
+    transactions.flatMap(t => [
+      normalize(t.receiver_key),
+      normalize(t.sender_key)
+    ])
+    .filter(k => k && k !== normalizedKey)
+  )];
+
+
+  visitedKeys.add(normalizedKey); // ✅ Empêche les boucles infinies
+
+
+  /*for (const t of transactions) {
+    const rk = t.receiver_key;
+    if (!rk) continue;
+    
+    const rkLower = rk.toLowerCase();
+    const isSame = rkLower === normalizedKey;
+
+    if (isSame) {
+      console.warn("⚠️ Receiver equals normalizedKey after toLowerCase:");
+      console.warn("  → receiver_key (original):", rk);
+      console.warn("  → normalizedKey:", normalizedKey);
+    } else {
+      console.log("📬 New candidate receiver:", rk, "→", rkLower);
+    }
+  }*/
+
+  totalSteps += nextKeys.length;
+  updateProgressBar(currentStep, totalSteps);
+  
+  for (const k of nextKeys) {
     if (cancelRequested) break;
-    await buildGraphRecursively(r, depth - 1, level + 1);
-  }
+    await buildGraphRecursively(k, depth - 1, level + 1);
+  }  
+  
 }
 
 function applyNodeSizesByDegree() {
@@ -1761,10 +2342,27 @@ function formatTimestamp(timestamp) {
 }
 
 function formatTokenAmount(amount, decimals = 18) {
-  if (!amount) return "0";
-  const divisor = BigInt(10) ** BigInt(decimals);
-  const value = (BigInt(amount) * BigInt(10000)) / divisor; // keep 4 decimals
-  return (Number(value) / 10000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 });
+  try {
+    if (!amount) return "0";
+
+    // Convert hex if necessary
+    if (typeof amount === "string" && amount.startsWith("0x")) {
+      amount = BigInt(amount).toString();
+    }
+
+    const raw = BigInt(amount);
+    const divisor = BigInt(10) ** BigInt(decimals);
+
+    const result = Number(raw) / Number(divisor);
+    return result.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 6
+    });
+
+  } catch (e) {
+    console.warn("Invalid token amount:", amount, e);
+    return "0";
+  }
 }
 
 
@@ -1783,6 +2381,7 @@ function showNodePanel(node) {
     if (src === node || tgt === node) {
       if (attr.status !== "applied") failed++;
       else if (attr.label === "delegation") del++;
+      else if (attr.label === "stake") del++;
       else if (attr.label === "payment" || attr.label === "transfer") tx++;
       else if (attr.label === "contract_call") sc++;
       else if (attr.label === "token_transfer") tt++;
@@ -1845,7 +2444,10 @@ function showNodePanel(node) {
               </tr>
             </thead>
             <tbody>
-              ${interactions.map(tx => `
+              ${interactions.map(tx => {
+                //console.log("Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
+                const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc"].includes(chain);
+                return `
                 <tr title="${tx.memo || ''}">
                   <td>${tx.blockchain}</td>
                   <td>${formatTimestamp(tx.timestamp)}</td>
@@ -1871,8 +2473,12 @@ function showNodePanel(node) {
                       `;
                     })()}
                   </td>
-                  <td>${formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
-                  <td>${formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
+                  <td>${isAlchemyChain(tx.blockchain) 
+                         ? parseFloat(tx.amount || 0).toFixed(2)
+                         : formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
+                  <td>${isAlchemyChain(tx.blockchain) 
+                         ? parseFloat(tx.fee || 0).toFixed(2)
+                         : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${tx.status || "-"}</td>
                 </tr>
                 ${tx.label === "token_transfer" ? `
@@ -1883,10 +2489,27 @@ function showNodePanel(node) {
                     <td colspan="5" style="text-align: right;">
                       ${(() => {
                         if (!tx.token_amount) return "-";
+
                         const decimals = (tx.token_decimals !== undefined && tx.token_decimals !== null)
                           ? tx.token_decimals
                           : (getKnownTokenInfo(tx.token_contract)?.decimals ?? 18);
-                        return formatTokenAmount(tx.token_amount, decimals);
+
+                        let normalizedAmount;
+
+                        // Case 1: Hex string (e.g., "0x7d2b7500")
+                        if (typeof tx.token_amount === "string" && tx.token_amount.startsWith("0x")) {
+                          normalizedAmount = BigInt(tx.token_amount).toString(); // Convert hex to decimal string
+                        }
+                        // Case 2: Number (e.g., 2100) — convert to string
+                        else if (typeof tx.token_amount === "number") {
+                          normalizedAmount = tx.token_amount.toString();
+                        }
+                        // Case 3: Already a decimal string (e.g., "2100")
+                        else {
+                          normalizedAmount = tx.token_amount;
+                        }
+                        //console.log("Amount : ",normalizedAmount, "| Decimals : ", decimals);
+                        return formatTokenAmount(normalizedAmount, decimals);
                       })()} 
                       ${(() => {
                         const tokenLink = tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#";
@@ -1912,7 +2535,7 @@ function showNodePanel(node) {
                       })()}
                     </td>
                   </tr>` : ""}
-                `).join("")}
+              `}).join("")}
             </tbody>
           </table>
         ` : `<p style="color:#888; margin-bottom: 16px;">No direct interactions.</p>`;
@@ -2129,6 +2752,7 @@ function setupReducers() {
       case "payment": baseColor = "#4caf50"; break;
       case "transfer": baseColor = "#4caf50"; break;
       case "delegation": baseColor = "#2196f3"; break;
+      case "stake": baseColor = "#2196f3"; break;
       case "zkapp": baseColor = "#ff57c1"; break;
       case "contract_call": baseColor = "#ff57c1"; break;
       case "token_transfer": baseColor = "#f9a825"; break;
