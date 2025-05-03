@@ -30,8 +30,11 @@ let selectedBlockchain = "mina"; // 👈 default value
 
 const delayByBlockchain = {
   mina: 0,
-  ethereum: 1000,
-  polygon: 1000,
+  ethereum: 300,
+  zksync: 300,
+  optimism: 300,
+  arbitrum: 300,
+  polygon: 300,
   bsc: 300,
   solana: 100,
 };
@@ -635,6 +638,9 @@ function getDecimalsForBlockchain(chain) {
     case "ethereum":
     case "polygon":
     case "bsc":
+    case "zksync":
+    case "optimism":
+    case "arbitrum":
       return 18;
     case "solana":      
     case "mina":
@@ -1375,7 +1381,10 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     ethereum: `https://eth-mainnet.g.alchemy.com/v2/`,
     polygon: `https://polygon-mainnet.g.alchemy.com/v2/`,
     bsc: `https://bnb-mainnet.g.alchemy.com/v2/`,
-    solana: `https://solana-mainnet.g.alchemy.com/v2/`
+    solana: `https://solana-mainnet.g.alchemy.com/v2/`,
+    zksync: `https://zksync-mainnet.g.alchemy.com/v2/`,
+    optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
+    arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`
   };
 
   const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
@@ -1391,8 +1400,11 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
 
   // Set category for ETH, POLYGON, BSC
   let category = ["external", "erc20"];
-  if (blockchain === "ethereum" || blockchain === "polygon") {
+  if (blockchain === "ethereum" || blockchain === "polygon" || blockchain === "base") {
     category.push("internal", "erc721", "erc1155");
+  }
+  if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum" ) {
+    category.push("erc721", "erc1155");
   }
 
   // Setup query parameters for both directions
@@ -1468,7 +1480,10 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     const nativeAssets = {
       ethereum: "ETH",
       polygon: "MATIC",
-      bsc: "BNB"
+      bsc: "BNB",
+      zksync: 'ETH',
+      optimism: "ETH",
+      arbitrum: "ETH"
     };
 
     const isNativeTransfer = (
@@ -2025,7 +2040,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
 }
 
 async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
-    const normalizedKey = ["polygon", "ethereum", "bsc"].includes(blockchain)
+    const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum"].includes(blockchain)
       ? publicKey.toLowerCase()
       : publicKey;    
       
@@ -2088,7 +2103,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        }  else if (["ethereum", "polygon", "bsc", "solana"].includes(blockchain)) {
+        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -2108,7 +2123,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 }
 
 async function buildGraphRecursively(publicKey, depth, level = 0) {
-  const normalizedKey = ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
+  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum"].includes(selectedBlockchain)
     ? publicKey.toLowerCase()
     : publicKey;
     
@@ -2201,7 +2216,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
   }
 
   // 🎨 Set node color by degree for Ethereum/Polygon
-  if (["polygon", "ethereum", "bsc","solana"].includes(selectedBlockchain)) {
+  if (["polygon", "ethereum", "bsc","solana","zksync","optimism","arbitrum"].includes(selectedBlockchain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -2221,7 +2236,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
   }
 
   const normalize = (key) =>
-    ["polygon", "ethereum", "bsc"].includes(selectedBlockchain)
+    ["polygon", "ethereum", "bsc","zksync","optimism","arbitrum"].includes(selectedBlockchain)
       ? key?.toLowerCase()
       : key;
 
@@ -2454,8 +2469,8 @@ function showNodePanel(node) {
             </thead>
             <tbody>
               ${interactions.map(tx => {
-                //console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
-                const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc"].includes(chain);
+                console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
+                const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum"].includes(chain);
                 return `
                 <tr title="${tx.memo || ''}">
                   <td>${tx.blockchain}</td>
@@ -2596,7 +2611,7 @@ function setupReducers() {
   let minDegree = Infinity;
   let maxDegree = -Infinity;
 
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana") {
+  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum") {
     graph.forEachNode(node => {
       const deg = graph.degree(node);
       if (deg < minDegree) minDegree = deg;
@@ -3209,6 +3224,21 @@ function getExplorerURL(type, value, blockchain) {
       block: `https://solscan.io/block/${value}`,
       transaction: `https://solscan.io/tx/${value}`,
       account: `https://solscan.io/account/${value}`,
+    },
+    zksync: {
+      block: `https://explorer.zksync.io/block/${value}`,
+      transaction: `https://explorer.zksync.io/tx/${value}`,
+      account: `https://explorer.zksync.io/address/${value}`,
+    },
+    optimism: {
+      block: `https://optimistic.etherscan.io/block/${value}`,
+      transaction: `https://optimistic.etherscan.io/tx/${value}`,
+      account: `https://optimistic.etherscan.io/address/${value}`,
+    },
+    arbitrum: {
+      block: `https://arbiscan.io/block/${value}`,
+      transaction: `https://arbiscan.io/tx/${value}`,
+      account: `https://arbiscan.io/address/${value}`,
     },
   };
 
