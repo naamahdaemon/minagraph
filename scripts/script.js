@@ -635,8 +635,8 @@ function getDecimalsForBlockchain(chain) {
     case "ethereum":
     case "polygon":
     case "bsc":
-    case "solana":
       return 18;
+    case "solana":      
     case "mina":
       return 9;
     default:
@@ -2347,13 +2347,22 @@ function formatTokenAmount(amount, decimals = 18) {
 
     // Convert hex if necessary
     if (typeof amount === "string" && amount.startsWith("0x")) {
-      amount = BigInt(amount).toString();
+      amount = BigInt(amount);
+    } else if (typeof amount === "string" && /^[0-9]+$/.test(amount)) {
+      amount = BigInt(amount);
+    } else if (typeof amount === "number" && Number.isInteger(amount)) {
+      amount = BigInt(amount);
+    } else {
+      // If it's a decimal number, return it as is (assuming it's already formatted)
+      return Number(amount).toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 6
+      });
     }
 
-    const raw = BigInt(amount);
     const divisor = BigInt(10) ** BigInt(decimals);
+    const result = Number(amount) / Number(divisor);
 
-    const result = Number(raw) / Number(divisor);
     return result.toLocaleString(undefined, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 6
@@ -2445,7 +2454,7 @@ function showNodePanel(node) {
             </thead>
             <tbody>
               ${interactions.map(tx => {
-                //console.log("Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
+                //console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
                 const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc"].includes(chain);
                 return `
                 <tr title="${tx.memo || ''}">
