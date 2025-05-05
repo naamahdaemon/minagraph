@@ -2321,10 +2321,12 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         return transactions;
 
     } catch (error) {
-        console.error("Error occurred:", error);
-        cancelRequested = true;
-        hideLoader();
-        showErrorPopup(error.message || "An unknown error occurred");
+    console.warn("⚠️ Error during fetch, continuing anyway:", error.message || error);
+    
+    // Optionnel : log visible pour debugging si debugLevel >= 2
+    debugConsole(`⚠️ Error fetching tx for ${normalizedKey}: ${error.message}`, 2);
+
+    // On continue le processus même en cas d'échec
     return typeof transactions !== "undefined" ? transactions : [];
     }
 }
