@@ -1152,10 +1152,17 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
       }]
     };
 
+    let tx = null;
+    try {
     const txRes = await fetch(baseUrl, { method: "POST", headers, body: JSON.stringify(txPayload) });
     const txJson = await txRes.json();
-    const tx = txJson?.result;
-    if (!tx) continue;
+      tx = txJson?.result;
+      if (!tx) throw new Error("No tx result");
+    } catch (err) {
+      console.warn(`⚠️ Failed to fetch Solana tx ${sig.signature}: ${err.message}`);
+      continue; // skip this tx and continue with others
+    }
+
 
     const accountKeys = tx.transaction.message.accountKeys || [];
     const fallbackSender = accountKeys?.[0]?.pubkey || null;
@@ -2114,11 +2121,13 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         return transactions;
 
     } catch (error) {
-        console.error("Error occurred:", error);
-        cancelRequested = true;
-        hideLoader();
-        showErrorPopup(error.message || "An unknown error occurred");
-        return transactions || [];
+    console.warn("⚠️ Error during fetch, continuing anyway:", error.message || error);
+    
+    // Optionnel : log visible pour debugging si debugLevel >= 2
+    console.warn(`⚠️ Error fetching tx for ${normalizedKey}: ${error.message}`);
+
+    // On continue le processus même en cas d'échec
+    return typeof transactions !== "undefined" ? transactions : [];
     }
 }
 
