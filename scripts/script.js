@@ -2263,6 +2263,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     // Mettre à jour le compteur après toutes les estimations
     window.transactionsFetchedSoFar += actual;
 
+    if (!isFinite(window.totalTransactionsToFetch) || window.totalTransactionsToFetch <= 0) {
+      window.totalTransactionsToFetch = window.transactionsFetchedSoFar + 1;
+    }
+
+
     // Afficher la progression mise à jour
     updateProgress(
       0,
@@ -2275,22 +2280,42 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
     // Ajustement si on dépasse l'estimation totale (basé sur la moyenne des dépassements)
     if (window.transactionsFetchedSoFar >= window.totalTransactionsToFetch) {
-      // Calcul du ratio moyen de dépassement (avec minimum de 10%)
-      const excessRatio = window.excessTxList.length > 0 
-        ? Math.max(0.1, window.excessTxAvg / expected)
-        : 0.1;
+      // Récupération des paramètres d'exploration
+      const L = parseInt(document.getElementById("param-limit").value) || 1;
+      const D = parseInt(document.getElementById("param-depth").value) || 1;
+      const remainingDepth = Math.max(0, D - currentLevel);
       
-      // Calcul de l'ajustement basé sur la moyenne des dépassements observés
-      const adjustment = Math.max(
-        window.transactionsFetchedSoFar * excessRatio * (remainingDepth + 1), 
+      // Calcul du ratio moyen de dépassement (avec valeurs de sécurité)
+      let excessRatio = 0.1; // Valeur par défaut
+      if (window.excessTxList && window.excessTxList.length > 0 && L > 0) {
+        excessRatio = Math.max(0.1, (window.excessTxAvg || 0) / L);
+      }
+      
+      // Limiter le ratio à une valeur raisonnable
+      excessRatio = Math.min(2.0, excessRatio);
+      
+      // Calcul de l'ajustement avec protection contre les valeurs non finies
+      const safeAdjustment = Math.max(
+        window.transactionsFetchedSoFar * excessRatio * Math.min(5, (remainingDepth + 1)), 
         window.transactionsFetchedSoFar * 0.1
       );
       
-      // Nouvelle estimation totale
+      // S'assurer que l'ajustement est un nombre fini et positif
+      const adjustment = isFinite(safeAdjustment) ? safeAdjustment : window.transactionsFetchedSoFar * 0.1;
+      
+      // Nouvelle estimation totale (avec protection)
       const newTotal = Math.ceil(window.transactionsFetchedSoFar + adjustment);
+      
+      // Vérifier que la nouvelle valeur est valide avant de l'assigner
+      if (isFinite(newTotal) && newTotal > 0) {
       window.totalTransactionsToFetch = newTotal;
       
       debugConsole(`🔄 Estimation ajustée: ${window.transactionsFetchedSoFar} → ${newTotal} (+${Math.round(adjustment)} basé sur excès moyen ${excessRatio.toFixed(2)})`, 4);
+      } else {
+        // En cas de valeur invalide, utiliser une augmentation de secours
+        window.totalTransactionsToFetch = window.transactionsFetchedSoFar * 1.2;
+        debugConsole(`⚠️ Calcul d'ajustement invalide, utilisation de +20% par défaut`, 4);
+      }
     }
 
         return transactions;
@@ -2300,7 +2325,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         cancelRequested = true;
         hideLoader();
         showErrorPopup(error.message || "An unknown error occurred");
-        return transactions || [];
+    return typeof transactions !== "undefined" ? transactions : [];
     }
 }
 
