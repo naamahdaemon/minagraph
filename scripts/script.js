@@ -569,31 +569,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 init();
 
-const DEBUG_LEVEL = (() => {
-  const urlParams = new URLSearchParams(window.location.search);
-  return parseInt(urlParams.get("debug") || "0", 10);
-})();
-//none=0
-//info=1
-//normal=2
-//verbose=3
-
-function debugConsole(message, level = 1) {
-  if (DEBUG_LEVEL < level) return;
-  if (DEBUG_LEVEL !== 4 || level !== 4) return;
-
-  const levelLabels = {
-    1: "INFO",
-    2: "NORMAL",
-    3: "DEBUG",
-    4: "SPECIAL"
-  };
-
-  const label = levelLabels[level] || "LOG";
-  console.log(`[${label}]`, message);
-}
-
-
 async function init() {
   await loadExtraTokensFromCSV('./tokens/tokens.csv');
   // Ensuite tu peux continuer ton code ici
@@ -1028,57 +1003,10 @@ function runLayoutInWorker() {
 }
 
 
-function updateProgress_old() {
+function updateProgress() {
   const bar = document.getElementById("progress-bar");
   bar.max = totalSteps;
   bar.value = currentStep;
-}
-
-function updateProgress(min, current, max, text) {
-  const container = document.getElementById('loader-progress-container');
-  const bar = document.getElementById('loader-progress-bar');
-  const label = document.getElementById('loader-progress-text');
-
-  if (!bar || !label || !container) return;
-
-  const clampedCurrent = Math.max(min, Math.min(current, max));
-  const percent = ((clampedCurrent - min) / (max - min)) * 100;
-
-  bar.value = percent;
-  label.textContent = String(text).substring(0, 20);
-  container.style.display = 'block';
-}
-
-function estimateTraversalStats(F, L, D, fanout = 1.5) {
-  // Pour le noeud racine, on récupère F transactions
-  let totalTx = F;
-  let totalNodes = 1; // Le nœud racine
-  
-  // Nombre d'adresses découvertes au niveau actuel
-  let currentLevelAddresses = 1;
-  
-  for (let i = 1; i <= D; i++) {
-    // À chaque niveau:
-    // 1. Chaque adresse du niveau actuel génère en moyenne 'L' transactions
-    const newTransactions = currentLevelAddresses * L;
-    totalTx += newTransactions;
-    
-    // 2. Parmi ces transactions, certaines révèlent de nouvelles adresses
-    // fanout = ratio de nouvelles adresses par transaction
-    const newAddresses = Math.floor(newTransactions * fanout);
-    totalNodes += newAddresses;
-    
-    // Ces nouvelles adresses deviennent le niveau suivant
-    currentLevelAddresses = newAddresses;
-  }
-  
-  // Appliquer un facteur de marge pour éviter les sous-estimations
-  const estimatedTxCount = Math.ceil(totalTx * 1.5);
-  
-  return {
-    estimatedTxCount: estimatedTxCount,
-    estimatedAddressCount: totalNodes
-  };
 }
 
 function showErrorPopup(message) {
@@ -2105,6 +2033,8 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
 
         console.log(transactions);
 
+        currentStep++;
+        updateProgressBar(currentStep, totalSteps);
         return transactions;
 
     } catch (error) {
@@ -2116,7 +2046,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
     }
 }
 
-async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0, currentLevel = 0) {
+async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
     const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum"].includes(blockchain)
       ? publicKey.toLowerCase()
       : publicKey;    
@@ -2175,8 +2105,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
               tx.token_contract = null;
               tx.token_receiver = null;
               tx.token_amount = null;                                   
-              tx.token_name = null;
-              tx.token_decimals = null;
+              tx.token_name = null,
+              tx.token_decimals = null
             });
 
 
@@ -2186,145 +2116,15 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
         console.log(transactions);
 
-    debugConsole(`Nb Transactions = ${transactions.length}`,4);
-
-    const F = parseInt(document.getElementById("param-first-iteration").value);
-    const L = parseInt(document.getElementById("param-limit").value);
-    const D = parseInt(document.getElementById("param-depth").value);
-
-    const isRoot = normalizedKey.toLowerCase() === BASE_KEY.toLowerCase();
-
-    // Amélioration: prendre en compte la spécificité de la blockchain dans l'estimation
-    let expected = isRoot ? F : L;
-    if (!isRoot && window.excessTxAvg > 0) {
-      expected += Math.round(window.excessTxAvg);
-    }
-    expected = Math.max(1, expected);
-
-    const actual = transactions.length;
-    const remainingDepth = D - currentLevel;
-
-    // Amélioration du système d'ajustement des estimations
-    if (remainingDepth > 0) {
-      const delta = actual - expected;
-      const relativeDiff = Math.abs(delta) / expected;
-
-      // Définir un facteur de fanout par blockchain
-      let fanoutFactor = 2.0; // Valeur par défaut
-      if (["ethereum", "polygon", "bsc"].includes(blockchain)) {
-        fanoutFactor = 2.5; // Plus de connexions entre adresses
-      } else if (["solana", "mina"].includes(blockchain)) {
-        fanoutFactor = 1.8; // Moins de connexions entre adresses
-      }
-
-      // Facteur d'ajustement basé sur le niveau actuel (impact plus fort près de la racine)
-      const levelImpactFactor = Math.pow(0.8, currentLevel);
-      
-      // Estimation des nouveaux nœuds, avec un cap plus réaliste par blockchain
-      const estimatedNewNodes = Math.min(actual * fanoutFactor, fanoutFactor * L);
-      
-      // Estimation des transactions restantes, avec une réduction progressive de l'impact
-      const estimatedRemaining = Math.pow(estimatedNewNodes, remainingDepth) * levelImpactFactor;
-      const margin = 0.15;
-
-      if (delta > 0 && relativeDiff > margin) {
-        // Cas 1: Plus de transactions que prévu → augmentation progressive
-        const adjustment = Math.ceil(delta * estimatedRemaining * 0.8); // 80% pour éviter la surcompensation
-        
-        // Limiter l'ajustement pour éviter des sauts trop grands
-        const cappedAdjustment = Math.min(adjustment, window.totalTransactionsToFetch * 0.3);
-        window.totalTransactionsToFetch += cappedAdjustment;
-
-        // Mise à jour de la moyenne mobile des excès
-        window.excessTxList.push(delta);
-        if (window.excessTxList.length > 20) window.excessTxList.shift();
-        window.excessTxAvg = window.excessTxList.reduce((a, b) => a + b, 0) / window.excessTxList.length;
-
-        debugConsole(`📈 Expanded by +${cappedAdjustment} (got ${actual}, expected ${expected}) at level ${currentLevel}`, 4);
-        debugConsole(`📊 Avg excess tx updated: ${window.excessTxAvg.toFixed(2)} based on ${window.excessTxList.length} samples`, 4);
-
-      } else if (delta < 0 && relativeDiff > margin) {
-        // Cas 2: Moins de transactions que prévu → réduction mesurée
-        const adjustment = Math.floor(-delta * estimatedRemaining * 0.6); // 60% pour être plus conservateur sur les réductions
-        
-        // Ne jamais descendre sous le nombre de transactions déjà récupérées + une marge
-        const minTarget = window.transactionsFetchedSoFar + Math.ceil(window.transactionsFetchedSoFar * 0.1);
-        const newEstimate = Math.max(minTarget, window.totalTransactionsToFetch - adjustment);
-        
-        if (newEstimate < window.totalTransactionsToFetch) {
-          window.totalTransactionsToFetch = newEstimate;
-          debugConsole(`📉 Reduced by -${adjustment} (got ${actual}, expected ${expected}) at level ${currentLevel}`, 4);
-        }
-      } else {
-        debugConsole(`🔍 No adjustment (within ±${margin*100}% margin): got ${actual}, expected ${expected} at level ${currentLevel}`, 4);
-      }
-    }
-
-    // Mettre à jour le compteur après toutes les estimations
-    window.transactionsFetchedSoFar += actual;
-
-    if (!isFinite(window.totalTransactionsToFetch) || window.totalTransactionsToFetch <= 0) {
-      window.totalTransactionsToFetch = window.transactionsFetchedSoFar + 1;
-    }
-
-
-    // Afficher la progression mise à jour
-    updateProgress(
-      0,
-      window.transactionsFetchedSoFar,
-      window.totalTransactionsToFetch,
-      `Fetched: ${window.transactionsFetchedSoFar}/${window.totalTransactionsToFetch}`
-    );
-
-    debugConsole(`Tx fetched: ${window.transactionsFetchedSoFar}/${window.totalTransactionsToFetch}`, 4);
-
-    // Ajustement si on dépasse l'estimation totale (basé sur la moyenne des dépassements)
-    if (window.transactionsFetchedSoFar >= window.totalTransactionsToFetch) {
-      // Récupération des paramètres d'exploration
-      const L = parseInt(document.getElementById("param-limit").value) || 1;
-      const D = parseInt(document.getElementById("param-depth").value) || 1;
-      const remainingDepth = Math.max(0, D - currentLevel);
-      
-      // Calcul du ratio moyen de dépassement (avec valeurs de sécurité)
-      let excessRatio = 0.1; // Valeur par défaut
-      if (window.excessTxList && window.excessTxList.length > 0 && L > 0) {
-        excessRatio = Math.max(0.1, (window.excessTxAvg || 0) / L);
-      }
-      
-      // Limiter le ratio à une valeur raisonnable
-      excessRatio = Math.min(2.0, excessRatio);
-      
-      // Calcul de l'ajustement avec protection contre les valeurs non finies
-      const safeAdjustment = Math.max(
-        window.transactionsFetchedSoFar * excessRatio * Math.min(5, (remainingDepth + 1)), 
-        window.transactionsFetchedSoFar * 0.1
-      );
-      
-      // S'assurer que l'ajustement est un nombre fini et positif
-      const adjustment = isFinite(safeAdjustment) ? safeAdjustment : window.transactionsFetchedSoFar * 0.1;
-      
-      // Nouvelle estimation totale (avec protection)
-      const newTotal = Math.ceil(window.transactionsFetchedSoFar + adjustment);
-      
-      // Vérifier que la nouvelle valeur est valide avant de l'assigner
-      if (isFinite(newTotal) && newTotal > 0) {
-      window.totalTransactionsToFetch = newTotal;
-      
-      debugConsole(`🔄 Estimation ajustée: ${window.transactionsFetchedSoFar} → ${newTotal} (+${Math.round(adjustment)} basé sur excès moyen ${excessRatio.toFixed(2)})`, 4);
-      } else {
-        // En cas de valeur invalide, utiliser une augmentation de secours
-        window.totalTransactionsToFetch = window.transactionsFetchedSoFar * 1.2;
-        debugConsole(`⚠️ Calcul d'ajustement invalide, utilisation de +20% par défaut`, 4);
-      }
-    }
-
+        currentStep++;
+        updateProgressBar(currentStep, totalSteps);
         return transactions;
 
     } catch (error) {
     console.warn("⚠️ Error during fetch, continuing anyway:", error.message || error);
     
     // Optionnel : log visible pour debugging si debugLevel >= 2
-    debugConsole(`⚠️ Error fetching tx for ${normalizedKey}: ${error.message}`, 2);
+    console.warn(`⚠️ Error fetching tx for ${normalizedKey}: ${error.message}`);
 
     // On continue le processus même en cas d'échec
     return typeof transactions !== "undefined" ? transactions : [];
@@ -2347,7 +2147,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     
   if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
   while (pause) await new Promise(r => setTimeout(r, 100));
-  const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000, level);
+  const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000);
 
   transactionsByNeighbor[normalizedKey] = transactions; // ✅ ici
 
@@ -2459,7 +2259,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
 
 
   visitedKeys.add(normalizedKey); // ✅ Empêche les boucles infinies
-  currentStep++; //progressbar
+
 
   /*for (const t of transactions) {
     const rk = t.receiver_key;
@@ -2477,10 +2277,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     }
   }*/
 
-  //totalSteps += nextKeys.length;
-  //updateProgressBar(currentStep, totalSteps);
-  //updateProgress(0, currentStep, totalSteps, `Fetching ${currentStep}/${totalSteps}`);
-  //updateProgress(0, currentStep, totalSteps, "Fetching (~%)");
+  totalSteps += nextKeys.length;
+  updateProgressBar(currentStep, totalSteps);
   
   for (const k of nextKeys) {
     if (cancelRequested) break;
@@ -3149,34 +2947,6 @@ async function main(depth = 2, wipeGraph = true) {
 
   totalSteps = 1;
   currentStep = 0;
-  
-  const F = parseInt(document.getElementById("param-first-iteration").value);
-  const L = parseInt(document.getElementById("param-limit").value);
-  const D = parseInt(document.getElementById("param-depth").value);
-  
-  // Utiliser un fanout plus élevé pour les blockchains avec plus d'interaction  
-  // Ajuster le fanout selon la blockchain (plus élevé pour Ethereum/Polygon, plus bas pour Solana)
-  let fanoutFactor = 2.0; // Valeur par défaut
-  if (["ethereum", "polygon", "bsc"].includes(selectedBlockchain)) {
-    fanoutFactor = 2.5; // Plus de connexions entre adresses
-  } else if (["solana", "mina"].includes(selectedBlockchain)) {
-    fanoutFactor = 1.8; // Moins de connexions entre adresses
-  }
-  
-  // Estimation avec un facteur de sécurité pour éviter les sous-estimations
-  const { estimatedTxCount, estimatedAddressCount } = estimateTraversalStats(F, L, D, fanoutFactor);
-  
-  // Initialisation des compteurs de progression avec une estimation délibérément généreuse
-  window.totalTransactionsToFetch = estimatedTxCount;
-  window.transactionsFetchedSoFar = 0;  
-  window.excessTxList = [];
-  window.excessTxAvg = 0;
-  
-  debugConsole(`Estimation initiale: ${estimatedTxCount} transactions (F=${F}, L=${L}, D=${D}, fanout=${fanoutFactor})`, 2);
-  
-  // Affichage initial de la progression
-  updateProgress(0, 0, estimatedTxCount, `Estimation: ~${estimatedTxCount} transactions`);
-  
   //visitedKeys.clear();
 
   // Rebuild the graph object BEFORE rendering
