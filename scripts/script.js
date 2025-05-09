@@ -1420,7 +1420,9 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     toBlock: "latest",
     category,
     withMetadata: true,
-    maxCount: `0x${limit.toString(16)}`
+    maxCount: `0x${limit.toString(16)}`,
+    order: "desc",
+    excludeZeroValue: false
   };
 
   const toParams = { ...baseParams, toAddress: publicKey };
@@ -2451,8 +2453,32 @@ function showNodePanel(node) {
     <p><strong>#Failed Transactions:</strong> ${failed}</p>
     <p><strong>Linked Nodes & Transactions:</strong></p>
     <div>
-      ${neighbors.map(n => {
+      ${neighbors
+        .map(n => {
+          const directEdges = graph.edges().filter(e => {
+            const source = graph.source(e);
+            const target = graph.target(e);
+            return (source === node && target === n) || (source === n && target === node);
+          });
+          const interactions = directEdges.map(e => graph.getEdgeAttributes(e));
+          const latestTimestamp = interactions.reduce((max, tx) => Math.max(max, tx.timestamp || 0), 0);
+          return { n, latestTimestamp };
+        })
+        .sort((a, b) => b.latestTimestamp - a.latestTimestamp)
+        .map(({ n, latestTimestamp }) => {
         const label = graph.getNodeAttribute(n, 'label');
+          const age = Date.now() - (latestTimestamp || 0);
+          let recencyBadge = '';
+
+          if (latestTimestamp) {
+            if (age < 30 * 24 * 60 * 60 * 1000) {
+              recencyBadge = `<span style="color:#00e676; font-size: 10px; margin-left: 6px;">● last 30 days</span>`;
+            } else if (age < 365 * 24 * 60 * 60 * 1000) {
+              recencyBadge = `<span style="color:#ffee58; font-size: 10px; margin-left: 6px;">● last 365 days</span>`;
+            } else {
+              recencyBadge = `<span style="color:#90a4ae; font-size: 10px; margin-left: 6px;">● older</span>`;
+            }
+          }
 
         const directEdges = graph.edges().filter(e => {
           const source = graph.source(e);
@@ -2461,6 +2487,8 @@ function showNodePanel(node) {
         });
 
         const interactions = directEdges.map(e => graph.getEdgeAttributes(e));
+
+          interactions.sort((a, b) => b.timestamp - a.timestamp);
 
         const txTable = interactions.length > 0 ? `
           <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
@@ -2575,7 +2603,9 @@ function showNodePanel(node) {
 
         return `
           <div style="margin-bottom: 20px;">
-            <div class="linked-node" onclick="showNodePanel('${n}')">${label}</div>
+              <div class="linked-node" onclick="showNodePanel('${n}')">
+                ${label}${recencyBadge}
+              </div>
             <div class="mono">
               ${txTable}
             </div>
