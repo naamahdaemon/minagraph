@@ -10,6 +10,7 @@ const SCALINGRATIO = 1000;
 const WIDTH = 3000;
 const HEIGHT = 3000;
 const visitedKeys = new Set();
+let visitedKeysByChain = new Map();
 const nameColorMap = new Map();
 let transactionsByNeighbor = {};
 
@@ -1608,8 +1609,14 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
     console.log("selectedBlockchain : ", selectedBlockchain);
     console.log("Normalized Key : ", normalizedKey);
 
-    if (visitedKeys.has(normalizedKey)) return [];
-    visitedKeys.add(normalizedKey);
+    const chain = blockchain;
+    if (!visitedKeysByChain.has(chain)) {
+      visitedKeysByChain.set(chain, new Set());
+    }
+    const visitedForChain = visitedKeysByChain.get(chain);
+
+    if (visitedForChain.has(normalizedKey)) return [];
+    visitedForChain.add(normalizedKey);
 
     const limit = (normalizedKey === BASE_KEY) ? FIRST_ITERATION_LIMIT : LIMIT;
 
@@ -2120,8 +2127,15 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     console.log("selectedBlockchain : ", selectedBlockchain);
     console.log("Normalized Key : ", normalizedKey);
 
-    if (visitedKeys.has(normalizedKey)) return [];
-    visitedKeys.add(normalizedKey);
+  const chain = blockchain;
+  if (!visitedKeysByChain.has(chain)) {
+    visitedKeysByChain.set(chain, new Set());
+  }
+  const visitedForChain = visitedKeysByChain.get(chain);
+
+  if (visitedForChain.has(normalizedKey)) return [];
+  visitedForChain.add(normalizedKey);
+
   let limit;
 
   if (blockchain === "mina") {
@@ -2205,23 +2219,34 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     }
 }
 
-async function buildGraphRecursively(publicKey, depth, level = 0) {
-  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum"].includes(selectedBlockchain)
+async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null) {
+  const chain = chainOverride || selectedBlockchain;
+
+  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum"].includes(chain)
     ? publicKey.toLowerCase()
     : publicKey;
     
   if (normalizedKey === "genesis") return;
   if (!window.initialPublicKey) window.initialPublicKey = normalizedKey;
-  if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
 
-  log_api_call(selectedBlockchain);
+  if (depth < 0 || cancelRequested) return;
+
+  // Init visitedKeysByChain[chain]
+  if (!visitedKeysByChain.has(chain)) {
+    visitedKeysByChain.set(chain, new Set());
+  }
+  const visitedForChain = visitedKeysByChain.get(chain);
+  
+  if (visitedForChain.has(normalizedKey)) return;  
+
+  log_api_call(chain);
     
   while (pause) await new Promise(r => setTimeout(r, 100));
-  const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000);
+  const transactions = await fetchTransactionsForKey(normalizedKey, chain, 1000);
 
   transactionsByNeighbor[normalizedKey] = transactions; // ✅ ici
 
-  appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 6)}…${normalizedKey.slice(-6)} at depth ${level}`);
+  appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 4)}…${normalizedKey.slice(-4)} on ${chain} depth ${level}`);
 
   const isValidEdge = (tx) => tx?.sender_key && tx?.receiver_key && tx.sender_key !== tx.receiver_key;
 
@@ -2257,20 +2282,18 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     
     const senderName = tx.sender_name;
     const receiverName = tx.receiver_name;
-    const chain = tx.blockchain || selectedBlockchain;
+    const txChain = tx.blockchain || chain;
 
-    addOrUpdateNode(sender, senderName, chain);
-    addOrUpdateNode(receiver, receiverName, chain);
+    addOrUpdateNode(sender, senderName, txChain);
+    addOrUpdateNode(receiver, receiverName, txChain);
 
+    const edgeId = `${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.nonce}`;
     const edgeColor =
       tx.command_type === "token_transfer"
         ? "#f9a825" // 🟨 Dark Yellow for token transfers
         : tx.status === "applied"
           ? "#ccc"  // Light grey for normal applied tx
           : "#f66"; // Red for failed
-
-    //const edgeId = tx.hash || `${sender}-${receiver}-${tx.nonce}`;
-    const edgeId = `${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.nonce}`;
 
     if (!graph.hasEdge(edgeId)) {
       const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
@@ -2283,7 +2306,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
         block_id: tx.block_id,
         block_hash: tx.block_hash,
         memo: tx.memo,
-        blockchain: chain,
+        blockchain: txChain,
         token_contract: tx.token_contract,
         token_receiver: tx.token_receiver,
         token_amount: tx.token_amount,        
@@ -2295,8 +2318,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     }
   }
 
-  // 🎨 Set node color by degree for Ethereum/Polygon
-  if (["polygon", "ethereum", "bsc","solana","zksync","optimism","arbitrum"].includes(selectedBlockchain)) {
+  // 🎨 Node coloring
+  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum"].includes(chain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -2315,8 +2338,9 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     });
   }
 
+  // Prepare next keys
   const normalize = (key) =>
-    ["polygon", "ethereum", "bsc","zksync","optimism","arbitrum"].includes(selectedBlockchain)
+    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum"].includes(chain)
       ? key?.toLowerCase()
       : key;
 
@@ -2324,13 +2348,12 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     transactions.flatMap(t => [
       normalize(t.receiver_key),
       normalize(t.sender_key)
-    ])
-    .filter(k => k && k !== normalizedKey)
+    ]).filter(k => k && k !== normalizedKey)
   )];
 
 
-  visitedKeys.add(normalizedKey); // ✅ Empêche les boucles infinies
 
+  visitedForChain.add(normalizedKey);
 
   /*for (const t of transactions) {
     const rk = t.receiver_key;
@@ -2353,7 +2376,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
   
   for (const k of nextKeys) {
     if (cancelRequested) break;
-    await buildGraphRecursively(k, depth - 1, level + 1);
+    await buildGraphRecursively(k, depth - 1, level + 1, chain);
   }  
   
 }
@@ -2469,6 +2492,44 @@ function formatTokenAmount(amount, decimals = 18) {
   }
 }
 
+async function fetchMoreForNode(key, chain = selectedBlockchain) {
+  const visitedSet = visitedKeysByChain.get(chain) || new Set();
+  if (visitedSet.has(key)) {
+    alert(`This node was already fetched for ${capitalize(chain)}.`);
+    return;
+  }
+
+  const previousInitialKey = BASE_KEY;
+  const initialFirstLimit = FIRST_ITERATION_LIMIT;
+  const initialLimit = LIMIT;
+  
+  BASE_KEY = key;
+  FIRST_ITERATION_LIMIT = FIRST_ITERATION_LIMIT;
+  LIMIT = 0;
+
+  showLoader();
+  await buildGraphRecursively(key, 0, 0, chain); // 👉 passe `chain`
+  applyNodeSizesByDegree();
+  rebuildTransactionsByNeighbor();
+  renderer.refresh();
+  hideLoader();
+  showNodePanel(key); // 🔁 Refresh node panel after fetch
+  animateLayout();
+
+  BASE_KEY = previousInitialKey;
+  FIRST_ITERATION_LIMIT = initialFirstLimit;
+  LIMIT = initialLimit;
+}
+
+
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function getChainIcon(chain) {
+  return blockchainSVGs[chain] || "";
+}
 
 function showNodePanel(node) {
   //rebuildTransactionsByNeighbor();
@@ -2492,6 +2553,42 @@ function showNodePanel(node) {
     }
   });
 
+  const blockchains = [
+    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum"
+  ];
+
+  // ✅ Fetch buttons per blockchain
+  const unfetchedChains = blockchains.filter(chain => {
+    const visitedSet = visitedKeysByChain.get(chain) || new Set();
+    return !visitedSet.has(node);
+  });
+
+  let fetchButtonsHTML = "";
+
+  const chainsToFetch = blockchains.filter(chain => {
+    const visitedSet = visitedKeysByChain.get(chain) || new Set();
+    return !visitedSet.has(node);
+  });
+
+  if (chainsToFetch.length === 0) {
+    fetchButtonsHTML = `<p style="font-size: 10px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
+  } else {
+    const links = chainsToFetch.map(chain => `
+      <a style="color: white; text-decoration: none;" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
+         title="Fetch from ${capitalize(chain)}"
+         style="margin-right: 4px; vertical-align: middle;">
+        <img src="img/${chain}.png" 
+          alt="${chain} icon"
+          style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;" />
+      </a>`).join("");
+
+    fetchButtonsHTML = `
+      <p style="margin-top: 4px; margin-bottom: 0px; font-size: 10px;">
+        🔍 Fetch more from ${links}
+      </p>`;
+  }
+
+
   //console.log('transactionsByNeighbor keys:', Object.keys(transactionsByNeighbor));
   //console.log('Looking for node:', node);
   //neighbors.forEach(n => {
@@ -2513,7 +2610,8 @@ function showNodePanel(node) {
       border-radius: 4px;
       cursor: pointer;
     ">🗑️ Delete this node from the Graph</button>         
-    <p><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
+    <p style="margin-bottom: 0px;"><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
+    ${fetchButtonsHTML}
     <p><strong>Degree:</strong> ${graph.degree(node)}</p>
     <p><strong>#Transactions:</strong> ${tx}</p>
     <p><strong>#Delegations:</strong> ${del}</p>
@@ -3062,7 +3160,7 @@ async function main(depth = 2, wipeGraph = true) {
     graph = new Graph({ multi: true });
     
   }
-  visitedKeys.clear();
+  visitedKeysByChain.clear();
   await buildGraphRecursively(BASE_KEY, depth);
 
   applyNodeSizesByDegree();
