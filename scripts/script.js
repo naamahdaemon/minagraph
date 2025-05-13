@@ -25,6 +25,8 @@ let selectedNode = null;
 
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
+const chainFilter = new Set();
+
 let showAllLabels = true;
 let selectedBlockchain = "mina"; // 👈 default value
 
@@ -221,9 +223,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const type = item.getAttribute('data-command-type');
 
       if (!type) {
-        // Reset filter
+        // Reset both filters
         commandTypeFilter.clear();
-        console.log("🔄 Filter reset");
+        chainFilter.clear();
+        console.log("🔄 All filters reset");
+
+        // Visually reset all items
+        document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.legend-chain').forEach(el => el.classList.remove('active'));
+
+        // Refresh only if renderer exists
+        if (typeof renderer !== "undefined" && renderer?.refresh) {
+          renderer.refresh();
+        }
+        return; // Exit early, no further processing needed for reset
       } else {
         const aliases = commandTypeAliases[type] || [type];
         const isActive = aliases.every(t => commandTypeFilter.has(t));
@@ -253,9 +266,42 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       console.log("🧪 Final filter set:", Array.from(commandTypeFilter));
-      renderer.refresh();
+      // Refresh only if renderer exists
+      if (typeof renderer !== "undefined" && renderer?.refresh) {
+        renderer.refresh();
+      }
     });
   });
+  
+  document.querySelectorAll('.legend-chain').forEach(item => {
+    item.addEventListener('click', () => {
+      const chain = item.getAttribute('data-chain');
+
+      if (!chain) return;
+
+      const isActive = chainFilter.has(chain);
+      if (isActive) {
+        chainFilter.delete(chain);
+        console.log(`❌ Removed chain filter: ${chain}`);
+      } else {
+        chainFilter.add(chain);
+        console.log(`✅ Added chain filter: ${chain}`);
+      }
+
+      // Update visual state
+      document.querySelectorAll('.legend-chain').forEach(el => {
+        const ch = el.getAttribute('data-chain');
+        el.classList.toggle('active', chainFilter.has(ch));
+      });
+
+      console.log(`🌐 Final chain filter set: ${Array.from(chainFilter)}`);
+      // Refresh only if renderer exists
+      if (typeof renderer !== "undefined" && renderer?.refresh) {
+        renderer.refresh();
+      }
+    });
+  });
+
   
   document.getElementById("import-json").addEventListener("change", (event) => {
     const file = event.target.files[0];
@@ -2062,8 +2108,20 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
     if (visitedKeys.has(normalizedKey)) return [];
     visitedKeys.add(normalizedKey);
+  let limit;
 
-    const limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase()) ? FIRST_ITERATION_LIMIT : LIMIT;
+  if (blockchain === "mina") {
+    limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase())
+      ? FIRST_ITERATION_LIMIT
+      : LIMIT;
+  } else {
+    limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase())
+      ? Math.floor(FIRST_ITERATION_LIMIT / 2)
+      : Math.floor(LIMIT / 2);
+  }
+
+  limit = Math.max(1, Math.floor(limit)); // évite un limit de 0 ou inférieur
+
 
     console.log("normalizedKey=",normalizedKey, " | BASEKEY=",BASE_KEY);
 
@@ -2138,16 +2196,12 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     ? publicKey.toLowerCase()
     : publicKey;
     
-  if (normalizedKey === "genesis")
-    return;
-    
-  if (!window.initialPublicKey) {
-    window.initialPublicKey = normalizedKey;
-  }
+  if (normalizedKey === "genesis") return;
+  if (!window.initialPublicKey) window.initialPublicKey = normalizedKey;
+  if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
 
   log_api_call(selectedBlockchain);
     
-  if (depth < 0 || visitedKeys.has(normalizedKey) || cancelRequested) return;
   while (pause) await new Promise(r => setTimeout(r, 100));
   const transactions = await fetchTransactionsForKey(normalizedKey,selectedBlockchain,1000);
 
@@ -2156,6 +2210,23 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
   appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 6)}…${normalizedKey.slice(-6)} at depth ${level}`);
 
   const isValidEdge = (tx) => tx?.sender_key && tx?.receiver_key && tx.sender_key !== tx.receiver_key;
+
+  const addOrUpdateNode = (key, name, chain) => {
+    if (!graph.hasNode(key)) {
+      graph.addNode(key, {
+        label: `${name !== "noname" ? name : "Address"} (${key.slice(0, 6)}…${key.slice(-6)})`,
+        name,
+        chains: [chain],
+        x: Math.random() * 1000,
+        y: Math.random() * 1000
+      });
+    } else {
+      const existingChains = graph.getNodeAttribute(key, 'chains') || [];
+      if (!existingChains.includes(chain)) {
+        graph.setNodeAttribute(key, 'chains', [...existingChains, chain]);
+      }
+    }
+  };
 
   for (const tx of transactions) {
     const sender = tx.sender_key;
@@ -2172,26 +2243,10 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
     
     const senderName = tx.sender_name;
     const receiverName = tx.receiver_name;
+    const chain = tx.blockchain || selectedBlockchain;
 
-    if (!graph.hasNode(sender)) {
-      graph.addNode(sender, {
-        label: `${senderName !== "noname" ? senderName : "Sender"} (${sender.slice(0, 6)}…${sender.slice(-6)})`,
-        name: senderName,
-        color: getBrightColorByName(senderName),
-        x: Math.random() * 1000, // ← assure une position aléatoire
-        y: Math.random() * 1000
-      });
-    }
-
-    if (!graph.hasNode(receiver)) {
-      graph.addNode(receiver, {
-        label: `${receiverName !== "noname" ? receiverName : "Receiver"} (${receiver.slice(0, 6)}…${receiver.slice(-6)})`,
-        name: receiverName,
-        color: getBrightColorByName(receiverName),
-        x: Math.random() * 1000,
-        y: Math.random() * 1000
-      });
-    }
+    addOrUpdateNode(sender, senderName, chain);
+    addOrUpdateNode(receiver, receiverName, chain);
 
     const edgeColor =
       tx.command_type === "token_transfer"
@@ -2214,7 +2269,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0) {
         block_id: tx.block_id,
         block_hash: tx.block_hash,
         memo: tx.memo,
-        blockchain: tx.blockchain, // ✅ This is critical,
+        blockchain: chain,
         token_contract: tx.token_contract,
         token_receiver: tx.token_receiver,
         token_amount: tx.token_amount,        
@@ -2689,13 +2744,17 @@ function setupReducers() {
     // 🎯 Filter by command type
     const visibleTypes = expandedCommandTypeFilter();
 
-    if (visibleTypes.size > 0) {
-      const hasVisibleEdge = graph.edges(node).some(e => {
+    const typeMatch = visibleTypes.size === 0 || graph.edges(node).some(e => {
         const command = graph.getEdgeAttribute(e, "command_type") || graph.getEdgeAttribute(e, "label");
         return visibleTypes.has(command);
       });
 
-      if (!hasVisibleEdge) {
+    // 🎯 Match if at least one chain is in the active filter
+    const chains = data.chains instanceof Set ? Array.from(data.chains) : (data.chains || []);
+    const chainMatch = chainFilter.size === 0 || chains.some(c => chainFilter.has(c));
+
+
+    if (!typeMatch || !chainMatch) {
         return {
           ...data,
           color: isLightTheme() ? "#eee" : "#111",
@@ -2708,7 +2767,6 @@ function setupReducers() {
           zIndex: 0
         };
       }
-    }
 
     // ✨ Focus or neighbor styling
     if (focusNode) {
@@ -2809,7 +2867,13 @@ function setupReducers() {
   renderer.setSetting("edgeReducer", (edge, data) => {
     const focusNode = hoveredNode || selectedNode;
     const command = data.command_type || data.label;
-    //console.log("Dans edgeReducer - isLightTheme = " + isLightTheme())
+
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    const sourceNode = graph.getNodeAttributes(source);
+    const targetNode = graph.getNodeAttributes(target);
+
+    // Base color by type
     let baseColor = "#666";
     switch (command) {
       case "payment": baseColor = "#4caf50"; break;
@@ -2821,45 +2885,45 @@ function setupReducers() {
       case "token_transfer": baseColor = "#f9a825"; break;
     }
 
-    // 🧊 Filter edges
+    // Filter by command type
     const visibleTypes = expandedCommandTypeFilter();
-    if (visibleTypes.size > 0 && !visibleTypes.has(command)) {
-      return {
+    const typeMatch = visibleTypes.size === 0 || visibleTypes.has(command);
+
+    // Filter by blockchain chain array (from .chains attribute)
+    const sourceChains = sourceNode?.chains || [];
+    const targetChains = targetNode?.chains || [];
+
+    const chainMatch =
+      chainFilter.size === 0 ||
+      (sourceChains.some(c => chainFilter.has(c)) &&
+       targetChains.some(c => chainFilter.has(c)));
+
+
+    const fadedStyle = {
         ...data,
         color: isLightTheme() ? "#eee" : "#111",
         size: 0.3,
         opacity: 0.05,
         zIndex: 0
       };
-    }
+
+    if (!typeMatch || !chainMatch) return fadedStyle;
 
     if (focusNode) {
-      const source = graph.source(edge);
-      const target = graph.target(edge);
       const neighbors = new Set(graph.neighbors(focusNode));
 
       const isFocusEdge =
         (source === focusNode && neighbors.has(target)) ||
         (target === focusNode && neighbors.has(source));
 
-      if (isFocusEdge) {
         return {
           ...data,
-          color: baseColor,
-          size: 1.5,
-          opacity: 0.6,
-          zIndex: 2
-        };
-      } else {
-        return {
-          ...data,
-          color: isLightTheme() ? "#eee" : "#111",
-          size: 0.4,
-          opacity: 0.1,
-          zIndex: 0
+        color: isFocusEdge ? baseColor : (isLightTheme() ? "#eee" : "#111"),
+        size: isFocusEdge ? 1.5 : 0.4,
+        opacity: isFocusEdge ? 0.6 : 0.1,
+        zIndex: isFocusEdge ? 2 : 0
         };
       }
-    }
 
     // 🌐 Default
     return {
@@ -3032,7 +3096,18 @@ async function main(depth = 2, wipeGraph = true) {
 
 function exportJSON() {
   const json = {
-    nodes: graph.nodes().map(n => ({ id: n, ...graph.getNodeAttributes(n) })),
+    nodes: graph.nodes().map(n => {
+      const attrs = graph.getNodeAttributes(n);
+
+      // Convert Set to Array for export
+      const exportedChains = Array.isArray(attrs.chains) ? attrs.chains : [attrs.chains];
+
+      return {
+        id: n,
+        ...attrs,
+        chains: exportedChains
+      };
+    }),
     edges: graph.edges().map(e => ({
       id: e,
       source: graph.source(e),
@@ -3081,7 +3156,10 @@ function importJSON(file, mode="", iterations=500) {
       let current = 0;
       updateProgressBar(current, total);
 
-      data.nodes.forEach((n) => {
+      data.nodes.forEach(n => {
+        if (typeof n.chains === "string") {
+          n.chains = [n.chains];
+        }
         graph.addNode(n.id, n);
         current++;
         updateProgressBar(current, total);
