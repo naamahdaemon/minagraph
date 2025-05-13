@@ -308,6 +308,17 @@
       text-decoration: underline;
     }    
 
+    .legend-chain {
+      cursor: default;
+      margin-left: 8px;
+      font-size: 0.9em;
+    }
+    
+    .legend-chain.active {
+      font-weight: bold;
+      text-decoration: underline;
+    }
+
     #close-panel-btn {
       position: absolute;
       top: 0px;
