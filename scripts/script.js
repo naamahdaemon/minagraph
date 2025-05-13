@@ -2330,8 +2330,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
       //console.log(degree," : ",color);
       graph.setNodeAttribute(node, 'colorByDegree', color);
     });
-  } else if (selectedBlockchain === "mina") {
-    graph.forEachNode((node) => {
+  } else if (chain === "mina") {
+    graph.forEachNode(node => {
       const name = graph.getNodeAttribute(node, 'name') || "noname";
       const color = getBrightColorByName(name);
       graph.setNodeAttribute(node, 'colorByDegree', color);
