@@ -514,19 +514,23 @@
   </button>  
   
 <div id="legend" class="legend-box" style="left: 330px; cursor: move; user-select: none; touch-action: none;">
-  <!--<strong>Legend</strong><br>-->
-
-  <!-- Command Types -->
-  <div><em>Command Types</em></div>
+  <!-- Command Types (Foldable) -->
+  <div class="legend-section">
+    <div class="legend-toggle" data-target="#command-types" style="cursor:pointer;"><em>▶ Command Types</em></div>
+    <div id="command-types" style="display: none;">
     <div class="legend-item" data-command-type="payment" style="color:#4caf50; cursor:pointer;">● Payment</div>
     <div class="legend-item" data-command-type="delegation" style="color:#2196f3; cursor:pointer;">● Delegation</div>
     <div class="legend-item" data-command-type="zkapp" style="color:#9c27b0; cursor:pointer;">● zkApp/Contract</div>
     <div class="legend-item" data-command-type="token_transfer" style="color:#f9a825; cursor:pointer;">● Token</div>
+    </div>
+  </div>
 
   <hr style="margin: 8px 0;">
 
-  <!-- Blockchain Types -->
-  <div><em>Blockchain</em></div>
+  <!-- Blockchain Types (Foldable) -->
+  <div class="legend-section">
+    <div class="legend-toggle" data-target="#blockchain-types" style="cursor:pointer;"><em>▶ Blockchain</em></div>
+    <div id="blockchain-types" style="display: none;">
   <div class="legend-chain" data-chain="mina" style="color:#009688;">● Mina</div>
   <div class="legend-chain" data-chain="ethereum" style="color:#627eea;">● Ethereum</div>
   <div class="legend-chain" data-chain="polygon" style="color:#8247e5;">● Polygon</div>
@@ -535,9 +539,12 @@
   <div class="legend-chain" data-chain="zksync" style="color:#ff4081;">● zkSync</div>
   <div class="legend-chain" data-chain="optimism" style="color:#ff6d00;">● Optimism</div>
   <div class="legend-chain" data-chain="arbitrum" style="color:#00bcd4;">● Arbitrum</div>
+    </div>
+  </div>
 
   <hr style="margin: 8px 0;">  
 
+  <!-- Reset -->
     <div class="legend-item" data-command-type="" style="color:#aaa; cursor:pointer; margin-top: 6px;">✖ Reset</div>
   </div>
   

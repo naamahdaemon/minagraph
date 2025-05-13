@@ -611,6 +611,20 @@ document.addEventListener("DOMContentLoaded", () => {
   legend.addEventListener("touchstart", startDrag, { passive: false });
   document.addEventListener("touchmove", onDrag, { passive: false });
   document.addEventListener("touchend", stopDrag);
+  
+  document.querySelectorAll('.legend-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const targetSelector = toggle.getAttribute('data-target');
+      const target = document.querySelector(targetSelector);
+      if (!target) return;
+
+      const isVisible = target.style.display !== 'none';
+      target.style.display = isVisible ? 'none' : 'block';
+
+      // Update toggle icon (▶ or ▼)
+      toggle.innerHTML = `<em>${isVisible ? '▶' : '▼'} ${toggle.textContent.slice(2)}</em>`;
+    });
+  });
 });
 
 init();
