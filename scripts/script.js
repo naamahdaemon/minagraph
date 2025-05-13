@@ -2511,6 +2511,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   await buildGraphRecursively(key, 0, 0, chain); // 👉 passe `chain`
   applyNodeSizesByDegree();
   rebuildTransactionsByNeighbor();
+  setupDateSlicer(); // ✅ Update the slicer to reflect new edges
   renderer.refresh();
   hideLoader();
   showNodePanel(key); // 🔁 Refresh node panel after fetch
