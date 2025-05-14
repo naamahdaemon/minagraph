@@ -40,6 +40,7 @@ const delayByBlockchain = {
   polygon: 300,
   bsc: 300,
   solana: 300,
+  cronos: 500,
 };
 
 let cancelRequested = false;
@@ -702,6 +703,7 @@ function getDecimalsForBlockchain(chain) {
     case "zksync":
     case "optimism":
     case "arbitrum":
+    case "cronos":
       return 18;
     case "solana":      
     case "mina":
@@ -1441,6 +1443,129 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
   return transactions;
 }
 
+async function fetchCronosTransactions(normalizedKey, limit = 10000, baseUrl) {
+  const headers = {
+    'x-api-key': '75e3206b-5dc8-493c-ad1e-72fe521b3a01'
+  };
+
+  // === 1. Extraire l'URL cible actuelle de l’URL proxy
+  const currentEncodedTarget = new URL(baseUrl).searchParams.get("url");
+  if (!currentEncodedTarget) throw new Error("Missing 'url' param in proxy URL");
+
+  const baseTargetUrl = decodeURIComponent(currentEncodedTarget);
+
+  // === 2. Construire l'URL complète avec tous les paramètres
+  const queryParams = new URLSearchParams({
+    module: "account",
+    action: "txlist",
+    address: normalizedKey, // <- injecté depuis appel
+    startblock: "0",
+    endblock: "99999999",
+    sort: "asc",
+    page: "1",
+    offset: limit.toString()
+  });
+
+  const fullTargetUrl = `${baseTargetUrl}?${queryParams.toString()}`;
+  const encodedTargetUrl = encodeURIComponent(fullTargetUrl);
+
+  // === 3. Reconstruire l'URL finale complète vers le proxy
+  const finalUrl = `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`;
+
+  const res = await fetch(finalUrl, { headers });
+
+  if (!res.ok) {
+    throw new Error(`Cronos proxy error: ${res.status} ${res.statusText}`);
+  }
+
+  const json = await res.json();
+  if (!json || !json.result) throw new Error("Unexpected response format from Cronos");
+
+  if (json.status === "0" && json.message === "No transactions found") {
+    return [];
+  }
+
+  const transactions = [];
+
+  for (const tx of json.result) {
+    const isContractCreation = !tx.to;
+    const isTokenTransfer = tx.input && tx.input.startsWith("0xa9059cbb");
+
+    let tokenReceiver = null;
+    let tokenAmount = null;
+    let tokenName = null;
+    let tokenDecimals = null;
+
+    if (isTokenTransfer && tx.input.length >= 138) {
+      try {
+        tokenReceiver = "0x" + tx.input.slice(34, 74);
+        tokenAmount = BigInt("0x" + tx.input.slice(74, 138)).toString();
+        const tokenInfo = getKnownTokenInfo?.(tx.to);
+        if (tokenInfo) {
+          tokenName = tokenInfo.symbol;
+          tokenDecimals = tokenInfo.decimals;
+        }
+      } catch (err) {
+        console.warn(`Failed to parse ERC20 input for tx ${tx.hash}`);
+      }
+    }
+
+    const baseTx = {
+      blockchain: 'cronos',
+      block_id: parseInt(tx.blockNumber),
+      height: parseInt(tx.blockNumber),
+      timestamp: `${parseInt(tx.timeStamp) * 1000}`,
+      hash: tx.hash,
+      amount: tx.value,
+      fee: (BigInt(tx.gasUsed || "0") * BigInt(tx.gasPrice || "0")).toString(),
+      memo: "",
+      status: tx.isError === "0" ? "applied" : "failed",
+      failure_reason: tx.isError === "0" ? null : "execution_error",
+      sender_key: tx.from.toLowerCase(),
+      receiver_key: tx.to ? tx.to.toLowerCase() : null,
+      sender_name: "noname",
+      receiver_name: isContractCreation ? "contract_creation" : "noname",
+      fee_payer_key: tx.from.toLowerCase(),
+      chain_status: "canonical",
+      block_hash: tx.blockHash,
+      token_contract: isTokenTransfer ? tx.to?.toLowerCase() : null,
+      token_receiver: tokenReceiver?.toLowerCase() || null,
+      token_amount: tokenAmount,
+      token_name: tokenName,
+      token_decimals: tokenDecimals,
+      r_thief: 0, s_thief: 0, r_scammer: 0, s_scammer: 0, r_spammer: 0, s_spammer: 0
+    };
+
+    // Token transfer = 2 lignes : appel contrat + transfert
+    if (isTokenTransfer) {
+      transactions.push({
+        ...baseTx,
+        command_type: "contract_call",
+        label: "contract_call"
+      });
+
+      transactions.push({
+        ...baseTx,
+        command_type: "token_transfer",
+        label: "token_transfer",
+        amount: "0", // pas de CRO transféré
+        receiver_key: tokenReceiver?.toLowerCase() || null,
+        receiver_name: tokenReceiver
+          ? tokenReceiver.toLowerCase().slice(0, 6) + "..." + tokenReceiver.toLowerCase().slice(-6)
+          : "unknown"
+      });
+    } else {
+      // Paiement CRO ou appel contractuel sans transfert explicite
+      transactions.push({
+        ...baseTx,
+        command_type: tx.input && tx.input !== "0x" ? "contract_call" : "transfer",
+        label: tx.input && tx.input !== "0x" ? "contract_call" : "payment"
+      });
+    }
+  }
+
+  return transactions;
+}
 
 
 
@@ -1452,7 +1577,8 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     solana: `https://solana-mainnet.g.alchemy.com/v2/`,
     zksync: `https://zksync-mainnet.g.alchemy.com/v2/`,
     optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
-    arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`
+    arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`,
+    cronos: `https://api.cronoscan.com/api`,  // pour cohérence
   };
 
   const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
@@ -1466,12 +1592,15 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     return await fetchSolanaTransactions(publicKey, limit, url);
   }
 
+  if (blockchain === 'cronos') {
+    return await fetchCronosTransactions(publicKey, limit, url);
+  }
   // Set category for ETH, POLYGON, BSC
   let category = ["external", "erc20"];
   if (blockchain === "ethereum" || blockchain === "polygon" || blockchain === "base") {
     category.push("internal", "erc721", "erc1155");
   }
-  if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum" ) {
+  if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum"  || blockchain === "cronos" ) {
     category.push("erc721", "erc1155");
   }
 
@@ -1553,7 +1682,8 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       bsc: "BNB",
       zksync: 'ETH',
       optimism: "ETH",
-      arbitrum: "ETH"
+      arbitrum: "ETH",
+      cronos: "ETH",
     };
 
     const isNativeTransfer = (
@@ -2198,7 +2328,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum"].includes(blockchain)) {
+        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -2222,7 +2352,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null) {
   const chain = chainOverride || selectedBlockchain;
 
-  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum"].includes(chain)
+  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)
     ? publicKey.toLowerCase()
     : publicKey;
     
@@ -2319,7 +2449,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   }
 
   // 🎨 Node coloring
-  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum"].includes(chain)) {
+  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -2340,7 +2470,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
 
   // Prepare next keys
   const normalize = (key) =>
-    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum"].includes(chain)
+    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)
       ? key?.toLowerCase()
       : key;
 
@@ -2555,7 +2685,7 @@ function showNodePanel(node) {
   });
 
   const blockchains = [
-    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum"
+    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos"
   ];
 
   // ✅ Fetch buttons per blockchain
@@ -2818,7 +2948,7 @@ function setupReducers() {
   let minDegree = Infinity;
   let maxDegree = -Infinity;
 
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum") {
+  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos") {
     graph.forEachNode(node => {
       const deg = graph.degree(node);
       if (deg < minDegree) minDegree = deg;
@@ -3469,6 +3599,11 @@ function getExplorerURL(type, value, blockchain) {
       block: `https://arbiscan.io/block/${value}`,
       transaction: `https://arbiscan.io/tx/${value}`,
       account: `https://arbiscan.io/address/${value}`,
+    },
+    cronos: {
+      block: `https://cronoscan.com/block/${value}`,
+      transaction: `https://cronoscan.com/tx/${value}`,
+      account: `https://cronoscan.com/address/${value}`,
     },
   };
 
