@@ -2635,6 +2635,11 @@ function deleteSelectedNode(nodeId) {
   const panel = document.getElementById("side-panel");
   
   if (!graph.hasNode(nodeId)) return;
+
+  // Clear selection *before* deletion
+  if (selectedNode === nodeId) selectedNode = null;
+  if (hoveredNode === nodeId) hoveredNode = null;
+
   const layoutBtn = document.getElementById("layout-toggle-btn");
 
   if (isLayoutRunning) {
@@ -2665,10 +2670,12 @@ function deleteSelectedNode(nodeId) {
 
   // Drop all nodes marked for deletion
   toDelete.forEach(n => {
+    // Extra safety before deleting
+    if (selectedNode === n) selectedNode = null;
+    if (hoveredNode === n) hoveredNode = null;
     if (graph.hasNode(n)) graph.dropNode(n);
   });
 
-  selectedNode = null;
   panel.style.display = "none";
   renderer.refresh();
 }
