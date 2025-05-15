@@ -41,6 +41,7 @@ const delayByBlockchain = {
   bsc: 300,
   solana: 300,
   cronos: 500,
+  tezos: 300,
 };
 
 let cancelRequested = false;
@@ -51,8 +52,8 @@ let previousLayout = null;
 const LAYOUT_STORAGE_KEY = "layoutSettings";
 const commandTypeAliases = {
   payment: ["payment", "transfer"],
-  zkapp: ["zkapp", "contract_call"],
-  delegation: ["delegation","stake"],
+  zkapp: ["zkapp", "contract_call","contract_creation"],
+  delegation: ["delegation","stake","delegate"],
   token_transfer: ["token_transfer"],
 };  
 // Reverse map: actual command types → legend alias(es)
@@ -708,6 +709,8 @@ function getDecimalsForBlockchain(chain) {
     case "solana":      
     case "mina":
       return 9;
+    case "tezos": 
+      return 6;
     default:
       return 18; // Default fallback
   }
@@ -1129,6 +1132,19 @@ function getSolCommandType(tx) {
 
   return "contract_call"; // fallback
 }
+
+function getTezosCommandType(op) {
+  if (op.type === 'delegation') return 'delegate';
+  if (op.type === 'transaction') {
+    if (!op.target) return 'contract_call'; // contract origination call
+    if (op.parameters) return 'contract_call';
+    return 'transfer';
+  }
+  if (op.type === 'origination') return 'contract_creation';
+  if (op.type === 'reveal') return 'reveal';
+  return 'unknown';
+}
+
 
 // Analyse les changements de balances pour trouver sender et receiver token
 function getTokenTransferInfo(tx) {
@@ -1567,6 +1583,71 @@ async function fetchCronosTransactions(normalizedKey, limit = 10000, baseUrl) {
   return transactions;
 }
 
+async function fetchTezosTransactions(tezosAddress, limit = 100) {
+  const baseUrl = 'https://api.tzkt.io/v1';
+  const headers = {
+    'Accept': 'application/json'
+  };
+
+  const operations = [];
+
+  // 1. Fetch transfers (simple + contract calls)
+  const txRes = await fetch(`${baseUrl}/operations/transactions?anyof.sender.target=${tezosAddress}&limit=${limit}`, { headers });
+  const txs = await txRes.json();
+  operations.push(...txs);
+
+  // 2. Fetch delegations
+  const delRes = await fetch(`${baseUrl}/operations/delegations?anyof.sender.newDelegate=${tezosAddress}&limit=${limit}`, { headers });
+  const dels = await delRes.json();
+  operations.push(...dels);
+
+  // 3. Sort by time descending
+  operations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const transactions = [];
+
+  for (const op of operations) {
+    const command_type = getTezosCommandType(op);
+    const baseTx = {
+      blockchain: 'tezos',
+      block_id: op.level,
+      height: op.level,
+      timestamp: new Date(op.timestamp).getTime().toString(),
+      hash: op.hash,
+      amount: op.amount ? (op.amount).toString() : "0",
+      fee: op.fee ? (op.fee).toString() : "0",
+      memo: "",
+      status: op.status === "applied" ? "applied" : "failed",
+      failure_reason: op.status === "applied" ? null : (op.errors?.[0]?.message || "unknown_error"),
+      sender_key: typeof op.sender?.address === "string" ? op.sender.address : null,
+      receiver_key:
+        typeof op.target?.address === "string" ? op.target.address :
+        typeof op.newDelegate?.address === "string" ? op.newDelegate.address :
+        typeof op.newDelegate === "string" ? op.newDelegate :
+        null,
+      sender_name: "noname",
+      receiver_name: "noname",
+      fee_payer_key: typeof op.sender?.address === "string" ? op.sender.address : null,
+      chain_status: "canonical",
+      block_hash: null,
+      token_contract: null,
+      token_receiver: null,
+      token_amount: null,
+      token_name: null,
+      token_decimals: null,
+      command_type: command_type,
+      label: command_type,
+      r_thief: 0, s_thief: 0,
+      r_scammer: 0, s_scammer: 0,
+      r_spammer: 0, s_spammer: 0
+    };
+
+
+    transactions.push(baseTx);
+  }
+
+  return transactions;
+}
 
 
 async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
@@ -1579,6 +1660,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
     arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`,
     cronos: `https://api.cronoscan.com/api`,  // pour cohérence
+    tezos: `https://api.tzkt.io/v1`
   };
 
   const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
@@ -1595,6 +1677,9 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   if (blockchain === 'cronos') {
     return await fetchCronosTransactions(publicKey, limit, url);
   }
+  if (blockchain === 'tezos') {
+    return await fetchTezosTransactions(publicKey, limit);
+  }  
   // Set category for ETH, POLYGON, BSC
   let category = ["external", "erc20"];
   if (blockchain === "ethereum" || blockchain === "polygon" || blockchain === "base") {
@@ -1684,6 +1769,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       optimism: "ETH",
       arbitrum: "ETH",
       cronos: "ETH",
+      tezos: "XTZ"
     };
 
     const isNativeTransfer = (
@@ -2328,7 +2414,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos"].includes(blockchain)) {
+        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -2449,7 +2535,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   }
 
   // 🎨 Node coloring
-  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)) {
+  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos"].includes(chain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -2685,7 +2771,7 @@ function showNodePanel(node) {
   });
 
   const blockchains = [
-    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos"
+    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos"
   ];
 
   // ✅ Fetch buttons per blockchain
@@ -2811,9 +2897,10 @@ function showNodePanel(node) {
                   <td>${tx.blockchain}</td>
                   <td>${formatTimestamp(tx.timestamp)}</td>
                   <td>
-                    ${tx.block_id
-                      ? `<a href="${getExplorerURL('block', tx.block_hash, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
-                          ${tx.block_id}
+                      ${tx.block_id || tx.block_hash
+                        ? `<a href="${getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain)}" 
+                              target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
+                             ${tx.block_id || tx.block_hash}
                         </a> <span style="font-size: 9px; opacity: 0.7;">🔗</span>`
                       : "-"}
                   </td>                    
@@ -2948,7 +3035,7 @@ function setupReducers() {
   let minDegree = Infinity;
   let maxDegree = -Infinity;
 
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos") {
+  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos") {
     graph.forEachNode(node => {
       const deg = graph.degree(node);
       if (deg < minDegree) minDegree = deg;
@@ -3122,6 +3209,7 @@ function setupReducers() {
       case "payment": baseColor = "#4caf50"; break;
       case "transfer": baseColor = "#4caf50"; break;
       case "delegation": baseColor = "#2196f3"; break;
+      case "delegate": baseColor = "#2196f3"; break;
       case "stake": baseColor = "#2196f3"; break;
       case "zkapp": baseColor = "#ff57c1"; break;
       case "contract_call": baseColor = "#ff57c1"; break;
@@ -3559,56 +3647,67 @@ function loadLayoutSettings(algorithm) {
 }
 
 function getExplorerURL(type, value, blockchain) {
+  const chain = blockchain?.toLowerCase?.();
   const explorerMap = {
     mina: {
-      block: `https://minascan.io/mainnet/block/${value}/txs`,
-      transaction: `https://minascan.io/mainnet/tx/${value}/txInfo`,
-      account: `https://minascan.io/mainnet/account/${value}`,
+      block: (val) => `https://minascan.io/mainnet/block/${val}/txs`,
+      transaction: (val) => `https://minascan.io/mainnet/tx/${val}/txInfo`,
+      account: (val) => `https://minascan.io/mainnet/account/${val}`,
     },
     ethereum: {
-      block: `https://etherscan.io/block/${value}`,
-      transaction: `https://etherscan.io/tx/${value}`,
-      account: `https://etherscan.io/address/${value}`,
+      block: (val) => `https://etherscan.io/block/${val}`,
+      transaction: (val) => `https://etherscan.io/tx/${val}`,
+      account: (val) => `https://etherscan.io/address/${val}`,
     },
     polygon: {
-      block: `https://polygonscan.com/block/${value}`,
-      transaction: `https://polygonscan.com/tx/${value}`,
-      account: `https://polygonscan.com/address/${value}`,
+      block: (val) => `https://polygonscan.com/block/${val}`,
+      transaction: (val) => `https://polygonscan.com/tx/${val}`,
+      account: (val) => `https://polygonscan.com/address/${val}`,
     },
     bsc: {
-      block: `https://bscscan.com/block/${value}`,
-      transaction: `https://bscscan.com/tx/${value}`,
-      account: `https://bscscan.com/address/${value}`,
+      block: (val) => `https://bscscan.com/block/${val}`,
+      transaction: (val) => `https://bscscan.com/tx/${val}`,
+      account: (val) => `https://bscscan.com/address/${val}`,
     },    
     solana: {
-      block: `https://solscan.io/block/${value}`,
-      transaction: `https://solscan.io/tx/${value}`,
-      account: `https://solscan.io/account/${value}`,
+      block: (val) => `https://solscan.io/block/${val}`,
+      transaction: (val) => `https://solscan.io/tx/${val}`,
+      account: (val) => `https://solscan.io/account/${val}`,
     },
     zksync: {
-      block: `https://explorer.zksync.io/block/${value}`,
-      transaction: `https://explorer.zksync.io/tx/${value}`,
-      account: `https://explorer.zksync.io/address/${value}`,
+      block: (val) => `https://explorer.zksync.io/block/${val}`,
+      transaction: (val) => `https://explorer.zksync.io/tx/${val}`,
+      account: (val) => `https://explorer.zksync.io/address/${val}`,
     },
     optimism: {
-      block: `https://optimistic.etherscan.io/block/${value}`,
-      transaction: `https://optimistic.etherscan.io/tx/${value}`,
-      account: `https://optimistic.etherscan.io/address/${value}`,
+      block: (val) => `https://optimistic.etherscan.io/block/${val}`,
+      transaction: (val) => `https://optimistic.etherscan.io/tx/${val}`,
+      account: (val) => `https://optimistic.etherscan.io/address/${val}`,
     },
     arbitrum: {
-      block: `https://arbiscan.io/block/${value}`,
-      transaction: `https://arbiscan.io/tx/${value}`,
-      account: `https://arbiscan.io/address/${value}`,
+      block: (val) => `https://arbiscan.io/block/${val}`,
+      transaction: (val) => `https://arbiscan.io/tx/${val}`,
+      account: (val) => `https://arbiscan.io/address/${val}`,
     },
     cronos: {
-      block: `https://cronoscan.com/block/${value}`,
-      transaction: `https://cronoscan.com/tx/${value}`,
-      account: `https://cronoscan.com/address/${value}`,
+      block: (val) => `https://cronoscan.com/block/${val}`,
+      transaction: (val) => `https://cronoscan.com/tx/${val}`,
+      account: (val) => `https://cronoscan.com/address/${val}`,
+    },
+    tezos: {
+      block: (val) => `https://tzkt.io/${val}`,
+      transaction: (val) => `https://tzkt.io/${val}`,
+      account: (val) => `https://tzkt.io/${val}`,
+    },
+    starknet: {
+      block: (val) => `https://voyager.online/block/${val}`,
+      transaction: (val) => `https://voyager.online/tx/${val}`,
+      account: (val) => `https://voyager.online/contract/${val}`,
     },
   };
 
-  const chain = blockchain?.toLowerCase?.();
-  return explorerMap[chain]?.[type] || "#";
+  const explorer = explorerMap[chain]?.[type];
+  return typeof explorer === "function" ? explorer(value) : "#";
 }
 
 function saveApiToken(chain, token) {
