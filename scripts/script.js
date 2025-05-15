@@ -773,19 +773,32 @@ function getBrightColorByName(name) {
   return nameColorMap.get(name);
 }
 
-function getColorByDegree(degree, minDeg, maxDeg) {
-  if (maxDeg === minDeg) return "#FFD700"; // Gold if all nodes have same degree
+function getColorByDegree(degree, minDeg, maxDeg, chain, chainCount = 1) {
+  // 🎯 Special color for nodes shared across multiple chains
+  if (chainCount > 1) return "#ff00ff"; // orange
+
+  const chainBaseHSL = {
+    ethereum: [230, 70, 60],
+    polygon: [270, 60, 60],
+    bsc: [45, 100, 50],
+    solana: [280, 100, 70],
+    zksync: [330, 100, 70],
+    optimism: [20, 100, 60],
+    arbitrum: [190, 70, 60],
+    cronos: [0, 85, 50],
+    tezos: [215, 100, 55],
+    starknet: [260, 100, 55],
+    mina: [180, 50, 45]
+  };
+
+  const [baseHue, baseSat, baseLight] = chainBaseHSL[chain] || [300, 100, 50];
+
+  if (maxDeg === minDeg) return hslToHex(baseHue, baseSat, baseLight);
+
   const ratio = (degree - minDeg) / (maxDeg - minDeg);
-
-  // 🎨 Accentuer les contrastes pour les hauts degrés
-  // Teinte allant de 300 (violet) à 330 (rose/jaune)
-  const hue = 300 + ratio * 30;
-
-  // Saturation plus élevée pour les nœuds avec beaucoup de liens
-  const saturation = 80 + ratio * 20; // de 80% à 100%
-
-  // Luminosité augmentée aussi
-  const lightness = 40 + ratio * 40; // de 40% à 80%
+  const hue = baseHue;
+  const saturation = baseSat - ratio * 20;
+  const lightness = baseLight + ratio * 20;
 
   return hslToHex(hue, saturation, lightness);
 }
@@ -2542,7 +2555,12 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
 
     graph.forEachNode((node) => {
       const degree = graph.degree(node);
-      const color = getColorByDegree(degree, minDeg, maxDeg);
+      
+      const chains = graph.getNodeAttribute(node, 'chains') || [chain];
+      const primaryChain = chains[0];
+      const color = getColorByDegree(degree, minDeg, maxDeg, primaryChain, chains.length);
+      
+      //const color = getColorByDegree(degree, minDeg, maxDeg);
       //console.log(degree," : ",color);
       graph.setNodeAttribute(node, 'colorByDegree', color);
     });
@@ -2726,6 +2744,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   showLoader();
   await buildGraphRecursively(key, 0, 0, chain); // 👉 passe `chain`
   applyNodeSizesByDegree();
+  setupReducers();
   rebuildTransactionsByNeighbor();
   setupDateSlicer(); // ✅ Update the slicer to reflect new edges
   renderer.refresh();
@@ -3058,12 +3077,18 @@ function setupReducers() {
     const isMina = selectedBlockchain === "mina";
     let glowColor;
 
+    const chains = data.chains instanceof Set ? Array.from(data.chains) : (data.chains || []);
+    const chainCount = chains.length;
+    const primaryChain = chains[0] || selectedBlockchain;
+
     if (node === window.initialPublicKey) {
-      glowColor = "#FF0000"; // 🔥 Rouge pour la clé initiale
+      glowColor = "#FF0000"; // 🔥 Red for the initial key
+    } else if (primaryChain === "mina") {
+      glowColor = getBrightColorByName(data.name || "noname");
+    } else if (chainCount > 1) {
+      glowColor = "#ff00ff"; // 🟠 Orange for shared nodes
     } else {
-      glowColor = isMina
-        ? getBrightColorByName(data.name || "noname")
-        : getColorByDegree(graph.degree(node), minDegree, maxDegree);
+      glowColor = getColorByDegree(graph.degree(node), minDegree, maxDegree, primaryChain, chainCount);
     }
 
     
@@ -3080,7 +3105,6 @@ function setupReducers() {
       });
 
     // 🎯 Match if at least one chain is in the active filter
-    const chains = data.chains instanceof Set ? Array.from(data.chains) : (data.chains || []);
     const chainMatch = chainFilter.size === 0 || chains.some(c => chainFilter.has(c));
 
 
