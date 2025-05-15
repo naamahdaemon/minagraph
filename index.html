@@ -85,6 +85,9 @@
           style="width: 100%; margin-bottom: 10px;"
         >
       </label>      
+      
+      <!-- TEMPORARILY HIDDEN SECTION -->
+      <div style="display: none;">
       <div style="position: relative; margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 4px;">
           API KEY
@@ -140,7 +143,7 @@
         <input id="minataur-email" type="email" placeholder="Enter your email to receive your token" style="width: 100%; margin-bottom: 10px;" />
         <button id="connect-auro-btn" style="width: 100%; background: #4caf50; color: white; padding: 8px; border: none; border-radius: 4px;">Request Token (Auro Wallet required)</button>
       </div>
-      
+      </div>     
       <hr/>
 
       <div>
@@ -340,17 +343,23 @@
       ">CLOSE</button>
       <h1>How does this work?</h1>
         <p style="font-size: 18px; line-height: 1.6;">
-          This tool lets you explore Mina blockchain graphs interactively by fetching and visualizing account transactions as nodes and links.
+          Mina Graph Explorer is a tool that lets you explore the blockchain visually by graphing interactive connections between accounts. It dynamically fetches and displays transactions as nodes and links, helping you uncover relationships and activity across chains.
+          Currently supported blockchains include:
+          Mina, Ethereum, Polygon, BSC (Binance Smart Chain), Solana, zkSync, Optimism, Arbitrum, Cronos, and Tezos.
         </p>
+
+        <h2 style="font-size: 20px; margin-bottom: 12px;">🔧 Configuration Parameters:</h2>
         <ul style="font-size: 16px; line-height: 1.8;">
+          <li><strong>SELECT BLOCKCHAIN</strong>: Select the blockchain you want for fetch data from.</li>
+          <li><strong>WIPE GRAPH DATA</strong>: Wheter you want to fetch new data and add it to your existing graph or start from a new, clean graph.</li>
           <li><strong>LIMIT</strong>: Max number of transactions to fetch per key (after the first).</li>
           <li><strong>FIRST ITERATION LIMIT</strong>: Max transactions for the root key.</li>
           <li><strong>RECURSION DEPTH</strong>: How many levels of linked accounts to explore.</li>
           <li><strong>START KEY</strong>: The public key where exploration begins.</li>
-          <li><strong>API TOKEN</strong>: Your Minataur API authorization token.</li>
+          <li><strong>API TOKEN</strong>: NOT REQUIRED FOR NOW</li>
           <li><strong>LAYOUT PARAMETERS</strong>: Adjust the layout algorithm (iterations, gravity, scale, etc.)</li>
           <li><strong>EXPORT/IMPORT</strong>: Save or load graph JSON, export image.</li>
-          <li><strong>LEGEND</strong>: Filter graph edges by transaction type.</li>
+          <li><strong>LEGEND</strong>: Filter graph edges by transaction type and blockchain.</li>
           <li><strong>SEARCH</strong>: Look up a node by label or key fragment.</li>
         </ul>
         
@@ -492,7 +501,9 @@
 
     <footer style="font-size: 12px; color: #888; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
       &copy; naamahdaemon – <a href="https://mina.naamahdaemon.eu" target="_blank" style="color: #4fc3f7; text-decoration: none;">mina.naamahdaemon.eu</a><br/>
-      Minataur API by Serhii Pimenov - <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net/api/restful</a>
+      Minataur API by <a href="https://minataur.net/api/restful" target="_blank" style="color: #4fc3f7; text-decoration: none;">minataur.net</a> - 
+      Tezox API by <a href="https://api.tzkt.io/#section/Get-Started/Free-TzKT-API" target="_blank" style="color: #4fc3f7; text-decoration: none;">TzKt</a> - 
+      Other API by <a href="https://www.alchemy.com/" target="_blank" style="color: #4fc3f7; text-decoration: none;">Alchemy</a>
     </footer>  
   
 
