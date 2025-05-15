@@ -2806,15 +2806,17 @@ function showNodePanel(node) {
   const strictChains = ["mina", "solana", "tezos"];
 
   const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
-  const isTezosAddress = /^tz[1-3][a-zA-Z0-9]{33}$/.test(node);
+  const isTezosAddress = /^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(node); // include tz1-3 and KT1
   const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
-  const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node);
+  const isSolanaAddress =
+    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node) &&
+    !isTezosAddress && !isMinaAddress && !isEvmAddress; // avoid false positives
 
   let compatibleChains = [];
 
   if (isMinaAddress) compatibleChains = ["mina"];
-  else if (isSolanaAddress) compatibleChains = ["solana"];
   else if (isTezosAddress) compatibleChains = ["tezos"];
+  else if (isSolanaAddress) compatibleChains = ["solana"];
   else if (isEvmAddress) compatibleChains = evmChains;
 
   const chainsToFetch = compatibleChains.filter(chain => {
