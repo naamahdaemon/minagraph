@@ -2747,6 +2747,11 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   setupReducers();
   rebuildTransactionsByNeighbor();
   setupDateSlicer(); // ✅ Update the slicer to reflect new edges
+  if (isLayoutRunning) {
+    stopLayoutInWorker();
+    layoutBtn.textContent = "Apply Layout";
+    isLayoutRunning = false;
+  }  
   renderer.refresh();
   hideLoader();
   showNodePanel(key); // 🔁 Refresh node panel after fetch
@@ -3401,7 +3406,7 @@ async function main(depth = 2, wipeGraph = true) {
   // Rebuild the graph object BEFORE rendering
   if (wipeGraph || !graph) {
     graph = new Graph({ multi: true });
-    
+    window.initialPublicKey = "";
   }
   visitedKeysByChain.clear();
   await buildGraphRecursively(BASE_KEY, depth);
