@@ -2794,22 +2794,28 @@ function showNodePanel(node) {
     }
   });
 
-  const blockchains = [
-    "mina", "ethereum", "polygon", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos"
-  ];
 
-  // ✅ Fetch buttons per blockchain
-  const unfetchedChains = blockchains.filter(chain => {
+  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos"];
+  const strictChains = ["mina", "solana", "tezos"];
+
+  const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
+  const isTezosAddress = /^tz[1-3][a-zA-Z0-9]{33}$/.test(node);
+  const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
+  const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node);
+
+  let compatibleChains = [];
+
+  if (isMinaAddress) compatibleChains = ["mina"];
+  else if (isSolanaAddress) compatibleChains = ["solana"];
+  else if (isTezosAddress) compatibleChains = ["tezos"];
+  else if (isEvmAddress) compatibleChains = evmChains;
+
+  const chainsToFetch = compatibleChains.filter(chain => {
     const visitedSet = visitedKeysByChain.get(chain) || new Set();
     return !visitedSet.has(node);
   });
 
   let fetchButtonsHTML = "";
-
-  const chainsToFetch = blockchains.filter(chain => {
-    const visitedSet = visitedKeysByChain.get(chain) || new Set();
-    return !visitedSet.has(node);
-  });
 
   if (chainsToFetch.length === 0) {
     fetchButtonsHTML = `<p style="font-size: 10px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
