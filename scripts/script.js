@@ -1740,6 +1740,64 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     transactions.push(baseTx);
   }
 
+  // 2. Fetch FA2 token transfers (independent of contract calls)
+  const tokenRes = await fetch(`${baseUrl}/tokens/transfers?anyof.from.to=${tezosAddress}&limit=${limit}`, { headers });
+  const tokenTransfers = await tokenRes.json();
+
+  // Optional: push tokenTransfers into a second loop or convert to the same structure
+  for (const tf of tokenTransfers) {
+    const tokenKey = `${tf.token.contract.address}_${tf.token.tokenId}`;
+    if (!tokenCache.has(tokenKey)) {
+      try {
+        const res = await fetch(`https://api.tzkt.io/v1/tokens?contract=${tf.token.contract.address}&tokenId=${tf.token.tokenId}`);
+        const meta = await res.json();
+        tokenCache.set(tokenKey, {
+          name: meta[0]?.metadata?.name || null,
+          symbol: meta[0]?.metadata?.symbol || null,
+          decimals: meta[0]?.metadata?.decimals || null,
+          thumbnail: meta[0]?.metadata?.thumbnailUri || meta[0]?.metadata?.displayUri || null
+        });
+      } catch {
+        tokenCache.set(tokenKey, { name: null, symbol: null, decimals: null, thumbnail: null });
+      }
+    }
+    const cachedMeta = tokenCache.get(tokenKey);
+
+    transactions.push({
+      blockchain: 'tezos',
+      block_id: tf.level,
+      height: tf.level,
+      timestamp: new Date(tf.timestamp).getTime().toString(),
+      hash: tf.transactionHash,
+      amount: "0",
+      fee: "0",
+      memo: "",
+      status: "applied",
+      failure_reason: null,
+      sender_key: tf.from?.address || null,
+      receiver_key: tf.to?.address || null,
+      sender_name: tf.from?.alias || "noname",
+      receiver_name: tf.to?.alias || "noname",
+      fee_payer_key: tf.from?.address || null,
+      chain_status: "canonical",
+      block_hash: null,
+      token_contract: tf.token.contract.address,
+      token_receiver: tf.to?.address || null,
+      token_amount: tf.amount,
+      token_name: cachedMeta?.name,
+      token_symbol: cachedMeta?.symbol,
+      token_thumbnail: cachedMeta?.thumbnail,
+      token_decimals: cachedMeta?.decimals,
+      command_type: "token_transfer",
+      label: "token_transfer",
+      r_thief: 0, s_thief: 0,
+      r_scammer: 0, s_scammer: 0,
+      r_spammer: 0, s_spammer: 0
+    });
+  }
+
+
+
   return transactions;
 }
 
