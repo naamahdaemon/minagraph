@@ -1148,13 +1148,31 @@ function getSolCommandType(tx) {
 
 function getTezosCommandType(op) {
   if (op.type === 'delegation') return 'delegate';
+  if (op.type === 'reveal') return 'reveal';
+  if (op.type === 'origination') return 'contract_creation';
   if (op.type === 'transaction') {
-    if (!op.target) return 'contract_call'; // contract origination call
-    if (op.parameters) return 'contract_call';
+    if (!op.target) return 'contract_call';
+
+    const entrypoint = op.parameter?.entrypoint;
+
+    if (entrypoint) {
+      switch (entrypoint) {
+        case 'transfer': return 'token_transfer';
+        case 'mint': return 'token_mint';
+        case 'burn': return 'token_burn';
+        case 'update_operators': return 'update_operators';
+        case 'set_delegate': return 'set_delegate';
+        case 'withdraw': return 'withdraw';
+        case 'deposit': return 'deposit';
+        case 'default': return 'contract_call';
+        default: return `contract_call:${entrypoint}`; // fallback for unknown entrypoints
+      }
+    }
+
+    // Simple native tez transfer
     return 'transfer';
   }
-  if (op.type === 'origination') return 'contract_creation';
-  if (op.type === 'reveal') return 'reveal';
+
   return 'unknown';
 }
 
@@ -1619,35 +1637,96 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
 
   const transactions = [];
 
+  const tokenCache = new Map(); // Map of `${contract}_${tokenId}` → metadata
+
   for (const op of operations) {
     const command_type = getTezosCommandType(op);
+
+    const totalFee = (op.bakerFee || 0) + (op.storageFee || 0) + (op.allocationFee || 0);
+
+    let sender_key = op.sender?.address || null;
+    let receiver_key = op.target?.address || op.newDelegate?.address || null;
+    let token_receiver = null;
+    let token_amount = null;
+    let token_id = null;
+    let token_contract = op.target?.address || null;
+    let token_name = null;
+    let token_decimals = null;
+
+    // Token transfer detection
+    if (op.parameter?.entrypoint === "transfer" && Array.isArray(op.parameter?.value)) {
+      const transfers = op.parameter.value;
+      if (transfers.length > 0 && transfers[0].txs?.length > 0) {
+        const tx = transfers[0].txs[0];
+        token_receiver = tx.to_;
+        token_amount = tx.amount;
+        token_id = tx.token_id;
+        receiver_key = token_receiver;
+      }
+    }
+
+    // Mint detection
+    if (op.parameter?.entrypoint === "mint" && op.parameter.value) {
+      token_receiver = op.parameter.value.address;
+      token_amount = op.parameter.value.amount;
+      token_id = op.parameter.value.token_id;
+      receiver_key = token_receiver;
+    }
+
+    // Fetch token metadata (once per contract/token_id)
+    if (token_contract && token_id !== null) {
+      const tokenKey = `${token_contract}_${token_id}`;
+      if (!tokenCache.has(tokenKey)) {
+        try {
+          const res = await fetch(`https://api.tzkt.io/v1/tokens?contract=${token_contract}&tokenId=${token_id}`);
+          const meta = await res.json();
+          if (meta.length > 0) {
+            tokenCache.set(tokenKey, {
+              name: meta[0].metadata?.name || null,
+              symbol: meta[0].metadata?.symbol || null,
+              decimals: meta[0].metadata?.decimals || null,
+              thumbnail: meta[0].metadata?.thumbnailUri || meta[0].metadata?.displayUri || null
+            });
+          } else {
+            tokenCache.set(tokenKey, { name: null, decimals: null });
+          }
+        } catch (err) {
+          console.warn(`Error fetching token metadata for ${tokenKey}:`, err);
+          tokenCache.set(tokenKey, { name: null, decimals: null });
+        }
+      }
+      const cachedMeta = tokenCache.get(tokenKey);
+      token_name = cachedMeta?.name;
+      token_decimals = cachedMeta?.decimals;
+      token_symbol = cachedMeta?.symbol;
+      token_thumbnail = cachedMeta?.thumbnail;
+    }
+
     const baseTx = {
       blockchain: 'tezos',
       block_id: op.level,
       height: op.level,
       timestamp: new Date(op.timestamp).getTime().toString(),
       hash: op.hash,
-      amount: op.amount ? (op.amount).toString() : "0",
-      fee: op.fee ? (op.fee).toString() : "0",
+      amount: op.amount ? op.amount.toString() : "0",
+      fee: totalFee.toString(),
       memo: "",
       status: op.status === "applied" ? "applied" : "failed",
       failure_reason: op.status === "applied" ? null : (op.errors?.[0]?.message || "unknown_error"),
-      sender_key: typeof op.sender?.address === "string" ? op.sender.address : null,
-      receiver_key:
-        typeof op.target?.address === "string" ? op.target.address :
-        typeof op.newDelegate?.address === "string" ? op.newDelegate.address :
-        typeof op.newDelegate === "string" ? op.newDelegate :
-        null,
-      sender_name: "noname",
-      receiver_name: "noname",
-      fee_payer_key: typeof op.sender?.address === "string" ? op.sender.address : null,
+      sender_key: sender_key,
+      receiver_key: receiver_key,
+      sender_name: op.sender?.alias || "noname",
+      receiver_name: op.target?.alias || op.newDelegate?.alias || "noname",
+      fee_payer_key: sender_key,
       chain_status: "canonical",
-      block_hash: null,
-      token_contract: null,
-      token_receiver: null,
-      token_amount: null,
-      token_name: null,
-      token_decimals: null,
+      block_hash: op.block || null,
+      token_contract: token_contract,
+      token_receiver: token_receiver,
+      token_amount: token_amount,
+      token_name: token_name,
+      token_symbol: token_symbol,
+      token_thumbnail: token_thumbnail,
+      token_decimals: token_decimals,      
       command_type: command_type,
       label: command_type,
       r_thief: 0, s_thief: 0,
@@ -2794,9 +2873,10 @@ function showNodePanel(node) {
     if (src === node || tgt === node) {
       if (attr.status !== "applied") failed++;
       else if (attr.label === "delegation") del++;
+      else if (attr.label === "delegate") del++;
       else if (attr.label === "stake") del++;
       else if (attr.label === "payment" || attr.label === "transfer") tx++;
-      else if (attr.label === "contract_call") sc++;
+      else if (attr.label === "contract_call" || attr.label === "zkapp" || attr.label === "contract_creation") sc++;
       else if (attr.label === "token_transfer") tt++;
     }
   });
