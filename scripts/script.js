@@ -1653,6 +1653,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     let token_name = null;
     let token_decimals = null;
     let token_symbol  = null;
+    let token_thumbnail = null;
 
     // Token transfer detection
     if (op.parameter?.entrypoint === "transfer" && Array.isArray(op.parameter?.value)) {
