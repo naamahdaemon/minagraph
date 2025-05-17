@@ -2967,7 +2967,7 @@ function showNodePanel(node) {
   let fetchButtonsHTML = "";
 
   if (chainsToFetch.length === 0) {
-    fetchButtonsHTML = `<p style="font-size: 10px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
+    fetchButtonsHTML = `<p style="font-size: 12px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
   } else {
     const links = chainsToFetch.map(chain => `
       <a style="color: white; text-decoration: none;" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
@@ -2975,12 +2975,12 @@ function showNodePanel(node) {
          style="margin-right: 4px; vertical-align: middle;">
         <img src="img/${chain}.png" 
           alt="${chain} icon"
-          style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;" />
+          style="width: 32px; height: 32px; margin-right: 4px; vertical-align: middle;" />
       </a>`).join("");
 
     fetchButtonsHTML = `
-      <p style="margin-top: 4px; margin-bottom: 0px; font-size: 10px;">
-        🔍 Fetch more from ${links}
+      <p style="margin-top: 4px; margin-bottom: 0px; font-size: 14px;">
+        ${links}
       </p>`;
   }
 
