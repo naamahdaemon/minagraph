@@ -25,9 +25,17 @@ const STATIC_ASSETS = [
 // Installation
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const url of STATIC_ASSETS) {
+        try {
+          await cache.add(url);
+          console.log(`[SW] Cached: ${url}`);
+        } catch (err) {
+          console.warn(`[SW] Skipped: ${url}`, err);
+        }
+      }
+    })
   );
-  self.skipWaiting();
 });
 
 // Activation : suppression anciens caches
