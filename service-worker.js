@@ -9,7 +9,10 @@ const STATIC_ASSETS = [
   '/favicon.ico',
   '/style/style.css',
   '/scripts/script.js',
-  '/scripts/layoutWorker.js',
+  '/scripts/forceAtlas.js',
+  '/scripts/fruchtermanReingold.js',
+  '/scripts/openOrd.js',
+
 
   // CDN assets
   'https://fonts.googleapis.com/css2?family=Coda&display=swap',
