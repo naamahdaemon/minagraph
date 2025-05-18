@@ -3666,7 +3666,7 @@ function exportJSON() {
   const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); // YYYYMMDDHHMMSS
   const algorithm = document.getElementById("layout-algorithm")?.value || "unknown";
   const address = (BASE_KEY || "address").substring(0, 8);
-  const filename = `${selectedBlockchain}-${algorithm}-${address}_${timestamp}.json`;
+  const filename = `${selectedBlockchain}-${algorithm}-${address}_${timestamp}.mgraph`;
 
   a.href = url;
   a.download = filename;
