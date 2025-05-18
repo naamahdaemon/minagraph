@@ -35,7 +35,7 @@
     {
       "action": "/",
       "accept": {
-        "application/json": [".mgraph"]
+        "application/json": [".json"]
       }
     }
   ]
