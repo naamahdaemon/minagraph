@@ -628,6 +628,24 @@ document.addEventListener("DOMContentLoaded", () => {
       toggle.innerHTML = `<em>${isVisible ? '▶' : '▼'} ${toggle.textContent.slice(2)}</em>`;
     });
   });
+  
+  const status = document.getElementById('network-status');
+
+  function updateNetworkStatus() {
+    if (navigator.onLine) {
+      status.style.display = 'none';
+      console.log('[PWA] Online');
+    } else {
+      status.style.display = 'block';
+      console.warn('[PWA] Offline mode – using cached data');
+    }
+  }
+
+  updateNetworkStatus(); // initial
+
+  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);  
+  
 });
 
 init();
