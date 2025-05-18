@@ -646,6 +646,16 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener('online', updateNetworkStatus);
   window.addEventListener('offline', updateNetworkStatus);  
   
+  if ('launchQueue' in window && 'files' in LaunchParams.prototype) {
+    window.launchQueue.setConsumer(launchParams => {
+      const fileHandle = launchParams.files[0];
+      if (fileHandle) {
+        fileHandle.getFile().then(file => {
+          importJSON(file);
+        });
+      }
+    });
+  }
 });
 
 init();
