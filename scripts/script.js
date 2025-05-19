@@ -728,6 +728,21 @@ function updateLegendOffset() {
   }
 }
 
+function showOverlaySpinner(chain, nb=100) {
+  document.getElementById("overlay-message").textContent = `Fetching ${nb} more from ${capitalize(chain)}...`;
+  const spinner = document.getElementById("overlay-spinner");
+  spinner.classList.remove("overlay-hidden");
+  spinner.classList.add("overlay-visible");
+}
+
+function hideOverlaySpinner() {
+  const spinner = document.getElementById("overlay-spinner");
+  spinner.classList.remove("overlay-visible");
+  spinner.classList.add("overlay-hidden");
+}
+
+
+
 function getContrastingLabelColor(bgColor) {
   if (!bgColor || typeof bgColor !== "string") return currentTheme === "light" ? "#000" : "#fff";
 
@@ -2940,10 +2955,10 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   const initialLimit = LIMIT;
   
   BASE_KEY = key;
-  FIRST_ITERATION_LIMIT = FIRST_ITERATION_LIMIT;
+  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);;
   LIMIT = 0;
-
-  showLoader();
+  showOverlaySpinner(chain, FIRST_ITERATION_LIMIT);  // ⬅️ Show fullscreen spinner
+  //showLoader();
   await buildGraphRecursively(key, 0, 0, chain); // 👉 passe `chain`
   applyNodeSizesByDegree();
   setupReducers();
@@ -2955,12 +2970,13 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
     isLayoutRunning = false;
   }  
   renderer.refresh();
-  hideLoader();
+  //hideLoader();
+  hideOverlaySpinner();       // ⬅️ Hide spinner overlay
   showNodePanel(key); // 🔁 Refresh node panel after fetch
   animateLayout();
 
   BASE_KEY = previousInitialKey;
-  FIRST_ITERATION_LIMIT = initialFirstLimit;
+  //FIRST_ITERATION_LIMIT = initialFirstLimit;
   LIMIT = initialLimit;
 }
 
