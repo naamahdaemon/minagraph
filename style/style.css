@@ -688,7 +688,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    animation: fadeOut 0.5s ease-out 6s forwards;
+    animation: fadeOut 0.5s ease-out 3s forwards;
   }
 
   .splash-content {
@@ -699,7 +699,7 @@
     font-size: 48px;
     margin-top: 20px;
     opacity: 0;
-    animation: fadeIn 6s ease-in-out forwards;
+    animation: fadeIn 3s ease-in-out forwards;
     animation-delay: 0.2s;
     color: #FFF;
     text-shadow:
@@ -716,7 +716,7 @@
     width: 256px;
     height: 256px;
     opacity: 0;
-    animation: fadeIn 4s ease-in-out forwards;
+    animation: fadeIn 2s ease-in-out forwards;
     animation-delay: 0.2s;
   }
 
