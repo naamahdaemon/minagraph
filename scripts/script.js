@@ -2955,7 +2955,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   const initialLimit = LIMIT;
   
   BASE_KEY = key;
-  FIRST_ITERATION_LIMIT = FIRST_ITERATION_LIMIT;
+  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);;
   LIMIT = 0;
   showOverlaySpinner(chain, FIRST_ITERATION_LIMIT);  // ⬅️ Show fullscreen spinner
   //showLoader();
@@ -2976,7 +2976,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   animateLayout();
 
   BASE_KEY = previousInitialKey;
-  FIRST_ITERATION_LIMIT = initialFirstLimit;
+  //FIRST_ITERATION_LIMIT = initialFirstLimit;
   LIMIT = initialLimit;
 }
 
