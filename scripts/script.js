@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   apiTokenInput = document.getElementById("param-api-token");
   blockchainSelect = document.getElementById("blockchain-select");    
   tokenInput = document.getElementById("param-api-token");
-  chain = blockchainSelect.value;
+  //chain = blockchainSelect.value;
   toggleBtn = document.getElementById("search-icon");
   searchDiv = document.getElementById("searchdiv");
   searchInput = document.getElementById("search-input");
@@ -145,7 +145,26 @@ document.addEventListener("DOMContentLoaded", () => {
   slicer = document.getElementById("date-slicer-container");
 
   
+  // Load selected blockchain from localStorage
+  const storedBlockchain = localStorage.getItem('selectedBlockchain');
+  if (storedBlockchain) {
+    blockchainSelect.value = storedBlockchain;
+    apiTokenInput.value = getApiToken(storedBlockchain) || ''; // Si le token est manquant, réinitialiser à une valeur vide
+    loadStartKeyForBlockchain(storedBlockchain); // Charger la clé de départ pour la blockchain sélectionnée
+  } else {
+    // Si aucune blockchain n'est stockée, définir la valeur par défaut
+    blockchainSelect.value = "mina"; // Par exemple, Mina comme valeur par défaut
+    apiTokenInput.value = getApiToken("mina") || ''; // Récupérer le token pour Mina
+    loadStartKeyForBlockchain("mina"); // Charger la clé de départ pour Mina
+  }
 
+  blockchainSelect.addEventListener("change", () => {
+    chain = blockchainSelect.value;
+    // Save selected blockchain to localStorage
+    localStorage.setItem('selectedBlockchain', chain);
+    apiTokenInput.value = getApiToken(chain);
+    loadStartKeyForBlockchain(chain);
+  });
   
   tokenInput.addEventListener("focus", () => {
     tokenInput.type = "text";
@@ -1175,33 +1194,39 @@ function getSolCommandType(tx) {
 }
 
 function getTezosCommandType(op) {
-  if (op.type === 'delegation') return 'delegate';
-  if (op.type === 'reveal') return 'reveal';
-  if (op.type === 'origination') return 'contract_creation';
+  if (op.type === 'delegation') return { command_type: 'delegate', contract_call_entrypoint: null };
+  if (op.type === 'reveal') return { command_type: 'reveal', contract_call_entrypoint: null };
+  if (op.type === 'origination') return { command_type: 'contract_creation', contract_call_entrypoint: null };
   if (op.type === 'transaction') {
-    if (!op.target) return 'contract_call';
+    if (!op.target) return { command_type: 'contract_call', contract_call_entrypoint: null };
 
     const entrypoint = op.parameter?.entrypoint;
 
     if (entrypoint) {
+      // Handling contract calls (everything starting with "contract_call:")
+      if (entrypoint.startsWith("contract_call:")) {
+        return { command_type: 'contract_call', contract_call_entrypoint: entrypoint };
+      }
+
+      // For other known specific cases
       switch (entrypoint) {
-        case 'transfer': return 'token_transfer';
-        case 'mint': return 'token_mint';
-        case 'burn': return 'token_burn';
-        case 'update_operators': return 'update_operators';
-        case 'set_delegate': return 'set_delegate';
-        case 'withdraw': return 'withdraw';
-        case 'deposit': return 'deposit';
-        case 'default': return 'contract_call';
-        default: return `contract_call:${entrypoint}`; // fallback for unknown entrypoints
+        case 'transfer': return { command_type: 'token_transfer', contract_call_entrypoint: null };
+        case 'mint': return { command_type: 'token_mint', contract_call_entrypoint: null };
+        case 'burn': return { command_type: 'token_burn', contract_call_entrypoint: null };
+        case 'update_operators': return { command_type: 'update_operators', contract_call_entrypoint: null };
+        case 'set_delegate': return { command_type: 'set_delegate', contract_call_entrypoint: null };
+        case 'withdraw': return { command_type: 'withdraw', contract_call_entrypoint: null };
+        case 'deposit': return { command_type: 'deposit', contract_call_entrypoint: null };
+        case 'default': return { command_type: 'contract_call', contract_call_entrypoint: null }; // Default case for contract calls
+        default: return { command_type: 'contract_call', contract_call_entrypoint: entrypoint }; // fallback for unknown entrypoints
       }
     }
 
     // Simple native tez transfer
-    return 'transfer';
+    return { command_type: 'transfer', contract_call_entrypoint: null };
   }
 
-  return 'unknown';
+  return { command_type: 'unknown', contract_call_entrypoint: null };
 }
 
 
@@ -1651,12 +1676,12 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
   const operations = [];
 
   // 1. Fetch transfers (simple + contract calls)
-  const txRes = await fetch(`${baseUrl}/operations/transactions?anyof.sender.target=${tezosAddress}&limit=${limit}`, { headers });
+  const txRes = await fetch(`${baseUrl}/operations/transactions?anyof.sender.target=${tezosAddress}&limit=${limit}&sort.desc=id`, { headers });
   const txs = await txRes.json();
   operations.push(...txs);
 
   // 2. Fetch delegations
-  const delRes = await fetch(`${baseUrl}/operations/delegations?anyof.sender.newDelegate=${tezosAddress}&limit=${limit}`, { headers });
+  const delRes = await fetch(`${baseUrl}/operations/delegations?anyof.sender.newDelegate=${tezosAddress}&limit=${limit}&sort.desc=id`, { headers });
   const dels = await delRes.json();
   operations.push(...dels);
 
@@ -1668,7 +1693,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
   const tokenCache = new Map(); // Map of `${contract}_${tokenId}` → metadata
 
   for (const op of operations) {
-    const command_type = getTezosCommandType(op);
+    const { command_type, contract_call_entrypoint } = getTezosCommandType(op);  // Get both values
 
     const totalFee = (op.bakerFee || 0) + (op.storageFee || 0) + (op.allocationFee || 0);
 
@@ -1757,7 +1782,8 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
       token_symbol: token_symbol,
       token_thumbnail: token_thumbnail,
       token_decimals: token_decimals,      
-      command_type: command_type,
+      command_type: command_type,  // Always set as contract_call if it's a contract call
+      contract_call_entrypoint: contract_call_entrypoint,  // Store the specific entrypoint here
       label: command_type,
       r_thief: 0, s_thief: 0,
       r_scammer: 0, s_scammer: 0,
@@ -1769,7 +1795,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
   }
 
   // 2. Fetch FA2 token transfers (independent of contract calls)
-  const tokenRes = await fetch(`${baseUrl}/tokens/transfers?anyof.from.to=${tezosAddress}&limit=${limit}`, { headers });
+  const tokenRes = await fetch(`${baseUrl}/tokens/transfers?anyof.from.to=${tezosAddress}&limit=${limit}&sort.desc=timestamp`, { headers });
   const tokenTransfers = await tokenRes.json();
 
   // Optional: push tokenTransfers into a second loop or convert to the same structure
@@ -1777,7 +1803,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     const tokenKey = `${tf.token.contract.address}_${tf.token.tokenId}`;
     if (!tokenCache.has(tokenKey)) {
       try {
-        const res = await fetch(`https://api.tzkt.io/v1/tokens?contract=${tf.token.contract.address}&tokenId=${tf.token.tokenId}`);
+        const res = await fetch(`https://api.tzkt.io/v1/tokens?contract=${tf.token.contract.address}&tokenId=${tf.token.tokenId}&sort.desc=timestamp`);
         const meta = await res.json();
         tokenCache.set(tokenKey, {
           name: meta[0]?.metadata?.name || null,
@@ -2695,6 +2721,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
       const timestamp = parseInt(tx.timestamp); // parse to ensure it's a number
       graph.addEdgeWithKey(edgeId, sender, receiver, {
         label: tx.command_type,
+        command_type: tx.command_type,
+        contract_call_entrypoint: tx.contract_call_entrypoint ? tx.contract_call_entrypoint : null,  // Store the specific entrypoint here
         status: tx.status,
         timestamp: timestamp,
         fee: tx.fee,
@@ -2960,12 +2988,11 @@ function showNodePanel(node) {
   graph.forEachEdge((e, attr, src, tgt) => {
     if (src === node || tgt === node) {
       if (attr.status !== "applied") failed++;
-      else if (attr.label === "delegation") del++;
-      else if (attr.label === "delegate") del++;
-      else if (attr.label === "stake") del++;
-      else if (attr.label === "payment" || attr.label === "transfer") tx++;
-      else if (attr.label === "contract_call" || attr.label === "zkapp" || attr.label === "contract_creation") sc++;
-      else if (attr.label === "token_transfer") tt++;
+          else if (attr.command_type === "delegation") del++;
+          else if (attr.command_type === "stake" || attr.command_type === "delegate") del++;
+          else if (attr.command_type === "payment" || attr.command_type === "transfer") tx++;
+          else if (attr.command_type === "contract_call" || attr.command_type === "zkapp" || attr.command_type === "contract_creation") sc++;
+          else if (attr.command_type === "token_transfer") tt++;
     }
   });
 
@@ -3117,8 +3144,11 @@ function showNodePanel(node) {
                       //const link = isTokenTransfer
                       //  ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
                       //  : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
-                      const link = tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#";                        
-                      const label = tx.label || "-";
+                        const link = tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain);           
+                        const tlabel = tx.label || "-"; // Default to "-" if no label
+                        const entryPoint = tx.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ''; // Check if entrypoint exists and append it
+                        // Concatenate the entry point to the label
+                        const label = tlabel + entryPoint;
                       return `
                         <a href="${link}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
                           ${label} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
@@ -4425,7 +4455,8 @@ function rebuildTransactionsByNeighbor() {
       token_receiver: attrs.token_receiver,
       token_amount: attrs.token_amount,
       token_name: attrs.token_name,
-      token_decimals: attrs.token_decimals      
+      token_decimals: attrs.token_decimals,
+      contract_call_entrypoint: attrs.contract_call_entrypoint || null, // Valeur par défaut si non défini
     };
 
     if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
