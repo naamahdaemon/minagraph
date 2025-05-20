@@ -1038,6 +1038,8 @@ function runLayoutInWorker() {
       workerFile = "forceAtlas.js";
       settings.linLogMode = document.getElementById("layout-linlog")?.checked || false;
       settings.outboundAttractionDistribution = document.getElementById("layout-outbound")?.checked || false;
+      settings.strongGravityMode = document.getElementById("layout-strong-gravity")?.checked || false;
+      settings.preventOverlap = document.getElementById("layout-prevent-overlap")?.checked ?? true;
       break;
     case "ord":
       workerFile = "openOrd.js";
@@ -3876,7 +3878,17 @@ function saveLayoutSettings(algorithm) {
 
   const inputIds = {
     fr: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
-    fa: ["layout-iterations", "layout-width", "layout-height", "layout-linlog", "layout-outbound"],
+    fa: [
+      "layout-iterations",
+      "layout-width",
+      "layout-height",
+      "layout-gravity",
+      "layout-scale",
+      "layout-linlog",
+      "layout-outbound",
+      "layout-strong-gravity",
+      "layout-prevent-overlap"
+    ],
     ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion", "layout-clusters"]
   };
 

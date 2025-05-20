@@ -8,13 +8,24 @@ self.onmessage = function (e) {
   const degrees = {};
   let speed = 1.0;
 
-  console.log("Force Atals v2");
+  const defaultSettings = {
+    iterations: 1000,
+    gravity: 1.0,
+    scalingRatio: 10.0,
+    outboundAttractionDistribution: false,
+    linLogMode: false,
+    strongGravityMode: false,
+    preventOverlap: true,
+    width: 1000,
+    height: 1000
+  };
 
-  // Initialize positions & degrees
+  const s = Object.assign({}, defaultSettings, settings);
+
   for (const node of nodes) {
     positions[node.id] = {
-      x: node.x ?? Math.random() * settings.width,
-      y: node.y ?? Math.random() * settings.height
+      x: node.x ?? Math.random() * s.width,
+      y: node.y ?? Math.random() * s.height
     };
     oldPositions[node.id] = { ...positions[node.id] };
     swinging[node.id] = 0;
@@ -27,44 +38,50 @@ self.onmessage = function (e) {
     degrees[edge.target]++;
   }
 
-  for (let iter = 0; iter < settings.iterations; iter++) {
+  for (let iter = 0; iter < s.iterations; iter++) {
     const disp = {};
-
-    // Initial force vector
-    for (const node of nodes) {
-      disp[node.id] = { x: 0, y: 0 };
-    }
+    for (const node of nodes) disp[node.id] = { x: 0, y: 0 };
 
     // Repulsion (node-node)
-    for (const v of nodes) {
-      for (const u of nodes) {
-        if (v.id !== u.id) {
-          const dx = positions[v.id].x - positions[u.id].x;
-          const dy = positions[v.id].y - positions[u.id].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+    for (let i = 0; i < nodes.length; i++) {
+      const v = nodes[i];
+      for (let j = i + 1; j < nodes.length; j++) {
+        const u = nodes[j];
+        const dx = positions[v.id].x - positions[u.id].x;
+        const dy = positions[v.id].y - positions[u.id].y;
+        let dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
 
-          let repulsion = settings.scalingRatio * (1 + degrees[v.id]) * (1 + degrees[u.id]);
-          repulsion /= dist;
+        // Prevent overlap
+        if (s.preventOverlap && dist < 1) dist = 1;
 
-          disp[v.id].x += dx / dist * repulsion;
-          disp[v.id].y += dy / dist * repulsion;
-        }
+        let repulsion = s.scalingRatio * (1 + degrees[v.id]) * (1 + degrees[u.id]);
+        repulsion /= dist;
+
+        const forceX = dx / dist * repulsion;
+        const forceY = dy / dist * repulsion;
+
+        disp[v.id].x += forceX;
+        disp[v.id].y += forceY;
+        disp[u.id].x -= forceX;
+        disp[u.id].y -= forceY;
       }
     }
 
-    // Attraction (edge-based)
+    // Attraction (edges)
     for (const edge of edges) {
       const src = edge.source;
       const tgt = edge.target;
+
       const dx = positions[src].x - positions[tgt].x;
       const dy = positions[src].y - positions[tgt].y;
       const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
 
       let attraction = (edge.weight ?? 1);
-      if (settings.outboundAttractionDistribution) {
+      if (s.outboundAttractionDistribution) {
         attraction /= degrees[src];
       }
-      if (settings.linLogMode) {
+
+      if (s.linLogMode) {
         attraction *= Math.log(1 + dist) / dist;
       } else {
         attraction *= dist;
@@ -81,16 +98,21 @@ self.onmessage = function (e) {
 
     // Gravity
     for (const node of nodes) {
-      const dx = positions[node.id].x - settings.width / 2;
-      const dy = positions[node.id].y - settings.height / 2;
+      const dx = positions[node.id].x - s.width / 2;
+      const dy = positions[node.id].y - s.height / 2;
       const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-      const gForce = settings.gravity * dist;
 
-      disp[node.id].x -= dx / dist * gForce;
-      disp[node.id].y -= dy / dist * gForce;
+      let gravityForce = s.gravity;
+      if (s.strongGravityMode) {
+        disp[node.id].x -= dx * gravityForce;
+        disp[node.id].y -= dy * gravityForce;
+      } else {
+        disp[node.id].x -= dx / dist * gravityForce * dist;
+        disp[node.id].y -= dy / dist * gravityForce * dist;
+      }
     }
 
-    // Adaptive movement using inertia
+    // Adaptive movement
     for (const node of nodes) {
       const id = node.id;
       const dx = disp[id].x;
@@ -104,14 +126,12 @@ self.onmessage = function (e) {
 
       oldPositions[id] = { ...positions[id] };
 
-      const moveX = dx * speed / (1 + Math.sqrt(dx * dx + dy * dy));
-      const moveY = dy * speed / (1 + Math.sqrt(dx * dx + dy * dy));
-
-      positions[id].x += moveX;
-      positions[id].y += moveY;
+      const factor = speed / (1 + Math.sqrt(dx * dx + dy * dy));
+      positions[id].x += dx * factor;
+      positions[id].y += dy * factor;
     }
 
-    // Global speed adjustment (convergence control)
+    // Convergence control
     let totalSwinging = 0;
     let totalTraction = 0;
     for (const node of nodes) {
@@ -119,15 +139,13 @@ self.onmessage = function (e) {
       totalTraction += degrees[node.id] * traction[node.id];
     }
 
-    const efficiency = totalTraction / totalSwinging;
-    if (totalSwinging > 0) {
-      speed = speed * 0.5 + Math.min(10.0, Math.max(0.1, efficiency)) * 0.5;
-    }
+    const efficiency = totalTraction / (totalSwinging + 0.01);
+    speed = speed * 0.5 + Math.min(10.0, Math.max(0.1, efficiency)) * 0.5;
 
-    if (iter % 10 === 0 || iter === settings.iterations - 1) {
+    if (iter % 10 === 0 || iter === s.iterations - 1) {
       self.postMessage({
         type: "progress",
-        progress: iter / settings.iterations,
+        progress: iter / s.iterations,
         positions
       });
     }
