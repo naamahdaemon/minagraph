@@ -675,6 +675,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  
+  document.getElementById("search-input").addEventListener("input", e => {
+    handleSearch(e.target.value);
+  });
+  
 });
 
 init();
@@ -3571,7 +3576,7 @@ function setupInteractions() {
   }
 }
 
-function setupSearch() {
+function setupSearch_old() {
   const searchInput = document.getElementById("search-input");
   const clearBtn = document.getElementById("clear-search");
   const panel = document.getElementById("side-panel");
@@ -3624,6 +3629,121 @@ function setupSearch() {
     renderer.refresh();
   });
 }
+
+function setupSearch() {
+  const searchInput = document.getElementById("search-input");
+  const clearBtn = document.getElementById("clear-search");
+  const panel = document.getElementById("side-panel");
+
+  searchInput.addEventListener("input", e => {
+    const query = e.target.value;
+    clearBtn.style.display = query ? "block" : "none";
+    handleSearch(query); // nouvelle fonction puissante
+  });
+
+  document.getElementById("search-icon").addEventListener("click", () => {
+    const searchDiv = document.getElementById("searchdiv");
+    const input = document.getElementById("search-input");
+    const searchVisible = searchDiv.style.display === "block" ? false : true;
+    searchDiv.style.display = searchVisible ? "none" : "block";
+    input.style.display = searchVisible ? "none" : "block";
+    if (searchVisible) input.focus();
+  });
+
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    selectedNode = null;
+    clearBtn.style.display = "none";
+    panel.style.display = "none";
+    handleSearch(""); // reset filtre
+  });
+}
+
+function handleSearch(query) {
+  const trimmed = query.trim();
+
+  if (!trimmed) {
+    graph.forEachNode(n => graph.setNodeAttribute(n, "hidden", false));
+    graph.forEachEdge(e => graph.setEdgeAttribute(e, "hidden", false));
+    renderer.refresh();
+    return;
+  }
+
+  //const operatorMatch = trimmed.match(/^(>|<|=)\s*(\d+(\.\d+)?)/);
+  const lowerQuery = trimmed.toLowerCase();
+
+  const matchedNodes = new Set();
+
+//  if (operatorMatch) {
+//    const operator = operatorMatch[1];
+//    const value = parseFloat(operatorMatch[2]);
+//
+//    graph.forEachEdge((edge, attr) => {
+//      const amount = parseFloat(attr.token_amount ?? attr.amount ?? 0);
+//      console.log(amount);
+//      if (
+//        (operator === ">" && amount > value) ||
+//        (operator === "<" && amount < value) ||
+//        (operator === "=" && amount === value)
+//      ) {
+//        matchedNodes.add(graph.source(edge));
+//        matchedNodes.add(graph.target(edge));
+//      }
+//    });
+//  } else {
+    graph.forEachNode((node, attr) => {
+      const fields = [
+        attr.label,
+        attr.sender_key,
+        attr.receiver_key,
+        attr.sender_name,
+        attr.receiver_name
+      ].map(v => (v || "").toLowerCase());
+
+      if (fields.some(f => f.includes(lowerQuery))) {
+        matchedNodes.add(node);
+      }
+    });
+
+    graph.forEachEdge((edge, attr) => {
+      const fields = [
+        attr.sender_key,
+        attr.receiver_key,
+        attr.sender_name,
+        attr.receiver_name
+      ].map(v => (v || "").toLowerCase());
+
+      if (fields.some(f => f.includes(lowerQuery))) {
+        matchedNodes.add(graph.source(edge));
+        matchedNodes.add(graph.target(edge));
+      }
+    });
+//  }
+
+  // Get 1-hop neighbors of matched nodes
+  const visibleNodes = new Set(matchedNodes);
+  const visibleEdges = new Set();
+
+  matchedNodes.forEach(node => {
+    graph.forEachNeighbor(node, neighbor => {
+      visibleNodes.add(neighbor);
+      const connectingEdges = graph.edges(node, neighbor);
+      connectingEdges.forEach(e => visibleEdges.add(e));
+    });
+  });
+
+  // Hide everything else
+  graph.forEachNode(n => {
+    graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
+  });
+
+  graph.forEachEdge(e => {
+    graph.setEdgeAttribute(e, "hidden", !visibleEdges.has(e));
+  });
+
+  renderer.refresh();
+}
+
 
 async function main(depth = 2, wipeGraph = true) {
   const panel = document.getElementById("side-panel");
@@ -4496,29 +4616,56 @@ function rebuildTransactionsByNeighbor() {
 }
 
 document.addEventListener("keydown", function (event) {
-  // Ignore if typing in input/textarea
   const tag = document.activeElement.tagName.toLowerCase();
-  if (tag === 'input' || tag === 'textarea') return;
+  const input = document.getElementById("search-input");
+  const searchDiv = document.getElementById("searchdiv");
+  const clearBtn = document.getElementById("clear-search");
 
+  // ESC clears search only if focused
+  if (event.key === "Escape" && document.activeElement === input) {
+    input.value = "";
+    selectedNode = null;
+    clearBtn.style.display = "none";
+    searchDiv.style.display = "none";
+    handleSearch("");
+    renderer.refresh();
+    return;
+  }
+
+  // Ignore all other keys if typing in a field
+  if ((tag === "input" || tag === "textarea")) return;
+
+  // Layout (L)
   if (event.key === "l" || event.key === "L") {
     const layoutBtn = document.getElementById("layout-toggle-btn");
     if (layoutBtn) layoutBtn.click();
   }
   
-  // S → Toggle sidebar
+  // Sidebar toggle (S)
   if (event.key === "s" || event.key === "S") {
     const menuBtn = document.getElementById("menu-toggle");
-    if (menuBtn) menuBtn.click(); // Simulate click
+    if (menuBtn) menuBtn.click();
   }  
   
-  // F → Toggle fullscreen
+  // Fullscreen toggle (F)
   if (event.key === "f" || event.key === "F") {
     const fullscreenBtn = document.getElementById("fullscreen-toggle");
     if (fullscreenBtn) fullscreenBtn.click();
   }  
   
-  // Delete selected node
-  if ((event.key === "Delete" || event.key === "Backspace" || event.key === "d" || event.key === "D") && selectedNode) {
+  // Delete selected node (Del, Backspace, D)
+  if (
+    selectedNode &&
+    (event.key === "Delete" || event.key === "Backspace" || event.key === "d" || event.key === "D")
+  ) {
     deleteSelectedNode(selectedNode);
+  }
+
+  // Focus search ("/")
+  if (event.key === "/") {
+    event.preventDefault(); // avoid triggering default quick-find
+    searchDiv.style.display = "block";
+    input.style.display = "block";
+    input.focus();
   }
 });
