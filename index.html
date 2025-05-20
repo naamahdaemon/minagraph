@@ -178,14 +178,25 @@
       
       <!-- ForceAtlas2-only settings -->
       <div id="forceatlas-settings" style="display: none; margin-top: 10px;">
-        <label>
+
+        <label style="display: flex; align-items: center; gap: 8px;">
           <input type="checkbox" id="layout-linlog" />
           LinLog Mode
         </label>
-        <br />
-        <label>
+        
+        <label style="display: flex; align-items: center; gap: 8px;">
           <input type="checkbox" id="layout-outbound" />
-          Outbound Attraction Dist.
+          Outbound Attraction Dist
+        </label>
+
+        <label style="display: flex; align-items: center; gap: 8px;" title="Makes gravity stronger and less dependent on distance">
+          <input type="checkbox" id="layout-strong-gravity" />
+          Strong Gravity Mode
+        </label>
+
+        <label style="display: flex; align-items: center; gap: 8px;" title="Avoids node overlap by enforcing minimum spacing">
+          <input type="checkbox" id="layout-prevent-overlap" checked />
+          Prevent Node Overlap
         </label>
         <br/>
       </div>      
