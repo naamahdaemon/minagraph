@@ -4482,3 +4482,20 @@ function rebuildTransactionsByNeighbor() {
     transactionsByNeighbor[target].push(tx);
   });
 }
+
+document.addEventListener("keydown", function (event) {
+  // Ignore if typing in input/textarea
+  const tag = document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+
+  if (event.key === "l" || event.key === "L") {
+    const layoutBtn = document.getElementById("layout-toggle-btn");
+    if (layoutBtn) layoutBtn.click();
+  }
+  
+  // S → Toggle sidebar
+  if (event.key === "s" || event.key === "S") {
+    const menuBtn = document.getElementById("menu-toggle");
+    if (menuBtn) menuBtn.click(); // Simulate click
+  }  
+});
