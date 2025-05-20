@@ -3070,7 +3070,7 @@ function showNodePanel(node) {
         ${data.label}
       </a>
     </h3>      
-    <button onclick="deleteSelectedNode('${node}')" style="
+    <button onclick="deleteSelectedNode('${node}')" title="Delete node (Del)" style="
       margin: 5px 0;
       background: #e53935;
       color: white;
@@ -4516,4 +4516,9 @@ document.addEventListener("keydown", function (event) {
     const fullscreenBtn = document.getElementById("fullscreen-toggle");
     if (fullscreenBtn) fullscreenBtn.click();
   }  
+  
+  // Delete selected node
+  if ((event.key === "Delete" || event.key === "Backspace" || event.key === "d" || event.key === "D") && selectedNode) {
+    deleteSelectedNode(selectedNode);
+  }
 });
