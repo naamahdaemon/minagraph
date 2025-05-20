@@ -4498,4 +4498,10 @@ document.addEventListener("keydown", function (event) {
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.click(); // Simulate click
   }  
+  
+  // F → Toggle fullscreen
+  if (event.key === "f" || event.key === "F") {
+    const fullscreenBtn = document.getElementById("fullscreen-toggle");
+    if (fullscreenBtn) fullscreenBtn.click();
+  }  
 });
