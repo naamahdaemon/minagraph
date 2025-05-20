@@ -3689,26 +3689,45 @@ function handleSearch(query) {
     return;
   }
 
-  const lowerQuery = trimmed.toLowerCase();
+  let lowerQuery = trimmed.toLowerCase();
   const directlyMatchedNodes = new Set(); // ✅ Strictly matched
   const visibleNodes = new Set();         // ✅ For visibility
   const visibleEdges = new Set();
 
   // ✅ Step 1: find direct matches from edges
-  graph.forEachEdge((edge, attr) => {
-      const fields = [
-        attr.sender_key,
-        attr.receiver_key,
-        attr.sender_name,
-        attr.receiver_name
-      ].map(v => (v || "").toLowerCase());
+  let matchMode = "both"; // default legacy mode
 
-      if (fields.some(f => f.includes(lowerQuery))) {
+  if (lowerQuery.startsWith("-")) {
+    matchMode = "sender";
+    lowerQuery = lowerQuery.slice(1);
+  } else if (lowerQuery.startsWith("+")) {
+    matchMode = "receiver";
+    lowerQuery = lowerQuery.slice(1);
+  }
+  graph.forEachEdge((edge, attr) => {
       const source = graph.source(edge);
       const target = graph.target(edge);
 
-      directlyMatchedNodes.add(source);
-      directlyMatchedNodes.add(target);
+    let senderMatched = false;
+    let receiverMatched = false;
+
+    const senderFields = [attr.sender_key, attr.sender_name]
+      .map(v => (v || "").toLowerCase());
+
+    const receiverFields = [attr.receiver_key, attr.receiver_name]
+      .map(v => (v || "").toLowerCase());
+
+    if (matchMode === "sender" || matchMode === "both") {
+      senderMatched = senderFields.some(f => f.includes(lowerQuery));
+    }
+
+    if (matchMode === "receiver" || matchMode === "both") {
+      receiverMatched = receiverFields.some(f => f.includes(lowerQuery));
+    }
+
+    if (senderMatched || receiverMatched) {
+      if (senderMatched) directlyMatchedNodes.add(source);
+      if (receiverMatched) directlyMatchedNodes.add(target);
 
       visibleEdges.add(edge);
       visibleNodes.add(source);
@@ -3720,8 +3739,7 @@ function handleSearch(query) {
   directlyMatchedNodes.forEach(node => {
     graph.forEachNeighbor(node, neighbor => {
       visibleNodes.add(neighbor);
-      const connectingEdges = graph.edges(node, neighbor);
-      connectingEdges.forEach(e => visibleEdges.add(e));
+      graph.edges(node, neighbor).forEach(e => visibleEdges.add(e));
     });
   });
 
