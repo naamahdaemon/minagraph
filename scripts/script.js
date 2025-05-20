@@ -3683,6 +3683,8 @@ function handleSearch(query) {
       zIndex: 1
     }));
 
+    setupReducers();
+
     renderer.refresh();
     return;
   }
