@@ -2746,6 +2746,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         command_type: tx.command_type,
         contract_call_entrypoint: tx.contract_call_entrypoint ? tx.contract_call_entrypoint : null,  // Store the specific entrypoint here
         status: tx.status,
+        sender_key: tx.sender_key,
+        receiver_key: tx.receiver_key,
         timestamp: timestamp,
         fee: tx.fee,
         amount: tx.amount,
@@ -2780,12 +2782,14 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
       //const color = getColorByDegree(degree, minDeg, maxDeg);
       //console.log(degree," : ",color);
       graph.setNodeAttribute(node, 'colorByDegree', color);
+      graph.setNodeAttribute(node, 'originalColor', color);
     });
   } else if (chain === "mina") {
     graph.forEachNode(node => {
       const name = graph.getNodeAttribute(node, 'name') || "noname";
       const color = getBrightColorByName(name);
       graph.setNodeAttribute(node, 'colorByDegree', color);
+      graph.setNodeAttribute(node, 'originalColor', color);
     });
   }
 
@@ -3478,6 +3482,7 @@ function setupReducers() {
       case "stake": baseColor = "#2196f3"; break;
       case "zkapp": baseColor = "#ff57c1"; break;
       case "contract_call": baseColor = "#ff57c1"; break;
+      case "contract_creation": baseColor = "#ff57c1"; break;
       case "token_transfer": baseColor = "#f9a825"; break;
     }
 
@@ -3663,68 +3668,52 @@ function handleSearch(query) {
   const trimmed = query.trim();
 
   if (!trimmed) {
-    graph.forEachNode(n => graph.setNodeAttribute(n, "hidden", false));
-    graph.forEachEdge(e => graph.setEdgeAttribute(e, "hidden", false));
+    graph.forEachNode(n => {
+      graph.setNodeAttribute(n, "hidden", false);
+    });
+    graph.forEachEdge(e => {
+      graph.setEdgeAttribute(e, "hidden", false);
+    });
+
+    renderer.setSetting("nodeReducer", (node, attr) => ({
+      ...attr,
+      color: attr.originalColor || attr.color,
+      zIndex: 1
+    }));
+
     renderer.refresh();
     return;
   }
 
-  //const operatorMatch = trimmed.match(/^(>|<|=)\s*(\d+(\.\d+)?)/);
   const lowerQuery = trimmed.toLowerCase();
-
-  const matchedNodes = new Set();
-
-//  if (operatorMatch) {
-//    const operator = operatorMatch[1];
-//    const value = parseFloat(operatorMatch[2]);
-//
-//    graph.forEachEdge((edge, attr) => {
-//      const amount = parseFloat(attr.token_amount ?? attr.amount ?? 0);
-//      console.log(amount);
-//      if (
-//        (operator === ">" && amount > value) ||
-//        (operator === "<" && amount < value) ||
-//        (operator === "=" && amount === value)
-//      ) {
-//        matchedNodes.add(graph.source(edge));
-//        matchedNodes.add(graph.target(edge));
-//      }
-//    });
-//  } else {
-    graph.forEachNode((node, attr) => {
-      const fields = [
-        attr.label,
-        attr.sender_key,
-        attr.receiver_key,
-        attr.sender_name,
-        attr.receiver_name
-      ].map(v => (v || "").toLowerCase());
-
-      if (fields.some(f => f.includes(lowerQuery))) {
-        matchedNodes.add(node);
-      }
-    });
-
-    graph.forEachEdge((edge, attr) => {
-      const fields = [
-        attr.sender_key,
-        attr.receiver_key,
-        attr.sender_name,
-        attr.receiver_name
-      ].map(v => (v || "").toLowerCase());
-
-      if (fields.some(f => f.includes(lowerQuery))) {
-        matchedNodes.add(graph.source(edge));
-        matchedNodes.add(graph.target(edge));
-      }
-    });
-//  }
-
-  // Get 1-hop neighbors of matched nodes
-  const visibleNodes = new Set(matchedNodes);
+  const directlyMatchedNodes = new Set(); // ✅ Strictly matched
+  const visibleNodes = new Set();         // ✅ For visibility
   const visibleEdges = new Set();
 
-  matchedNodes.forEach(node => {
+  // ✅ Step 1: find direct matches from edges
+  graph.forEachEdge((edge, attr) => {
+      const fields = [
+        attr.sender_key,
+        attr.receiver_key,
+        attr.sender_name,
+        attr.receiver_name
+      ].map(v => (v || "").toLowerCase());
+
+      if (fields.some(f => f.includes(lowerQuery))) {
+      const source = graph.source(edge);
+      const target = graph.target(edge);
+
+      directlyMatchedNodes.add(source);
+      directlyMatchedNodes.add(target);
+
+      visibleEdges.add(edge);
+      visibleNodes.add(source);
+      visibleNodes.add(target);
+      }
+    });
+
+  // ✅ Step 2: expand visibility to 1-hop neighbors
+  directlyMatchedNodes.forEach(node => {
     graph.forEachNeighbor(node, neighbor => {
       visibleNodes.add(neighbor);
       const connectingEdges = graph.edges(node, neighbor);
@@ -3732,13 +3721,35 @@ function handleSearch(query) {
     });
   });
 
-  // Hide everything else
+  // ✅ Step 3: update visibility attributes
   graph.forEachNode(n => {
     graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
   });
 
   graph.forEachEdge(e => {
     graph.setEdgeAttribute(e, "hidden", !visibleEdges.has(e));
+  });
+
+  // ✅ Step 4: highlight only strictly matched nodes
+  renderer.setSetting("nodeReducer", (node, attr) => {
+    if (graph.getNodeAttribute(node, "hidden")) return attr;
+
+    if (directlyMatchedNodes.has(node)) {
+      return {
+        ...attr,
+        color: "#ffff00",
+        zIndex: 10,
+        size: (attr.size || 6) * 1.6, // bigger node
+        highlighted: true        // optional flag if needed later
+      };
+    }
+
+    return {
+      ...attr,
+      color: attr.originalColor || attr.color,
+      zIndex: 1,
+      size: attr.size || 6
+    };
   });
 
   renderer.refresh();
