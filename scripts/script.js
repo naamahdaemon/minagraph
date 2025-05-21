@@ -42,6 +42,7 @@ const delayByBlockchain = {
   solana: 300,
   cronos: 500,
   tezos: 300,
+  base: 300,
 };
 
 let cancelRequested = false;
@@ -772,6 +773,7 @@ function getDecimalsForBlockchain(chain) {
     case "optimism":
     case "arbitrum":
     case "cronos":
+    case "base":
       return 18;
     case "solana":      
     case "mina":
@@ -855,7 +857,8 @@ function getColorByDegree(degree, minDeg, maxDeg, chain, chainCount = 1) {
     cronos: [0, 85, 50],
     tezos: [215, 100, 55],
     starknet: [260, 100, 55],
-    mina: [180, 50, 45]
+    mina: [180, 50, 45],
+    base: [200, 100, 60]
   };
 
   const [baseHue, baseSat, baseLight] = chainBaseHSL[chain] || [300, 100, 50];
@@ -1888,7 +1891,8 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
     arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`,
     cronos: `https://api.cronoscan.com/api`,  // pour cohérence
-    tezos: `https://api.tzkt.io/v1`
+    tezos: `https://api.tzkt.io/v1`,
+    base: `https://base-mainnet.g.alchemy.com/v2/`
   };
 
   const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
@@ -1910,10 +1914,10 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   }  
   // Set category for ETH, POLYGON, BSC
   let category = ["external", "erc20"];
-  if (blockchain === "ethereum" || blockchain === "polygon" || blockchain === "base") {
+  if (blockchain === "ethereum" || blockchain === "polygon") {
     category.push("internal", "erc721", "erc1155");
   }
-  if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum"  || blockchain === "cronos" ) {
+  if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum" || blockchain === "cronos" || blockchain === "base" ) {
     category.push("erc721", "erc1155");
   }
 
@@ -1997,7 +2001,8 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       optimism: "ETH",
       arbitrum: "ETH",
       cronos: "ETH",
-      tezos: "XTZ"
+      tezos: "XTZ",
+      base: "ETH",
     };
 
     const isNativeTransfer = (
@@ -2560,7 +2565,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
 }
 
 async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
-    const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum"].includes(blockchain)
+    const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum","base"].includes(blockchain)
       ? publicKey.toLowerCase()
       : publicKey;    
       
@@ -2642,7 +2647,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos"].includes(blockchain)) {
+        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -2666,7 +2671,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null) {
   const chain = chainOverride || selectedBlockchain;
 
-  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)
+  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain)
     ? publicKey.toLowerCase()
     : publicKey;
     
@@ -2769,7 +2774,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   }
 
   // 🎨 Node coloring
-  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos"].includes(chain)) {
+  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos", "base"].includes(chain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -2797,7 +2802,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
 
   // Prepare next keys
   const normalize = (key) =>
-    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos"].includes(chain)
+    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain)
       ? key?.toLowerCase()
       : key;
 
@@ -3026,7 +3031,7 @@ function showNodePanel(node) {
   });
 
 
-  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos"];
+  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
   const strictChains = ["mina", "solana", "tezos"];
 
   const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
@@ -3154,7 +3159,7 @@ function showNodePanel(node) {
             <tbody>
               ${interactions.map(tx => {
                 console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
-                const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum"].includes(chain);
+                  const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum", "base"].includes(chain);
                 return `
                 <tr title="${tx.memo || ''}">
                   <td>${tx.blockchain}</td>
@@ -3301,7 +3306,7 @@ function setupReducers() {
   let minDegree = Infinity;
   let maxDegree = -Infinity;
 
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos") {
+  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos" || selectedBlockchain === "base") {
     graph.forEachNode(node => {
       const deg = graph.degree(node);
       if (deg < minDegree) minDegree = deg;
@@ -4127,6 +4132,11 @@ function getExplorerURL(type, value, blockchain) {
       transaction: (val) => `https://voyager.online/tx/${val}`,
       account: (val) => `https://voyager.online/contract/${val}`,
     },
+    base: {
+      block: (val) => `https://basescan.org/block/${val}`,
+      transaction: (val) => `https://basescan.org/tx/${val}`,
+      account: (val) => `https://basescan.org/address/${val}`,
+    },    
   };
 
   const explorer = explorerMap[chain]?.[type];
