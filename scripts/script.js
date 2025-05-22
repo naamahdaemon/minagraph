@@ -1913,13 +1913,27 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     return await fetchTezosTransactions(publicKey, limit);
   }  
   // Set category for ETH, POLYGON, BSC
-  let category = ["external", "erc20"];
+  /*let category = ["external", "erc20"];
   if (blockchain === "ethereum" || blockchain === "polygon") {
     category.push("internal", "erc721", "erc1155");
   }
   if (blockchain === "zksync"  || blockchain === "optimism" || blockchain === "arbitrum" || blockchain === "cronos" || blockchain === "base" ) {
     category.push("erc721", "erc1155");
-  }
+  }*/
+
+  const categoryByChain = {
+    ethereum:      ["external", "internal", "erc20", "erc721", "erc1155"],
+    polygon:       ["external", "internal", "erc20", "erc721", "erc1155"],
+    bsc:           ["external", "erc20", "erc721", "erc1155"],
+    optimism:      ["external", "erc20", "erc721", "erc1155"],
+    arbitrum:      ["external", "erc20", "erc721", "erc1155"],
+    zksync:        ["external", "erc20", "erc721", "erc1155"], // no "internal"
+    base:          ["external", "erc20", "erc721", "erc1155"], // no "internal"
+    cronos:        ["external", "erc20", "erc721", "erc1155"],                      // basic support
+  };
+
+  const category = categoryByChain[blockchain] || ["external"];
+
 
   // Setup query parameters for both directions
   const baseParams = {
@@ -2018,6 +2032,12 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
           ? "token_transfer"
           : "contract_call";
 
+    if (receiptData.from == null || receiptData.to == null) {
+      console.log ("Null Sender or Receiver");
+      console.log("tx data : ",tx);
+      console.log("receiptdata : ",receiptData);
+    }
+
     return {
       blockchain,
       block_id: parseInt(tx.blockNum, 16),
@@ -2029,13 +2049,13 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       fee: "0",
       memo: "",
       status: "applied",
-      sender_key: tx.from?.toLowerCase(),
-      receiver_key: tx.to?.toLowerCase(),
+      sender_key: tx.from?.toLowerCase() || null,
+      receiver_key: tx.to?.toLowerCase() || null,
       sender_name: tx.from ? tx.from.slice(0, 6) + "..." + tx.from.slice(-4) : "unknown",
       receiver_name: tx.to ? tx.to.slice(0, 6) + "..." + tx.to.slice(-4) : "unknown",
       command_type,
       label: command_type,
-      token_contract: tx.rawContract?.address?.toLowerCase() || null,
+      token_contract: tx.rawContract?.address ? tx.rawContract.address.toLowerCase() : null,
       token_receiver: tx.to?.toLowerCase() || null,
       token_amount: tx.rawContract?.value || null,
       token_name: tx.asset || null,
@@ -2963,6 +2983,9 @@ function formatTokenAmount(amount, decimals = 18) {
 
 async function fetchMoreForNode(key, chain = selectedBlockchain) {
   const visitedSet = visitedKeysByChain.get(chain) || new Set();
+  
+  cancelRequested = false;
+  
   if (visitedSet.has(key)) {
     alert(`This node was already fetched for ${capitalize(chain)}.`);
     return;
