@@ -55,7 +55,7 @@ const commandTypeAliases = {
   payment: ["payment", "transfer"],
   zkapp: ["zkapp", "contract_call","contract_creation"],
   delegation: ["delegation","stake","delegate"],
-  token_transfer: ["token_transfer"],
+  token_transfer: ["token_transfer", "nft_transfer"],
 };  
 // Reverse map: actual command types → legend alias(es)
 const expandedCommandTypeFilter = () => {
@@ -1978,8 +1978,9 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   // Deduplicate by tx.hash
   const seen = new Set();
   const uniqueTransfers = transfers.filter(tx => {
-    if (!tx.hash || seen.has(tx.hash)) return false;
-    seen.add(tx.hash);
+    const id = tx.uniqueId || tx.hash;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
     return true;
   });
 
@@ -2005,13 +2006,14 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       console.warn(`Receipt fetch failed for tx ${tx.hash}`, err.message);
     }
 
-    const contractCreated = receiptData?.contractAddress != null;
+    const contractFromLogs = receiptData?.logs?.[0]?.address?.toLowerCase() || null;
+    const contractAddress = receiptData?.contractAddress?.toLowerCase() || contractFromLogs;
 
     const nativeAssets = {
       ethereum: "ETH",
       polygon: "MATIC",
       bsc: "BNB",
-      zksync: 'ETH',
+      zksync: "ETH",
       optimism: "ETH",
       arbitrum: "ETH",
       cronos: "ETH",
@@ -2024,18 +2026,52 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       tx.asset?.toUpperCase() === nativeAssets[blockchain]
     );
 
-    const command_type = contractCreated
-      ? "contract_creation"
-      : isNativeTransfer
-        ? "transfer"
-        : tx.rawContract?.address
-          ? "token_transfer"
-          : "contract_call";
+    // ❗ NE PAS se baser sur receipt.contractAddress seul
+    const isContractCreation =
+      receiptData?.to === null &&
+      tx.from?.toLowerCase() === receiptData?.from?.toLowerCase() &&
+      tx.rawContract?.address?.toLowerCase() === receiptData?.contractAddress?.toLowerCase();
 
-    if (receiptData.from == null || receiptData.to == null) {
-      console.log ("Null Sender or Receiver");
-      console.log("tx data : ",tx);
-      console.log("receiptdata : ",receiptData);
+    const hasTokenContract = !!tx.rawContract?.address;
+    const isTokenTransfer = !isContractCreation && hasTokenContract;
+
+    let command_type = "contract_call";
+
+    if (isContractCreation) {
+      command_type = "contract_creation";
+    } else if (isNativeTransfer) {
+      command_type = "transfer";
+    } else if (tx.category?.includes("erc1155")) {
+      command_type = "token_transfer";
+    } else if (tx.category?.includes("erc721")) {
+      command_type = "nft_transfer";
+    } else if (isTokenTransfer) {
+      command_type = "token_transfer";
+    }
+
+    const tokenAmount =
+      tx.erc1155Metadata?.[0]?.value
+        ? parseInt(tx.erc1155Metadata[0].value, 16).toString()
+        : tx.category?.includes("erc721") && (tx.tokenId || tx.erc721TokenId)
+          ? "1"
+          : tx.rawContract?.value || null;
+
+
+
+    const tokenId = tx.erc721TokenId || tx.tokenId || null;
+
+    console.log("token amount", tokenAmount);
+
+    const gasUsed = receiptData?.gasUsed ? BigInt(receiptData.gasUsed) : 0n;
+    const gasPrice = receiptData?.effectiveGasPrice ? BigInt(receiptData.effectiveGasPrice) : 0n;
+    const decimals = getDecimalsForBlockchain(blockchain);
+    const fee = gasUsed * gasPrice;
+    const feeFloat = Number(fee) / 10 ** decimals;
+    const formattedFee = feeFloat.toFixed(2);
+
+    if (receiptData.from == null || receiptData.to == null || true) {
+      console.warn("tx data : ",tx);
+      console.warn("receiptdata : ",receiptData);
     }
 
     return {
@@ -2046,7 +2082,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       timestamp_iso: tx.metadata?.blockTimestamp || null,
       hash: tx.hash,
       amount: tx.value ? (parseFloat(tx.value)).toString() : "0",
-      fee: "0",
+      fee: formattedFee,
       memo: "",
       status: "applied",
       sender_key: tx.from?.toLowerCase() || null,
@@ -2057,9 +2093,18 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       label: command_type,
       token_contract: tx.rawContract?.address ? tx.rawContract.address.toLowerCase() : null,
       token_receiver: tx.to?.toLowerCase() || null,
-      token_amount: tx.rawContract?.value || null,
+      token_amount: tokenAmount,
       token_name: tx.asset || null,
-      token_decimals: tx.rawContract?.decimals || null
+      token_decimals: tx.category === "erc1155" || tx.category === "erc721" ? 0 : tx.rawContract?.decimals || null,
+      token_id: tokenId,
+      // 📦 Nouveaux champs enrichis depuis receipt :
+      block_hash: receiptData?.blockHash || null,
+      gas_used: receiptData?.gasUsed || null,
+      gas_price: receiptData?.effectiveGasPrice || null,
+      receipt_from: receiptData?.from?.toLowerCase() || null,
+      receipt_to: receiptData?.to?.toLowerCase() || null,
+      receipt_contract_address: contractAddress,
+      receipt_logs: receiptData?.logs || []      
     };
   }));
 
@@ -2717,7 +2762,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
 
   appendLoaderLog(`🔄 Loaded ${transactions.length} tx for ${normalizedKey.slice(0, 4)}…${normalizedKey.slice(-4)} on ${chain} depth ${level}`);
 
-  const isValidEdge = (tx) => tx?.sender_key && tx?.receiver_key && tx.sender_key !== tx.receiver_key;
+  const isValidEdge = (tx) => tx?.sender_key && tx?.receiver_key; // && tx.sender_key !== tx.receiver_key;
 
   const addOrUpdateNode = (key, name, chain) => {
     if (!graph.hasNode(key)) {
@@ -2758,7 +2803,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
 
     const edgeId = `${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.nonce}`;
     const edgeColor =
-      tx.command_type === "token_transfer"
+        tx.command_type === "token_transfer" || tx.command_type === "nft_transfer"
         ? "#f9a825" // 🟨 Dark Yellow for token transfers
         : tx.status === "applied"
           ? "#ccc"  // Light grey for normal applied tx
@@ -3049,7 +3094,7 @@ function showNodePanel(node) {
           else if (attr.command_type === "stake" || attr.command_type === "delegate") del++;
           else if (attr.command_type === "payment" || attr.command_type === "transfer") tx++;
           else if (attr.command_type === "contract_call" || attr.command_type === "zkapp" || attr.command_type === "contract_creation") sc++;
-          else if (attr.command_type === "token_transfer") tt++;
+          else if (attr.command_type === "token_transfer" || attr.command_type === "nft_transfer") tt++;
     }
   });
 
@@ -3197,7 +3242,7 @@ function showNodePanel(node) {
                   </td>                    
                   <td>
                     ${(() => {
-                      const isTokenTransfer = tx.label === "token_transfer";
+                        const isTokenTransfer = ["token_transfer", "nft_transfer"].includes(tx.label);
                       //const link = isTokenTransfer
                       //  ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
                       //  : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
@@ -3221,7 +3266,7 @@ function showNodePanel(node) {
                          : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td>${tx.status || "-"}</td>
                 </tr>
-                ${tx.label === "token_transfer" ? `
+                  ${tx.label === "token_transfer" || tx.label === "nft_transfer" ? `
                   <tr style="opacity: 0.7;">
                     <td colspan="2" style="text-align: right;">
                       Receiver: ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown")}
@@ -3514,6 +3559,7 @@ function setupReducers() {
       case "contract_call": baseColor = "#ff57c1"; break;
       case "contract_creation": baseColor = "#ff57c1"; break;
       case "token_transfer": baseColor = "#f9a825"; break;
+      case "nft_transfer": baseColor = "#f9a825"; break;
     }
 
     // Filter by command type
