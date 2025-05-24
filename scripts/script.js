@@ -4949,18 +4949,18 @@ async function showWatchedAddressesModal() {
       const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td style="padding: 6px;"><code>${shortened}</code></td>
+        <td style="padding: 6px;font-size: 10px;"><code>${shortened}</code></td>
         <td style="padding: 6px;"><small style="color:#aaa">${chain}</small></td>
         <td style="padding: 6px; text-align: right;">
           <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="
             padding: 4px 10px;
-            font-size: 13px;
+            font-size: 10px;
             background: #e53935;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-          ">Stop watching</button>
+          ">Unwatch</button>
         </td>
       `;
 
