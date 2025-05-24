@@ -48,7 +48,7 @@ function getOrCreateUserId() {
 onMessage(messaging, (payload) => {
   console.log('[FCM] Foreground message received:', payload);
   const title = payload.data?.title || 'Notification';
-  const body = payload.data?.body || '';
+  const body = (payload.data.body || "").replace(/\n/g, "<br/>");
 
   showInAppNotification(title, body);
 });
