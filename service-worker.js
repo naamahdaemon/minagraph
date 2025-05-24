@@ -119,7 +119,30 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  // Open the PWA window or focus if already open
+  const urlParams = new URLSearchParams();
+
+  if (event.notification.data?.chain) {
+    urlParams.set("chain", event.notification.data.chain);
+  }
+
+  if (event.notification.data?.address) {
+    urlParams.set("address", event.notification.data.address);
+  }
+
+  if (event.notification.data?.firstLimit) {
+    urlParams.set("firstiterationlimit", event.notification.data.firstLimit);
+  }
+
+  if (event.notification.data?.depth) {
+    urlParams.set("depth", event.notification.data.depth);
+  }
+
+  if (event.notification.data?.limit) {
+    urlParams.set("iterationlimit", event.notification.data.limit);
+  }
+
+  const targetUrl = `/?${urlParams.toString()}`;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
@@ -131,7 +154,7 @@ self.addEventListener('notificationclick', function(event) {
 
       // Else open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );
