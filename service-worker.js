@@ -15,11 +15,11 @@ const messaging = firebase.messaging();
 
 // ? Affiche les notifications reçues quand la PWA est en arrière-plan
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Push reçu en arrière-plan : ', payload);
+  console.log('[SW] Background payload:', payload);
 
-  const notificationTitle = payload.notification?.title || "Notification";
+  const notificationTitle = payload.data.title || "Notification";
   const notificationOptions = {
-    body: payload.notification?.body || '',
+    body: payload.data.body || '',
     icon: '/icons/icon-192.png'
   };
 
