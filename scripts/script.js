@@ -146,11 +146,11 @@ document.addEventListener("DOMContentLoaded", () => {
   slicer = document.getElementById("date-slicer-container");
 
   const params = new URLSearchParams(window.location.search);
-  const chain = params.get("chain");
-  const address = params.get("address");
-  const firstLimit = params.get("firstiterationlimit");
-  const depth = params.get("depth");
-  const limit = params.get("iterationlimit");
+  const param_chain = params.get("chain");
+  const param_address = params.get("address");
+  const param_firstLimit = params.get("firstiterationlimit");
+  const param_depth = params.get("depth");
+  const param_limit = params.get("iterationlimit");
   
   // Load selected blockchain from localStorage
   const storedBlockchain = localStorage.getItem('selectedBlockchain');
@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   blockchainSelect.addEventListener("change", () => {
-    chain = blockchainSelect.value;
+    const chain = blockchainSelect.value;
     // Save selected blockchain to localStorage
     localStorage.setItem('selectedBlockchain', chain);
     apiTokenInput.value = getApiToken(chain);
@@ -241,18 +241,18 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem(`start-key-${selectedBlockchain}`, key);
   });
   
-  if (chain && address) {
-    document.getElementById("blockchain-select").value = chain;
-    document.getElementById("param-base-key").value = address;
+  if (param_chain && param_address) {
+    document.getElementById("blockchain-select").value = param_chain;
+    document.getElementById("param-base-key").value = param_address;
 
-    if (firstLimit) {
-      document.getElementById("param-first-iteration").value = firstLimit;
+    if (param_firstLimit) {
+      document.getElementById("param-first-iteration").value = param_firstLimit;
     }
-    if (depth) {
-      document.getElementById("param-depth").value = depth;
+    if (param_depth) {
+      document.getElementById("param-depth").value = param_depth;
     }
-    if (limit) {
-      document.getElementById("param-limit").value = limit;
+    if (param_limit) {
+      document.getElementById("param-limit").value = param_limit;
     }
 
     // Optionally trigger graph fetch automatically
@@ -4825,7 +4825,7 @@ document.addEventListener("keydown", function (event) {
 async function isWatched(address, chain) {
   const userId = getOrCreateUserId();
   try {
-    const res = await fetch(`https://akirion.com:4665/api/iswatched?userId=${userId}&address=${encodeURIComponent(address)}`, {
+    const res = await fetch(`https://akirion.com:4665/api/iswatched?userId=${userId}&address=${encodeURIComponent(address)}&chain=${chain}`, {
       headers: { 'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678' }
     });
     const json = await res.json();
@@ -4931,17 +4931,40 @@ async function showWatchedAddressesModal() {
     const data = await response.json();
     const list = document.getElementById('watched-list');
     list.innerHTML = '';
+    list.innerHTML = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="text-align: left; border-bottom: 1px solid #555;">
+            <th style="padding: 6px;">Address</th>
+            <th style="padding: 6px;">Chain</th>
+            <th style="padding: 6px; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="watched-table-body"></tbody>
+      </table>
+    `;
+
+    const tbody = document.getElementById('watched-table-body');
     data.watched.forEach(({ address, chain }) => {
-      const row = document.createElement('div');
       const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
-      row.style.margin = '6px 0';
+      const row = document.createElement('tr');
       row.innerHTML = `
-        <code>${shortened}</code> <small style="color:#aaa">(${chain})</small>
-        <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="margin-left: 8px; padding: 2px 6px; font-size: 12px; background: #e53935; color: white; border: none; border-radius: 3px; cursor: pointer;">
-          Stop watching
-        </button>
+        <td style="padding: 6px;"><code>${shortened}</code></td>
+        <td style="padding: 6px;"><small style="color:#aaa">${chain}</small></td>
+        <td style="padding: 6px; text-align: right;">
+          <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="
+            padding: 4px 10px;
+            font-size: 13px;
+            background: #e53935;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Stop watching</button>
+        </td>
       `;
-      list.appendChild(row);
+
+      tbody.appendChild(row);
     });
     document.getElementById('watched-modal').style.display = 'block';
   } catch (err) {
