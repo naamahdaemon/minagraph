@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging.js";
+import { onMessage, getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDHO1ADBXCoEDheIbti99TZ2dTaDhNVkbE",
@@ -44,3 +44,11 @@ function getOrCreateUserId() {
   }
   return id;
 }
+
+onMessage(messaging, (payload) => {
+  console.log('[FCM] Foreground message received:', payload);
+  const title = payload.data?.title || 'Notification';
+  const body = payload.data?.body || '';
+
+  showInAppNotification(title, body);
+});

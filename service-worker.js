@@ -121,12 +121,15 @@ self.addEventListener('notificationclick', function(event) {
 
   // Open the PWA window or focus if already open
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
-        if (client.url === '/index.html' && 'focus' in client) {
+        // Focus if any window of your origin is already open
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
+
+      // Else open a new window
       if (clients.openWindow) {
         return clients.openWindow('/');
       }
