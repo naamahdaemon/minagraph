@@ -145,6 +145,12 @@ document.addEventListener("DOMContentLoaded", () => {
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
 
+  const params = new URLSearchParams(window.location.search);
+  const chain = params.get("chain");
+  const address = params.get("address");
+  const firstLimit = params.get("firstiterationlimit");
+  const depth = params.get("depth");
+  const limit = params.get("iterationlimit");
   
   // Load selected blockchain from localStorage
   const storedBlockchain = localStorage.getItem('selectedBlockchain');
@@ -235,7 +241,27 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem(`start-key-${selectedBlockchain}`, key);
   });
   
+  if (chain && address) {
+    document.getElementById("blockchain-select").value = chain;
+    document.getElementById("param-base-key").value = address;
+
+    if (firstLimit) {
+      document.getElementById("param-first-iteration").value = firstLimit;
+    }
+    if (depth) {
+      document.getElementById("param-depth").value = depth;
+    }
+    if (limit) {
+      document.getElementById("param-limit").value = limit;
+    }
+
+    // Optionally trigger graph fetch automatically
+    setTimeout(() => {
+      document.getElementById("start-graph-btn").click();
+    }, 100);
+  } else {  
   loadFetchParams();
+  }
   setupFetchParamListeners();
 
   apiTokenInput.value = getApiToken(chain);
