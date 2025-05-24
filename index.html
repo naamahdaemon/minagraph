@@ -16,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.0.0"></script>  
   <link href="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.js"></script>
+  <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
 
   
@@ -227,6 +228,12 @@
         <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
         <div id="layout-progress-text" style="font-size: 13px; color: #aaa; text-align: right; margin-top: 4px;">0%</div>
       </div>
+      
+      <h2 style="font-size: 16px; margin-bottom: 10px;">Watched Adresses</h2>
+      <button onclick="showWatchedAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #2fa3d7; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        📩 View Watched Addresses
+      </button>
+      
       <h2 style="font-size: 16px; margin-bottom: 10px;">Load / Save</h2>
       <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
       <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
@@ -250,6 +257,34 @@
       </div>
     </div>
 
+    <!-- Watched Addresses Modal -->
+    <div id="watched-modal" style="
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #222;
+      color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      z-index: 10000;
+      max-height: 80vh;
+      overflow-y: auto;
+    ">
+      <h3>Watched Addresses</h3>
+      <div id="watched-list"></div>
+      <button onclick="document.getElementById('watched-modal').style.display='none'" style="
+        margin-top: 20px;
+        background: #f44336;
+        border: none;
+        color: white;
+        padding: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      ">Close</button>
+    </div>
 
     <!-- Make sure the graph container has margin-left to not overlap the sidebar -->
     <div id="main-content">
