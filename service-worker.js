@@ -1,5 +1,32 @@
 const CACHE_NAME = 'mina-graph-explorer-v1';
 
+importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: "AIzaSyDHO1ADBXCoEDheIbti99TZ2dTaDhNVkbE",
+  authDomain: "paymentlink-ab03d.firebaseapp.com",
+  projectId: "paymentlink-ab03d",
+  messagingSenderId: "648184826463",
+  appId: "1:648184826463:web:2edefbe49f127e48dae9ea"
+});
+
+const messaging = firebase.messaging();
+
+// ? Affiche les notifications reçues quand la PWA est en arrière-plan
+messaging.onBackgroundMessage((payload) => {
+  console.log('[SW] Push reçu en arrière-plan : ', payload);
+
+  const notificationTitle = payload.notification?.title || "Notification";
+  const notificationOptions = {
+    body: payload.notification?.body || '',
+    icon: '/icons/icon-192.png'
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -88,3 +115,22 @@ self.addEventListener('fetch', event => {
     )
   );
 });
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+
+  // Open the PWA window or focus if already open
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      for (const client of clientList) {
+        if (client.url === '/index.html' && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
+});
+

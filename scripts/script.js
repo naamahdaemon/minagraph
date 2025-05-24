@@ -3149,10 +3149,11 @@ function showNodePanel(node) {
   //});
   
   const html = `
-    <h3>
+    <h3 style="display: flex; align-items: center; gap: 10px;">
       <a href="${getExplorerURL('account', node, selectedBlockchain)}" target="_blank" style="color:#4fc3f7">
         ${data.label}
       </a>
+      <span id="watch-status"></span>
     </h3>      
     <button onclick="deleteSelectedNode('${node}')" title="Delete node (Del)" style="
       margin: 5px 0;
@@ -3339,6 +3340,17 @@ function showNodePanel(node) {
     </div>`;
     
   details.innerHTML = html;
+  
+  if (evmChains.includes(selectedBlockchain)) {
+    const watchSpan = document.getElementById("watch-status");
+    if (!watchSpan) return;
+
+    isWatched(node, selectedBlockchain).then(watched => {
+      renderWatchIcon(watchSpan, watched, node, selectedBlockchain);
+    });
+  }
+
+  
   panel.style.display = "flex";
   document.getElementById("date-slicer-container").classList.add("on-left");
 
@@ -4783,3 +4795,139 @@ document.addEventListener("keydown", function (event) {
     input.focus();
   }
 });
+
+async function isWatched(address, chain) {
+  const userId = getOrCreateUserId();
+  try {
+    const res = await fetch(`https://akirion.com:4665/api/iswatched?userId=${userId}&address=${encodeURIComponent(address)}`, {
+      headers: { 'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678' }
+    });
+    const json = await res.json();
+    return json.isWatched;
+  } catch (err) {
+    console.error('Failed to check watch status:', err);
+    return false;
+  }
+}
+
+async function watchThisAddress(address, chain) {
+  const API_KEY = "0e74cb18-74fa-458e-8adb-f3a8096c0678";
+  const userId = getOrCreateUserId();
+
+  const res = await fetch("https://akirion.com:4665/api/watch-alchemy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY
+    },
+    body: JSON.stringify({ userId, address, chain })
+  });
+
+  const result = await res.json();
+  alert(`✅ Watch registered: ${result.status}`);
+}
+
+async function unwatchThisAddress(address, chain, refreshModal = false) {
+  const API_KEY = "0e74cb18-74fa-458e-8adb-f3a8096c0678";
+  const userId = getOrCreateUserId();
+  const res = await fetch("https://akirion.com:4665/api/unwatch-alchemy", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY
+    },
+    body: JSON.stringify({ userId, address, chain })
+  }).then(() => {
+    if (refreshModal) showWatchedAddressesModal();
+    alert(`✅ Unwatched: ${address} (${chain})`);
+  });
+}
+
+
+async function unWatchThisAddress_old(address, chain) {
+  const API_KEY = "0e74cb18-74fa-458e-8adb-f3a8096c0678";
+  const userId = getOrCreateUserId();
+
+  const res = await fetch("https://akirion.com:4665/api/unwatch-alchemy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY
+    },
+    body: JSON.stringify({ userId, address, chain })
+  });
+
+  const result = await res.json();
+  alert(`✅ Watch unregistered: ${result.status}`);
+}
+
+function renderWatchIcon(container, isWatched, address, chain) {
+  if (isWatched) {
+    container.innerHTML = `<span onclick="toggleWatch(false, '${address}', '${chain}')" title="Unwatch address" style="cursor:pointer; font-size:18px;">🔔</span>`;
+  } else {
+    container.innerHTML = `<span onclick="toggleWatch(true, '${address}', '${chain}')" title="Watch address" style="cursor:pointer; font-size:18px;">🔕</span>`;
+  }
+}
+
+async function toggleWatch(shouldWatch, address, chain) {
+  const userId = getOrCreateUserId();
+  const method = shouldWatch ? 'POST' : 'POST'; // both are POST, different endpoints
+  const endpoint = shouldWatch ? '/api/watch-alchemy' : '/api/unwatch-alchemy';
+  const body = JSON.stringify({ userId, address, chain });
+
+  try {
+    const res = await fetch(`https://akirion.com:4665${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678'
+      },
+      body
+    });
+
+    if (res.ok) {
+      const watchSpan = document.getElementById("watch-status");
+      if (watchSpan) renderWatchIcon(watchSpan, shouldWatch, address, chain);
+    } else {
+      console.warn("Failed to update watch status:", await res.text());
+    }
+  } catch (err) {
+    console.error("Error updating watch status:", err);
+  }
+}
+
+async function showWatchedAddressesModal() {
+  const userId = getOrCreateUserId();
+  try {
+    const response = await fetch(`https://akirion.com:4665/api/watched?userId=${userId}`, {
+      headers: { 'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678' }
+    });
+    const data = await response.json();
+    const list = document.getElementById('watched-list');
+    list.innerHTML = '';
+    data.watched.forEach(({ address, chain }) => {
+      const row = document.createElement('div');
+      row.style.margin = '6px 0';
+      row.innerHTML = `
+        <code>${address}</code> <small style="color:#aaa">(${chain})</small>
+        <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="margin-left: 8px; padding: 2px 6px; font-size: 12px; background: #e53935; color: white; border: none; border-radius: 3px; cursor: pointer;">
+          Stop watching
+        </button>
+      `;
+      list.appendChild(row);
+    });
+    document.getElementById('watched-modal').style.display = 'block';
+  } catch (err) {
+    alert('Error fetching watched addresses');
+    console.error(err);
+  }
+}
+
+function getOrCreateUserId() {
+  let id = localStorage.getItem("mge_user_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("mge_user_id", id);
+  }
+  return id;
+}
