@@ -4907,9 +4907,10 @@ async function showWatchedAddressesModal() {
     list.innerHTML = '';
     data.watched.forEach(({ address, chain }) => {
       const row = document.createElement('div');
+      const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
       row.style.margin = '6px 0';
       row.innerHTML = `
-        <code>${address}</code> <small style="color:#aaa">(${chain})</small>
+        <code>${shortened}</code> <small style="color:#aaa">(${chain})</small>
         <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="margin-left: 8px; padding: 2px 6px; font-size: 12px; background: #e53935; color: white; border: none; border-radius: 3px; cursor: pointer;">
           Stop watching
         </button>
@@ -4930,4 +4931,30 @@ function getOrCreateUserId() {
     localStorage.setItem("mge_user_id", id);
   }
   return id;
+}
+
+function showInAppNotification(title, body) {
+  const notif = document.createElement('div');
+  notif.style.position = 'fixed';
+  notif.style.bottom = '20px';
+  notif.style.right = '20px';
+  notif.style.background = '#333';
+  notif.style.color = 'white';
+  notif.style.padding = '12px 18px';
+  notif.style.borderRadius = '8px';
+  notif.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+  notif.style.zIndex = 9999;
+  notif.style.fontSize = '14px';
+  notif.style.maxWidth = '300px';
+  notif.style.cursor = 'pointer';
+  notif.style.transition = 'opacity 0.3s';
+
+  notif.innerHTML = `<strong>${title}</strong><br>${body}`;
+
+  notif.onclick = () => notif.remove();
+
+  document.body.appendChild(notif);
+
+  // Auto-remove after 5 seconds
+  setTimeout(() => notif.remove(), 5000);
 }
