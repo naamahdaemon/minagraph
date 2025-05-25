@@ -105,8 +105,7 @@ This project is open to feedback, improvements, or ideas — feel free to fork o
 ---
 
 ## 📄 License
-
-MIT — free to use, modify, and redistribute.
+GPL
 
 ---
 
