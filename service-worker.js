@@ -39,7 +39,17 @@ const STATIC_ASSETS = [
   '/scripts/forceAtlas.js',
   '/scripts/fruchtermanReingold.js',
   '/scripts/openOrd.js',
-
+  '/img/arbitrum.png',
+  '/img/base.png',
+  '/img/bsc.png',
+  '/img/cronos.png',
+  '/img/ethereum.png',
+  '/img/mina.png',
+  '/img/optimism.png',
+  '/img/polygon.png',
+  '/img/solana.png',
+  '/img/tezos.png',
+  '/img/zksync.png',
 
   // CDN assets
   'https://fonts.googleapis.com/css2?family=Coda&display=swap',
