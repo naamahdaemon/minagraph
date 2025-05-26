@@ -5096,9 +5096,9 @@ function showFavoritesAddressesModal() {
     row.innerHTML = `
       <td style="text-align: left;padding: 3px; font-size: 10px;"><code>${shortened}</code></td>
       <td style="text-align: left;padding: 3px;"><small style="color:#aaa">${chain}</small></td>
-      <td style="text-align: left;padding: 3px;text-align: center;">
+      <td style="text-align: left;padding: 3px;text-align: right;">
       <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
-          padding: 2px 10px;
+          padding: 2px 7px;
             font-size: 10px;
             background: #e53935;
             color: white;
@@ -5107,7 +5107,7 @@ function showFavoritesAddressesModal() {
             cursor: pointer;
           ">Remove</button>
       <button onclick="fetchFavorite('${address}', '${chain}')"  style="
-          padding: 2px 10px;
+          padding: 2px 7px;
             font-size: 10px;
           background: #06b203;
             color: white;
@@ -5116,7 +5116,7 @@ function showFavoritesAddressesModal() {
             cursor: pointer;
           ">Fetch</button>
         <button onclick="showQRCode('${address}')" style="
-          padding: 2px 10px;
+          padding: 2px 7px;
           font-size: 10px;
           background: #007bff;
           color: white;
