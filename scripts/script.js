@@ -5081,24 +5081,28 @@ function showFavoritesAddressesModal() {
     return;
   }
 
-  const table = document.createElement("table");
-  table.style.width = "100%";
-  table.style.borderCollapse = "collapse";
+  list.innerHTML = `
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <thead>
+        <tr style="text-align: left; border-bottom: 1px solid #555;">
+          <th style="padding: 6px;">Address</th>
+          <th style="padding: 6px;">Chain</th>
+          <th style="padding: 6px; text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="favorites-table-body"></tbody>
+    </table>
+  `;
 
+  const tbody = document.getElementById('favorites-table-body');
   favorites.forEach(({ address, chain }) => {
-    const tr = document.createElement("tr");
-
     const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+    const row = document.createElement("tr");
 
-    const tdAddr = document.createElement("td");
-    tdAddr.innerHTML = `<code>${shortened}</code>`;
-
-    const tdChain = document.createElement("td");
-    tdChain.textContent = chain;
-
-    const tdActions = document.createElement("td");
-    tdActions.style.textAlign = "right";
-    tdActions.innerHTML = `
+    row.innerHTML = `
+      <td style="padding: 6px; font-size: 10px;"><code>${shortened}</code></td>
+      <td style="padding: 6px;"><small style="color:#aaa">${chain}</small></td>
+      <td style="padding: 6px; text-align: right;">
       <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
             padding: 4px 10px;
             font-size: 10px;
@@ -5111,22 +5115,17 @@ function showFavoritesAddressesModal() {
       <button onclick="fetchFavorite('${address}', '${chain}')"  style="
             padding: 4px 10px;
             font-size: 10px;
-            background: #39e535;
+          background: #06b203;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
           ">Fetch</button>
+      </td>
     `;
 
-    tr.appendChild(tdAddr);
-    tr.appendChild(tdChain);
-    tr.appendChild(tdActions);
-
-    table.appendChild(tr);
+    tbody.appendChild(row);
   });
-
-  list.appendChild(table);
 }
 
 function fetchFavorite(address, chain) {
