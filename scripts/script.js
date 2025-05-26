@@ -3368,7 +3368,7 @@ function showNodePanel(node) {
     
   details.innerHTML = html;
   
-  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos") {
+  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos" || selectedBlockchain==="mina") {
     const watchSpan = document.getElementById("watch-status");
     if (!watchSpan) return;
 
@@ -4843,7 +4843,16 @@ async function isWatched(address, chain) {
 
 function getApiEndpoint(chain, watch = true) {
   const API_URL = "https://akirion.com:4665";
-  if (chain === "tezos") return `${API_URL}/api/${watch ? "watch-tezos" : "unwatch-tezos"}`;
+
+  if (chain === "mina") {
+    return `${API_URL}/api/${watch ? "watch-mina" : "unwatch-mina"}`;
+  }
+
+  if (chain === "tezos") {
+    return `${API_URL}/api/${watch ? "watch-tezos" : "unwatch-tezos"}`;
+  }
+
+  // Default to EVM chains (Ethereum, Polygon, BSC, etc.)
   return `${API_URL}/api/${watch ? "watch-alchemy" : "unwatch-alchemy"}`;
 }
 
@@ -4928,7 +4937,7 @@ async function toggleWatch(shouldWatch, address, chain) {
       const watchSpan = document.getElementById("watch-status");
       if (watchSpan) renderWatchIcon(watchSpan, shouldWatch, address, chain);
       const favoriteSpan = document.getElementById("favorite-status");
-      if (favoriteSpan) renderFavIcon(favoriteSpan, isFavorite(node, selectedBlockchain), node, selectedBlockchain);
+      if (favoriteSpan) renderFavIcon(favoriteSpan, isFavorite(address, selectedBlockchain), address, selectedBlockchain);
     } else {
       console.warn("Failed to update watch status:", await res.text());
     }
