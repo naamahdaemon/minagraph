@@ -3367,7 +3367,7 @@ function showNodePanel(node) {
     
   details.innerHTML = html;
   
-  if (evmChains.includes(selectedBlockchain)) {
+  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos") {
     const watchSpan = document.getElementById("watch-status");
     if (!watchSpan) return;
 
@@ -4836,11 +4836,18 @@ async function isWatched(address, chain) {
   }
 }
 
+function getApiEndpoint(chain, watch = true) {
+  const API_URL = "https://akirion.com:4665";
+  if (chain === "tezos") return `${API_URL}/api/${watch ? "watch-tezos" : "unwatch-tezos"}`;
+  return `${API_URL}/api/${watch ? "watch-alchemy" : "unwatch-alchemy"}`;
+}
+
 async function watchThisAddress(address, chain) {
   const API_KEY = "0e74cb18-74fa-458e-8adb-f3a8096c0678";
   const userId = getOrCreateUserId();
+  const endpoint = getApiEndpoint(chain, true);
 
-  const res = await fetch("https://akirion.com:4665/api/watch-alchemy", {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -4855,8 +4862,9 @@ async function watchThisAddress(address, chain) {
 
 async function unwatchThisAddress(address, chain, refreshModal = false) {
   const API_KEY = "0e74cb18-74fa-458e-8adb-f3a8096c0678";
+  const endpoint = getApiEndpoint(chain, false);
   const userId = getOrCreateUserId();
-  const res = await fetch("https://akirion.com:4665/api/unwatch-alchemy", {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -4897,12 +4905,12 @@ function renderWatchIcon(container, isWatched, address, chain) {
 
 async function toggleWatch(shouldWatch, address, chain) {
   const userId = getOrCreateUserId();
+  const endpoint = getApiEndpoint(chain, shouldWatch);
   const method = shouldWatch ? 'POST' : 'POST'; // both are POST, different endpoints
-  const endpoint = shouldWatch ? '/api/watch-alchemy' : '/api/unwatch-alchemy';
   const body = JSON.stringify({ userId, address, chain });
 
   try {
-    const res = await fetch(`https://akirion.com:4665${endpoint}`, {
+    const res = await fetch(endpoint, {
       method,
       headers: {
         'Content-Type': 'application/json',
