@@ -5026,7 +5026,7 @@ function showInAppNotification(title, body) {
   document.body.appendChild(notif);
 
   // Auto-remove after 5 seconds
-  setTimeout(() => notif.remove(), 5000);
+  setTimeout(() => notif.remove(), 10000);
 }
 
 function getFavorites() {
