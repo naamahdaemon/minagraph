@@ -3179,6 +3179,7 @@ function showNodePanel(node) {
       <a href="${getExplorerURL('account', node, selectedBlockchain)}" target="_blank" style="color:#4fc3f7">
         ${data.label}
       </a>
+      <span id="favorite-status"></span>
       <span id="watch-status"></span>
     </h3>      
     <button onclick="deleteSelectedNode('${node}')" title="Delete node (Del)" style="
@@ -3375,6 +3376,10 @@ function showNodePanel(node) {
       renderWatchIcon(watchSpan, watched, node, selectedBlockchain);
     });
   }
+
+  const favSpan = document.getElementById("favorite-status");
+  const isFav = isFavorite(node, selectedBlockchain);
+  renderFavIcon(favSpan, isFav, node, selectedBlockchain);
 
   
   panel.style.display = "flex";
@@ -4922,6 +4927,8 @@ async function toggleWatch(shouldWatch, address, chain) {
     if (res.ok) {
       const watchSpan = document.getElementById("watch-status");
       if (watchSpan) renderWatchIcon(watchSpan, shouldWatch, address, chain);
+      const favoriteSpan = document.getElementById("favorite-status");
+      if (favoriteSpan) renderFavIcon(favoriteSpan, isFavorite(node, selectedBlockchain), node, selectedBlockchain);
     } else {
       console.warn("Failed to update watch status:", await res.text());
     }
@@ -5014,4 +5021,121 @@ function showInAppNotification(title, body) {
 
   // Auto-remove after 5 seconds
   setTimeout(() => notif.remove(), 5000);
+}
+
+function getFavorites() {
+  return JSON.parse(localStorage.getItem("favorites")) || [];
+}
+
+function saveFavorites(favs) {
+  localStorage.setItem("favorites", JSON.stringify(favs));
+}
+
+function isAddressInFavorites(address, chain) {
+  return getFavorites().some(fav => fav.address === address && fav.chain === chain);
+}
+
+function isFavorite(address, chain) {
+  const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+  return favorites.some(entry => entry.address === address && entry.chain === chain);
+}
+
+function unFavThisAddress(address, chain) {
+  let favorites = getFavorites();
+  favorites = favorites.filter(fav => !(fav.address === address && fav.chain === chain));
+  saveFavorites(favorites);
+}
+
+function renderFavIcon(container, isFav, address, chain) {
+  container.innerHTML = `<span onclick="toggleFavorite(${!isFav}, '${address}', '${chain}')" 
+    title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" 
+    style="cursor:pointer; font-size:18px;">${isFav ? "⭐" : "☆"}</span>`;
+}
+
+function toggleFavorite(shouldAdd, address, chain) {
+  const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+  const index = favorites.findIndex(entry => entry.address === address && entry.chain === chain);
+
+  if (shouldAdd && index === -1) {
+    favorites.push({ address, chain });
+  } else if (!shouldAdd && index !== -1) {
+    favorites.splice(index, 1);
+  }
+
+  localStorage.setItem("favorites", JSON.stringify(favorites));
+
+  const favSpan = document.getElementById("favorite-status");
+  if (favSpan) renderFavIcon(favSpan, shouldAdd, address, chain);
+}
+
+function showFavoritesAddressesModal() {
+  const modal = document.getElementById("favorites-modal");
+  const list = document.getElementById("favorites-list");
+  const favorites = getFavorites();
+
+  modal.style.display = "block";
+  list.innerHTML = "";
+
+  if (favorites.length === 0) {
+    list.innerHTML = "<p style='color:#aaa;'>No favorites yet.</p>";
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.style.width = "100%";
+  table.style.borderCollapse = "collapse";
+
+  favorites.forEach(({ address, chain }) => {
+    const tr = document.createElement("tr");
+
+    const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+
+    const tdAddr = document.createElement("td");
+    tdAddr.innerHTML = `<code>${shortened}</code>`;
+
+    const tdChain = document.createElement("td");
+    tdChain.textContent = chain;
+
+    const tdActions = document.createElement("td");
+    tdActions.style.textAlign = "right";
+    tdActions.innerHTML = `
+      <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
+            padding: 4px 10px;
+            font-size: 10px;
+            background: #e53935;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Remove</button>
+      <button onclick="fetchFavorite('${address}', '${chain}')"  style="
+            padding: 4px 10px;
+            font-size: 10px;
+            background: #39e535;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          ">Fetch</button>
+    `;
+
+    tr.appendChild(tdAddr);
+    tr.appendChild(tdChain);
+    tr.appendChild(tdActions);
+
+    table.appendChild(tr);
+  });
+
+  list.appendChild(table);
+}
+
+function fetchFavorite(address, chain) {
+  const select = document.getElementById("blockchain-select");
+  select.value = chain;
+
+  // ⏬ Manually dispatch change event
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  document.getElementById("param-base-key").value = address;
+  document.getElementById("start-graph-btn").click();
+  document.getElementById("favorites-modal").style.display = "none";
 }
