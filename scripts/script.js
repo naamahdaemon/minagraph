@@ -4862,7 +4862,7 @@ async function watchThisAddress(address, chain) {
   });
 
   const result = await res.json();
-  alert(`✅ Watch registered: ${result.status}`);
+  //alert(`✅ Watch registered: ${result.status}`);
 }
 
 async function unwatchThisAddress(address, chain, refreshModal = false) {
@@ -4878,7 +4878,7 @@ async function unwatchThisAddress(address, chain, refreshModal = false) {
     body: JSON.stringify({ userId, address, chain })
   }).then(() => {
     if (refreshModal) showWatchedAddressesModal();
-    alert(`✅ Unwatched: ${address} (${chain})`);
+    //alert(`✅ Unwatched: ${address} (${chain})`);
   });
 }
 
@@ -4948,15 +4948,12 @@ async function showWatchedAddressesModal() {
     list.innerHTML = '';
     list.innerHTML = `
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        <thead>
-          <tr style="text-align: left; border-bottom: 1px solid #555;">
-            <th style="padding: 6px;">Address</th>
-            <th style="padding: 6px;">Chain</th>
-            <th style="padding: 6px; text-align: right;">Actions</th>
-          </tr>
-        </thead>
+      </table>
+      <div style="max-height: 300px; overflow-y: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
         <tbody id="watched-table-body"></tbody>
       </table>
+      </div>
     `;
 
     const tbody = document.getElementById('watched-table-body');
@@ -4966,7 +4963,7 @@ async function showWatchedAddressesModal() {
       row.innerHTML = `
         <td style="padding: 6px;font-size: 10px;"><code>${shortened}</code></td>
         <td style="padding: 6px;"><small style="color:#aaa">${chain}</small></td>
-        <td style="padding: 6px; text-align: right;">
+        <td style="padding: 6px; text-align: center;">
           <button onclick="unwatchThisAddress('${address}', '${chain}', true)" style="
             padding: 4px 10px;
             font-size: 10px;
@@ -5083,15 +5080,12 @@ function showFavoritesAddressesModal() {
 
   list.innerHTML = `
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-      <thead>
-        <tr style="text-align: left; border-bottom: 1px solid #555;">
-          <th style="padding: 6px;">Address</th>
-          <th style="padding: 6px;">Chain</th>
-          <th style="padding: 6px; text-align: right;">Actions</th>
-        </tr>
-      </thead>
+    </table>
+    <div style="max-height: 300px; overflow-y: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
       <tbody id="favorites-table-body"></tbody>
     </table>
+    </div>
   `;
 
   const tbody = document.getElementById('favorites-table-body');
@@ -5100,9 +5094,9 @@ function showFavoritesAddressesModal() {
     const row = document.createElement("tr");
 
     row.innerHTML = `
-      <td style="padding: 6px; font-size: 10px;"><code>${shortened}</code></td>
-      <td style="padding: 6px;"><small style="color:#aaa">${chain}</small></td>
-      <td style="padding: 6px; text-align: right;">
+      <td style="text-align: left;padding: 6px; font-size: 10px;"><code>${shortened}</code></td>
+      <td style="text-align: left;padding: 6px;"><small style="color:#aaa">${chain}</small></td>
+      <td style="text-align: left;padding: 6px;text-align: center;">
       <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
             padding: 4px 10px;
             font-size: 10px;
