@@ -5082,7 +5082,7 @@ function showFavoritesAddressesModal() {
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
     </table>
     <div style="max-height: 300px; overflow-y: auto;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
       <tbody id="favorites-table-body"></tbody>
     </table>
     </div>
@@ -5094,11 +5094,11 @@ function showFavoritesAddressesModal() {
     const row = document.createElement("tr");
 
     row.innerHTML = `
-      <td style="text-align: left;padding: 6px; font-size: 10px;"><code>${shortened}</code></td>
-      <td style="text-align: left;padding: 6px;"><small style="color:#aaa">${chain}</small></td>
-      <td style="text-align: left;padding: 6px;text-align: center;">
+      <td style="text-align: left;padding: 3px; font-size: 10px;"><code>${shortened}</code></td>
+      <td style="text-align: left;padding: 3px;"><small style="color:#aaa">${chain}</small></td>
+      <td style="text-align: left;padding: 3px;text-align: center;">
       <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
-            padding: 4px 10px;
+          padding: 2px 10px;
             font-size: 10px;
             background: #e53935;
             color: white;
@@ -5107,7 +5107,7 @@ function showFavoritesAddressesModal() {
             cursor: pointer;
           ">Remove</button>
       <button onclick="fetchFavorite('${address}', '${chain}')"  style="
-            padding: 4px 10px;
+          padding: 2px 10px;
             font-size: 10px;
           background: #06b203;
             color: white;
@@ -5116,14 +5116,14 @@ function showFavoritesAddressesModal() {
             cursor: pointer;
           ">Fetch</button>
         <button onclick="showQRCode('${address}')" style="
-          padding: 4px 10px;
+          padding: 2px 10px;
           font-size: 10px;
           background: #007bff;
           color: white;
           border: none;
           border-radius: 4px;
           cursor: pointer;
-        ">QRCode</button>
+        ">QRC</button>
       </td>
     `;
 
