@@ -5115,6 +5115,15 @@ function showFavoritesAddressesModal() {
             border-radius: 4px;
             cursor: pointer;
           ">Fetch</button>
+        <button onclick="showQRCode('${address}')" style="
+          padding: 4px 10px;
+          font-size: 10px;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        ">QRCode</button>
       </td>
     `;
 
@@ -5131,4 +5140,40 @@ function fetchFavorite(address, chain) {
   document.getElementById("param-base-key").value = address;
   document.getElementById("start-graph-btn").click();
   document.getElementById("favorites-modal").style.display = "none";
+}
+
+function showQRCode(address) {
+  const modal = document.getElementById("qrcode-modal");
+  const container = document.getElementById("qrcode-container");
+  container.innerHTML = ''; // Clear previous QR code
+
+  // Créer un conteneur centré
+  const innerWrapper = document.createElement("div");
+  innerWrapper.style.display = "flex";
+  innerWrapper.style.flexDirection = "column";
+  innerWrapper.style.alignItems = "center";
+  innerWrapper.style.justifyContent = "center";
+
+  // Générer le QR Code
+  const qrDiv = document.createElement("div");
+  new QRCode(qrDiv, {
+    text: address,
+    width: 200,
+    height: 200,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  innerWrapper.appendChild(qrDiv);
+
+  // Ajouter l'adresse en dessous
+  const label = document.createElement("p");
+  label.style.marginTop = "10px";
+  label.style.fontSize = "12px";
+  label.style.wordBreak = "break-all";
+  label.style.color = "#000";
+  label.style.textAlign = "center";
+  label.textContent = address;
+  innerWrapper.appendChild(label);
+
+  container.appendChild(innerWrapper);
+  modal.style.display = "flex";
 }
