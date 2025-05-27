@@ -127,8 +127,11 @@
       right: 20px;
       background: #222;
       z-index: 1001;
-      padding: 10px;
+      padding: 5px;
       border-radius: 8px;
+      display: flex;
+      align-items: center; /* vertical alignment */
+      gap: 2px;             /* space between buttons/items */      
     }
 
     #sigma-container {
@@ -342,6 +345,38 @@
       height: 32px;
       line-height: 32px;
       box-sizing: border-box;
+    }
+
+    .control-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .control-button svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
+    }
+
+    .control-button-filled {
+      height: 36px;
+      width: 36px;
+      padding: 6px 10px !important;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center !important;
+      justify-content: center !important;
     }
 
     /* Optionnel : ajuster les checkboxes (qui sont plus petits) */
