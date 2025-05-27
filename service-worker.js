@@ -188,7 +188,8 @@ self.addEventListener('notificationclick', function(event) {
 self.addEventListener('push', function(event) {
   let data = {};
   try {
-    data = event.data?.json() || {};
+    const payload = event.data?.json() || {};
+    const data = payload.data || payload; // fallback if already flat
   } catch (e) {
     console.warn('Invalid JSON in push event:', e);
   }
