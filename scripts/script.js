@@ -707,6 +707,53 @@ document.addEventListener("DOMContentLoaded", () => {
     handleSearch(e.target.value);
   });
   
+  // --- Listen to service worker push message
+  navigator.serviceWorker?.addEventListener('message', event => {
+    if (event.data?.type === 'push-received') {
+      const notif = event.data.payload;
+      console.log('[UI] Push received:', notif);
+
+      saveNotificationToStorage(notif)
+        .then(updateNotificationBadge)
+        .catch(err => console.error('Failed to store notification:', err));
+    }
+  });
+
+  const resetBtn = document.getElementById('reset-db-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      const confirmed = confirm("Are you sure you want to delete all saved notifications?");
+      if (confirmed) {
+        indexedDB.deleteDatabase('notificationDB');
+        alert("Notifications database deleted. Reload the page to reinitialize.");
+        location.reload();
+      }
+    });
+  }
+
+  if (location.hostname !== 'localhost' || true) {
+    document.getElementById('reset-db-btn')?.remove();
+  }
+
+  updateNotificationBadge();
+  
+  document.getElementById('notification-button')?.addEventListener('click', () => {
+    const panel = document.getElementById('notification-list');
+    if (panel.style.display === 'block') {
+      panel.style.display = 'none';
+    } else {
+      showNotificationList();
+    }
+  });
+  
+  document.addEventListener('click', function (event) {
+    const list = document.getElementById('notification-list');
+    const button = document.getElementById('notification-button');
+    if (!list.contains(event.target) && !button.contains(event.target)) {
+      list.style.display = 'none';
+    }
+  });
+  
 });
 
 init();
@@ -5003,6 +5050,7 @@ function getOrCreateUserId() {
   return id;
 }
 
+// UNUSED
 function showInAppNotification(title, body) {
   const notif = document.createElement('div');
   notif.style.position = 'fixed';
@@ -5185,4 +5233,152 @@ function showQRCode(address) {
 
   container.appendChild(innerWrapper);
   modal.style.display = "flex";
+}
+
+// --- IndexedDB: open/create DB
+function openNotificationDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('notificationDB', 1);
+
+    request.onupgradeneeded = function(event) {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('notifications')) {
+        db.createObjectStore('notifications', { keyPath: 'timestamp' });
+      }
+    };
+
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+// --- Load all notifications
+function getSavedNotifications() {
+  return openNotificationDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notifications', 'readonly');
+      const store = tx.objectStore('notifications');
+      const getAll = store.getAll();
+      getAll.onsuccess = () => resolve(getAll.result);
+      getAll.onerror = reject;
+    });
+  });
+}
+
+// --- Save notification
+function saveNotificationToStorage(data) {
+  return openNotificationDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notifications', 'readwrite');
+      const store = tx.objectStore('notifications');
+
+      const timestamp = Date.now();
+      const newEntry = { ...data, timestamp };
+
+      // Check if similar entry exists (based on title+body)
+      const indexRequest = store.getAll();
+
+      indexRequest.onsuccess = () => {
+        const existing = indexRequest.result.find(n =>
+          n.title === newEntry.title &&
+          n.body === newEntry.body &&
+          Math.abs(n.timestamp - timestamp) < 3000 // 3 sec window
+        );
+
+        if (existing) {
+          console.log('[UI] Duplicate notification skipped.');
+          resolve(); // don't save
+        } else {
+          store.add(newEntry);
+          tx.oncomplete = resolve;
+          tx.onerror = reject;
+        }
+      };
+
+      indexRequest.onerror = reject;
+    });
+  });
+}
+
+
+// --- Update badge
+async function updateNotificationBadge() {
+  const badge = document.getElementById('notification-badge');
+  if (!badge) return;
+
+  try {
+    const notifs = await getSavedNotifications();
+    badge.textContent = notifs.length;
+    badge.style.display = notifs.length > 0 ? 'inline-block' : 'none';
+  } catch (err) {
+    console.error('Badge update error:', err);
+  }
+}
+
+function deleteNotification(timestamp) {
+  return openNotificationDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notifications', 'readwrite');
+      const store = tx.objectStore('notifications');
+      store.delete(timestamp);
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  });
+}
+
+async function showNotificationList() {
+  const container = document.getElementById('notification-list');
+  const notifs = await getSavedNotifications();
+
+  if (!notifs.length) {
+    container.innerHTML = "<p style='margin:0;color:#888;'>No notifications</p>";
+  } else {
+    container.innerHTML = notifs
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(n => `
+        <div style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
+          <strong>${n.title}</strong><br>
+          <small>${n.body}</small><br>
+          <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
+          <button style="
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: transparent;
+            color: #aaa;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+          " title="Delete" onclick="deleteAndRefresh(${n.timestamp})">✖</button>
+        </div>
+      `).join('');
+  }
+
+  container.style.display = 'block';
+}
+
+// Then attach it globally
+window.deleteAndRefresh = async function(timestamp) {
+  await deleteNotification(timestamp);
+  await updateNotificationBadge();
+  await showNotificationList();
+};
+
+function showToastNotification(title, body) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+
+  toast.innerHTML = `<strong>${title}</strong><br>${body}`;
+  toast.style.display = 'block';
+
+  if (window._toastTimeout) {
+    clearTimeout(window._toastTimeout);
+  }
+
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+    toast.style.display = 'none';
+  }, 4000);
 }

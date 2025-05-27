@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v1';
+const CACHE_NAME = 'mina-graph-explorer-v2';
 
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging-compat.js");
@@ -25,6 +25,44 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+function saveNotificationToStorage(data) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('notificationDB', 1);
+
+    request.onupgradeneeded = function(event) {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('notifications')) {
+        db.createObjectStore('notifications', { keyPath: 'timestamp' });
+      }
+    };
+
+    request.onsuccess = function(event) {
+      const db = event.target.result;
+      const tx = db.transaction('notifications', 'readwrite');
+      const store = tx.objectStore('notifications');
+
+      try {
+        store.add({ ...data, timestamp: Date.now() });
+      } catch (e) {
+        console.error('[SW] IndexedDB write error:', e);
+        reject(e);
+        return;
+      }
+
+      tx.oncomplete = resolve;
+      tx.onerror = (e) => {
+        console.error('[SW] TX error', e);
+        reject(e);
+      };
+    };
+
+    request.onerror = (e) => {
+      console.error('[SW] DB open error', e);
+      reject(e);
+    };
+  });
+}
 
 
 const STATIC_ASSETS = [
@@ -129,6 +167,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
+  // Open the PWA window or focus if already open
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
@@ -145,4 +184,53 @@ self.addEventListener('notificationclick', function(event) {
     })
   );
 });
+
+self.addEventListener('push', function(event) {
+  let data = {};
+  try {
+    data = event.data?.json() || {};
+  } catch (e) {
+    console.warn('Invalid JSON in push event:', e);
+  }
+
+  const title = data.title || 'Notification';
+  const body = data.body || '';
+  const icon = '/icons/icon-192.png';
+
+  const notificationData = { title, body, icon };
+
+  // Skip if payload is clearly incomplete
+  if (!title || title === 'Notification') {
+    console.warn('[SW] Skipping generic fallback notification');
+    return;
+  }
+
+  // ?? Affichage + stockage SW + diffusion
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        data: notificationData
+      });
+
+      // ? Stocker dans IndexedDB (contexte service worker)
+      await saveNotificationToStorage(notificationData);
+
+      // ? Informer la page si elle est active
+      const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      
+      const hasVisibleClient = clientsList.some(client => client.visibilityState === 'visible');
+
+      // âœ… Only save in SW if app is NOT visible
+      if (!hasVisibleClient) {
+        await saveNotificationToStorage(notificationData);
+      }   
+      for (const client of clientsList) {
+        client.postMessage({ type: 'push-received', payload: notificationData });
+      }
+    })()
+  );
+});
+
 
