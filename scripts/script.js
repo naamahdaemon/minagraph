@@ -711,8 +711,10 @@ document.addEventListener("DOMContentLoaded", () => {
   navigator.serviceWorker?.addEventListener('message', event => {
     if (event.data?.type === 'push-received') {
       const notif = event.data.payload;
-      console.log('[UI] Push received:', notif);
-
+      if (!notif.message_id) {
+        console.warn('[UI] Ignored message with no ID');
+        return;
+      }
       saveNotificationToStorage(notif)
         .then(updateNotificationBadge)
         .catch(err => console.error('Failed to store notification:', err));
@@ -731,11 +733,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (location.hostname !== 'localhost' || true) {
+  if (location.hostname !== 'localhost') {
     document.getElementById('reset-db-btn')?.remove();
   }
 
-  updateNotificationBadge();
   
   document.getElementById('notification-button')?.addEventListener('click', () => {
     const panel = document.getElementById('notification-list');
@@ -764,6 +765,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
+  updateNotificationBadge();
 });
 
 init();
@@ -5245,16 +5247,17 @@ function showQRCode(address) {
   modal.style.display = "flex";
 }
 
-// --- IndexedDB: open/create DB
+// ✅ Ensure DB version is 2 and uses message_id as key
 function openNotificationDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('notificationDB', 1);
+    const request = indexedDB.open('notificationDB', 2);
 
     request.onupgradeneeded = function(event) {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains('notifications')) {
-        db.createObjectStore('notifications', { keyPath: 'timestamp' });
+      if (db.objectStoreNames.contains('notifications')) {
+        db.deleteObjectStore('notifications');
       }
+      db.createObjectStore('notifications', { keyPath: 'message_id' });
     };
 
     request.onsuccess = event => resolve(event.target.result);
@@ -5285,23 +5288,31 @@ function saveNotificationToStorage(data) {
       const timestamp = Date.now();
       const newEntry = { ...data, timestamp };
 
-      // Check if similar entry exists (based on title+body)
+      if (!newEntry.message_id) {
+        console.warn('[UI] Cannot save notification: missing message_id');
+        resolve();
+        return;
+      }
+
       const indexRequest = store.getAll();
 
       indexRequest.onsuccess = () => {
         const existing = indexRequest.result.find(n =>
-          n.title === newEntry.title &&
-          n.body === newEntry.body &&
-          Math.abs(n.timestamp - timestamp) < 3000 // 3 sec window
+          n.message_id === newEntry.message_id
         );
 
         if (existing) {
-          console.log('[UI] Duplicate notification skipped.');
-          resolve(); // don't save
+          console.log('[UI] Duplicate message_id, skipping.');
+          resolve();
         } else {
+          try {
           store.add(newEntry);
           tx.oncomplete = resolve;
           tx.onerror = reject;
+          } catch (e) {
+            console.error('[UI] IndexedDB add error:', e);
+            reject(e);
+          }
         }
       };
 
@@ -5325,12 +5336,12 @@ async function updateNotificationBadge() {
   }
 }
 
-function deleteNotification(timestamp) {
+function deleteNotification(message_id) {
   return openNotificationDB().then(db => {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('notifications', 'readwrite');
       const store = tx.objectStore('notifications');
-      store.delete(timestamp);
+      store.delete(message_id);
       tx.oncomplete = resolve;
       tx.onerror = reject;
     });
@@ -5360,7 +5371,7 @@ async function showNotificationList() {
             border: none;
             cursor: pointer;
             font-size: 14px;
-          " title="Delete" onclick="deleteAndRefresh(${n.timestamp})">✖</button>
+          " title="Delete" onclick="deleteAndRefresh('${n.message_id}')">✖</button>
         </div>
       `).join('');
   }
@@ -5369,8 +5380,8 @@ async function showNotificationList() {
 }
 
 // Then attach it globally
-window.deleteAndRefresh = async function(timestamp) {
-  await deleteNotification(timestamp);
+window.deleteAndRefresh = async function(message_id) {
+  await deleteNotification(message_id);
   await updateNotificationBadge();
   await showNotificationList();
 };
