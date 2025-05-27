@@ -14,7 +14,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ? Affiche les notifications reçues quand la PWA est en arrière-plan
-messaging.onBackgroundMessage((payload) => {
+/*messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Background payload:', payload);
 
   const notificationTitle = payload.data.title || "Notification";
@@ -24,7 +24,7 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
-});
+});*/
 
 function saveNotificationToStorage(data) {
   return new Promise((resolve, reject) => {
