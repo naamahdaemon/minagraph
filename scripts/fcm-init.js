@@ -1,3 +1,4 @@
+// === fcm-init.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { onMessage, getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging.js";
 
@@ -46,31 +47,21 @@ function getOrCreateUserId() {
 }
 
 onMessage(messaging, (payload) => {
-  console.log("[FCM] Foreground message received: ", payload);
+  const d = payload.data || {};
+  const message_id = d.message_id || `auto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const data = {
+    title: d.title,
+    body: d.body,
+    icon: "/icons/icon-192.png",
+    message_id
+  };
 
-  const { title, body } = payload.data || {};
-  
-  if (!title || !body) {
-    console.warn('[UI] Ignored invalid foreground notification:', payload);
-    return;
-  }
-  
-  const data = { title: title || "Notification", body: body || "", icon: "/icons/icon-192.png" };
-
-  // ✅ Show toast popup
+  // ✅ Show toast
   showToastNotification(data.title, data.body);
 
-
-  // Optional: also show browser notification
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(reg => {
-      if (reg) {
-        reg.showNotification(data.title, { body: data.body, icon: data.icon });
-  }
-    });
-  }
+  // ❌ Skip duplicate system notif - only Service Worker should show it in background
   
-  // Save in DB (because page is open)
+  // ✅ Save in DB
   saveNotificationToStorage(data)
     .then(updateNotificationBadge)
     .catch(console.error);

@@ -206,7 +206,7 @@ self.addEventListener('push', function(event) {
   let data = {};
   try {
     const payload = event.data?.json() || {};
-    data = payload.data || payload; // fallback if already flat
+    data = payload.data || payload;
   } catch (e) {
     console.warn('Invalid JSON in push event:', e);
   }
@@ -214,16 +214,15 @@ self.addEventListener('push', function(event) {
   const title = data.title || 'Notification';
   const body = data.body || '';
   const icon = '/icons/icon-192.png';
+  const message_id = data.message_id;
 
-  const notificationData = { title, body, icon };
+  const notificationData = { title, body, icon, message_id };
 
-  // Skip if payload is clearly incomplete
-  if (!title || title === 'Notification') {
-    console.warn('[SW] Skipping generic fallback notification');
+  if (!title || !message_id) {
+    console.warn('[SW] Skipping notification due to missing title or message_id');
     return;
   }
 
-  // ?? Affichage + stockage SW + diffusion
   event.waitUntil(
     (async () => {
       await self.registration.showNotification(title, {
@@ -232,18 +231,17 @@ self.addEventListener('push', function(event) {
         data: notificationData
       });
 
-      // ? Stocker dans IndexedDB (contexte service worker)
-      await saveNotificationToStorage(notificationData);
-
-      // ? Informer la page si elle est active
       const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       
       const hasVisibleClient = clientsList.some(client => client.visibilityState === 'visible');
 
-      // âœ… Only save in SW if app is NOT visible
+      // ? Only save in background (not if app is visible)
       if (!hasVisibleClient) {
+        console.log('[SW] App in background: saving notification');
         await saveNotificationToStorage(notificationData);
       }   
+
+      // ? Inform foreground clients
       for (const client of clientsList) {
         client.postMessage({ type: 'push-received', payload: notificationData });
       }
