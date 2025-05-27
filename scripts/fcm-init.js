@@ -46,9 +46,28 @@ function getOrCreateUserId() {
 }
 
 onMessage(messaging, (payload) => {
-  console.log('[FCM] Foreground message received:', payload);
-  const title = payload.data?.title || 'Notification';
-  const body = (payload.data.body || "").replace(/\n/g, "<br/>");
+  console.log("[FCM] Foreground message received: ", payload);
 
-  showInAppNotification(title, body);
+  const { title, body } = payload.data || {};
+  
+  if (!title || !body) {
+    console.warn('[UI] Ignored invalid foreground notification:', payload);
+    return;
+  }
+  
+  const data = { title: title || "Notification", body: body || "", icon: "/icons/icon-192.png" };
+
+  // ✅ Show toast popup
+  showToastNotification(data.title, data.body);
+
+
+  // Optional: also show browser notification
+  if (Notification.permission === 'granted') {
+    new Notification(data.title, { body: data.body, icon: data.icon });
+  }
+  
+  // Save in DB (because page is open)
+  saveNotificationToStorage(data)
+    .then(updateNotificationBadge)
+    .catch(console.error);
 });

@@ -126,7 +126,7 @@
       top: 20px;
       right: 20px;
       background: #222;
-      z-index: 999;
+      z-index: 1001;
       padding: 10px;
       border-radius: 8px;
     }
@@ -359,7 +359,7 @@
       vertical-align: middle;
       height: 32px; /* ou ta hauteur souhaitée */
       line-height: normal;
-      padding: 0 12px;
+      padding: 0 5px;
     }    
 
     .sigma-label {
@@ -781,4 +781,12 @@
     color: #888;
     font-style: italic;
     font-size: 12px;
+  }
+  
+  #toast {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+  }
+  #toast.show {
+    opacity: 1;
   }
