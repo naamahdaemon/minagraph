@@ -42,23 +42,48 @@ function saveNotificationToStorage(data) {
       const tx = db.transaction('notifications', 'readwrite');
       const store = tx.objectStore('notifications');
 
+      const now = Date.now();
+      const entry = { ...data, timestamp: now };
+
+      // First, fetch all notifications to check for duplicates
+      const getAll = store.getAll();
+
+      getAll.onsuccess = function() {
+        const alreadyExists = getAll.result.some(n =>
+          n.title === entry.title &&
+          n.body === entry.body &&
+          Math.abs(n.timestamp - now) < 3000 // within 3 seconds
+        );
+
+        if (alreadyExists) {
+          console.log('[Storage] Skipped duplicate notification');
+          resolve(); // No need to reject, we just don't save
+          return;
+        }
+
       try {
-        store.add({ ...data, timestamp: Date.now() });
+          store.add(entry);
       } catch (e) {
-        console.error('[SW] IndexedDB write error:', e);
+          console.error('[Storage] IndexedDB add error:', e);
         reject(e);
         return;
       }
 
       tx.oncomplete = resolve;
       tx.onerror = (e) => {
-        console.error('[SW] TX error', e);
+          console.error('[Storage] Transaction error:', e);
+        reject(e);
+      };
+    };
+
+      getAll.onerror = (e) => {
+        console.error('[Storage] Failed to read for deduplication', e);
         reject(e);
       };
     };
 
     request.onerror = (e) => {
-      console.error('[SW] DB open error', e);
+      console.error('[Storage] DB open error', e);
       reject(e);
     };
   });
