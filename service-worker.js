@@ -189,7 +189,7 @@ self.addEventListener('push', function(event) {
   let data = {};
   try {
     const payload = event.data?.json() || {};
-    const data = payload.data || payload; // fallback if already flat
+    data = payload.data || payload; // fallback if already flat
   } catch (e) {
     console.warn('Invalid JSON in push event:', e);
   }
