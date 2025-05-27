@@ -35,7 +35,7 @@
       transform: translateX(-100%);
       transition: transform 0.3s ease;
       background: #1e1e1e;
-      z-index: 1001;
+      z-index: 1002;
     }
 
     #left-sidebar.open {
@@ -178,7 +178,7 @@
       border: none;
       color: white;
       font-size: 24px;
-      z-index: 1002;
+      z-index: 1003;
     }
 
     @media screen and (max-width: 768px) {
