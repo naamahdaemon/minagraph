@@ -754,6 +754,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        console.log("✅ Push permission granted");
+      } else {
+        console.warn("⚠️ Push permission denied:", permission);
+      }
+    });
+  }
+  
 });
 
 init();
