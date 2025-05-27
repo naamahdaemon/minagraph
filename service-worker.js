@@ -28,13 +28,14 @@ messaging.onBackgroundMessage((payload) => {
 
 function saveNotificationToStorage(data) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('notificationDB', 1);
+    const request = indexedDB.open('notificationDB', 2); // ?? bump version to trigger upgrade
 
     request.onupgradeneeded = function(event) {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains('notifications')) {
-        db.createObjectStore('notifications', { keyPath: 'timestamp' });
+      if (db.objectStoreNames.contains('notifications')) {
+        db.deleteObjectStore('notifications'); // clean old store (was keyed by timestamp)
       }
+      db.createObjectStore('notifications', { keyPath: 'message_id' });
     };
 
     request.onsuccess = function(event) {
@@ -42,25 +43,20 @@ function saveNotificationToStorage(data) {
       const tx = db.transaction('notifications', 'readwrite');
       const store = tx.objectStore('notifications');
 
-      const now = Date.now();
-      const entry = { ...data, timestamp: now };
-
-      // First, fetch all notifications to check for duplicates
-      const getAll = store.getAll();
-
-      getAll.onsuccess = function() {
-        const alreadyExists = getAll.result.some(n =>
-          n.title === entry.title &&
-          n.body === entry.body &&
-          Math.abs(n.timestamp - now) < 3000 // within 3 seconds
-        );
-
-        if (alreadyExists) {
-          console.log('[Storage] Skipped duplicate notification');
-          resolve(); // No need to reject, we just don't save
+      if (!data.message_id) {
+        console.warn('[Storage] Missing message_id, cannot save');
+        resolve();
           return;
         }
 
+      const entry = { ...data, timestamp: Date.now() };
+
+      const getReq = store.get(data.message_id);
+      getReq.onsuccess = function() {
+        if (getReq.result) {
+          console.log('[Storage] Duplicate message_id, skip store');
+          resolve();
+        } else {
       try {
           store.add(entry);
       } catch (e) {
@@ -68,16 +64,12 @@ function saveNotificationToStorage(data) {
         reject(e);
         return;
       }
+        }
+      };
 
       tx.oncomplete = resolve;
       tx.onerror = (e) => {
           console.error('[Storage] Transaction error:', e);
-        reject(e);
-      };
-    };
-
-      getAll.onerror = (e) => {
-        console.error('[Storage] Failed to read for deduplication', e);
         reject(e);
       };
     };
