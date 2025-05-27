@@ -62,8 +62,12 @@ onMessage(messaging, (payload) => {
 
 
   // Optional: also show browser notification
-  if (Notification.permission === 'granted') {
-    new Notification(data.title, { body: data.body, icon: data.icon });
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg) {
+        reg.showNotification(data.title, { body: data.body, icon: data.icon });
+  }
+    });
   }
   
   // Save in DB (because page is open)
