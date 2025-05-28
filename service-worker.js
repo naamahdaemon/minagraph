@@ -240,8 +240,8 @@ self.addEventListener('push', function(event) {
   const actions = [];
 
   // ? Ajouter des boutons si présents dans le payload
-  if (data.action_primary) {
-    actions.push({ action: data.action_primary, title: 'Show Graph' });
+  if (data.action_primary === 'show_graph' && data.chain && data.address) {
+    actions.push({ action: 'show_graph', title: 'Show Graph' });
   }
   if (data.action_secondary) {
     actions.push({ action: data.action_secondary, title: 'Dismiss' });
@@ -252,8 +252,11 @@ self.addEventListener('push', function(event) {
     body,
     icon,
     message_id,
-    click_action, // ? stocké pour le gérer au click
-    actions
+    click_action,
+    chain: data.chain,
+    address: data.address,
+    action_primary: data.action_primary,
+    action_secondary: data.action_secondary
   };
 
   if (!title || !message_id) {
