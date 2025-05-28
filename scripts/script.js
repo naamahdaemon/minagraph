@@ -709,16 +709,20 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // --- Listen to service worker push message
   navigator.serviceWorker?.addEventListener('message', event => {
-    if (event.data?.type === 'push-received') {
+      if (event.data?.type !== 'push-received') return;
       const notif = event.data.payload;
-      if (!notif.message_id) {
+      if (!notif?.message_id) {
         console.warn('[UI] Ignored message with no ID');
         return;
       }
+
+      // ✅ Stockage + mise à jour du badge
       saveNotificationToStorage(notif)
         .then(updateNotificationBadge)
         .catch(err => console.error('Failed to store notification:', err));
-    }
+
+      // ✅ Gestion des actions
+      handleNotificationActions(notif);
   });
 
   const resetBtn = document.getElementById('reset-db-btn');
@@ -769,6 +773,22 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 init();
+
+function handleNotificationActions(notif) {
+  if (!notif || !notif.action_primary) return;
+
+  if (notif.action_primary === 'show_graph' && notif.chain && notif.address) {
+    console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
+    try {
+      window.BASE_KEY = notif.address;
+      main(2, true, notif.chain); 
+    } catch (e) {
+      console.error('Error triggering graph from notification:', e);
+    }
+  }
+}
+
+
 
 async function init() {
   await loadExtraTokensFromCSV('./tokens/tokens.csv');
@@ -3954,7 +3974,9 @@ function handleSearch(query) {
 }
 
 
-async function main(depth = 2, wipeGraph = true) {
+
+
+async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   const panel = document.getElementById("side-panel");
   
   showLoader(); // ✅ show modal
@@ -3969,7 +3991,8 @@ async function main(depth = 2, wipeGraph = true) {
     window.initialPublicKey = "";
   }
   visitedKeysByChain.clear();
-  await buildGraphRecursively(BASE_KEY, depth);
+  
+  await buildGraphRecursively(BASE_KEY, depth, chainOverride);
 
   applyNodeSizesByDegree();
   //fruchtermanReingold(graph);

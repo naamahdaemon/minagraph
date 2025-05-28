@@ -190,7 +190,7 @@ self.addEventListener('notificationclick', function(event) {
 
   // ? Si un bouton a été cliqué
   if (action) {
-    if (action === 'open_wallet') {
+    if (action === 'show_graph') {
       event.waitUntil(clients.openWindow(click_action));
       return;
     }
@@ -241,7 +241,7 @@ self.addEventListener('push', function(event) {
 
   // ? Ajouter des boutons si présents dans le payload
   if (data.action_primary) {
-    actions.push({ action: data.action_primary, title: 'Open Wallet' });
+    actions.push({ action: data.action_primary, title: 'Show Graph' });
   }
   if (data.action_secondary) {
     actions.push({ action: data.action_secondary, title: 'Dismiss' });
