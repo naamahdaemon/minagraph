@@ -188,34 +188,26 @@ self.addEventListener('notificationclick', function(event) {
   const data = event.notification.data || {};
   const click_action = data.click_action || '/';
 
-  // ? Si un bouton a été cliqué
-  if (action) {
-    if (action === 'show_graph') {
-      event.waitUntil(clients.openWindow(click_action));
-      return;
-    }
-
-    if (action === 'dismiss') {
-      // rien à faire, juste fermer
-      return;
-    }
-
-    // D'autres actions personnalisées ?
-    console.log('[SW] Unknown action clicked:', action);
-    return;
-  }
-
-  // ? Sinon : clic simple sur la notification
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
-        // Focus if any window of your origin is already open
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
+          // ? Focus and post action if needed
+          client.focus();
+
+          if (action === 'show_graph') {
+            client.postMessage({
+              type: 'push-received',
+              payload: data,
+              actionClicked: 'show_graph'
+            });
+          }
+
+          return;
         }
       }
 
-      // Else open a new window
+      // ? If no client open, open new tab
       if (clients.openWindow) {
         return clients.openWindow(click_action);
       }
