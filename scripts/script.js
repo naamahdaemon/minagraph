@@ -5358,7 +5358,7 @@ async function showNotificationList() {
     container.innerHTML = notifs
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(n => `
-        <div style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
+        <div class="notif-item" data-id="${n.message_id}" style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
           <strong>${n.title}</strong><br>
           <small>${n.body}</small><br>
           <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
@@ -5373,7 +5373,71 @@ async function showNotificationList() {
             font-size: 14px;
           " title="Delete" onclick="deleteAndRefresh('${n.message_id}')">✖</button>
         </div>
-      `).join('');
+      `).join('')
+
+      // ✅ Enable swipe-to-delete
+      container.querySelectorAll('.notif-item').forEach(el => {
+        let startX = null;
+
+        // --- Mobile: touch
+        el.addEventListener('touchstart', e => {
+          startX = e.touches[0].clientX;
+        });
+
+        el.addEventListener('touchmove', e => {
+          if (startX === null) return;
+          const deltaX = e.touches[0].clientX - startX;
+          el.style.transform = `translateX(${Math.min(deltaX, 100)}px)`;
+          el.style.opacity = `${1 - Math.min(deltaX / 100, 1)}`;
+        });
+
+        el.addEventListener('touchend', async () => {
+          const deltaX = parseFloat(el.style.transform.replace(/[^0-9.-]/g, '') || 0);
+          if (deltaX > 50) {
+            const id = el.dataset.id;
+            await deleteAndRefresh(id);
+          } else {
+            el.style.transform = '';
+            el.style.opacity = '';
+          }
+          startX = null;
+        });
+
+        // --- Desktop: mouse
+        let mouseStartX = null;
+
+        el.addEventListener('mousedown', e => {
+          mouseStartX = e.clientX;
+          el.style.transition = 'none';
+        });
+
+        el.addEventListener('mousemove', e => {
+          if (mouseStartX === null) return;
+          const deltaX = e.clientX - mouseStartX;
+          el.style.transform = `translateX(${Math.min(deltaX, 100)}px)`;
+          el.style.opacity = `${1 - Math.min(deltaX / 100, 1)}`;
+        });
+
+        el.addEventListener('mouseup', async e => {
+          const deltaX = e.clientX - mouseStartX;
+          el.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+
+          if (deltaX > 50) {
+            const id = el.dataset.id;
+            await deleteAndRefresh(id);
+          } else {
+            el.style.transform = '';
+            el.style.opacity = '';
+          }
+          mouseStartX = null;
+        });
+
+        el.addEventListener('mouseleave', () => {
+          mouseStartX = null;
+          el.style.transform = '';
+          el.style.opacity = '';
+        });
+      });
   }
 
   container.style.display = 'block';
