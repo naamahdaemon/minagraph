@@ -184,7 +184,28 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  // Open the PWA window or focus if already open
+  const action = event.action;
+  const data = event.notification.data || {};
+  const click_action = data.click_action || '/';
+
+  // ? Si un bouton a été cliqué
+  if (action) {
+    if (action === 'open_wallet') {
+      event.waitUntil(clients.openWindow(click_action));
+      return;
+    }
+
+    if (action === 'dismiss') {
+      // rien à faire, juste fermer
+      return;
+    }
+
+    // D'autres actions personnalisées ?
+    console.log('[SW] Unknown action clicked:', action);
+    return;
+  }
+
+  // ? Sinon : clic simple sur la notification
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
@@ -196,7 +217,7 @@ self.addEventListener('notificationclick', function(event) {
 
       // Else open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(click_action);
       }
     })
   );
@@ -215,8 +236,25 @@ self.addEventListener('push', function(event) {
   const body = data.body || '';
   const icon = '/icons/icon-192.png';
   const message_id = data.message_id;
+  const click_action = data.click_action || '/'; // ? URL à ouvrir
+  const actions = [];
 
-  const notificationData = { title, body, icon, message_id };
+  // ? Ajouter des boutons si présents dans le payload
+  if (data.action_primary) {
+    actions.push({ action: data.action_primary, title: 'Open Wallet' });
+  }
+  if (data.action_secondary) {
+    actions.push({ action: data.action_secondary, title: 'Dismiss' });
+  }
+
+  const notificationData = {
+    title,
+    body,
+    icon,
+    message_id,
+    click_action, // ? stocké pour le gérer au click
+    actions
+  };
 
   if (!title || !message_id) {
     console.warn('[SW] Skipping notification due to missing title or message_id');
@@ -228,7 +266,8 @@ self.addEventListener('push', function(event) {
       await self.registration.showNotification(title, {
         body,
         icon,
-        data: notificationData
+        data: notificationData,
+        actions // ? ajout des boutons dans l’affichage natif
       });
 
       const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
