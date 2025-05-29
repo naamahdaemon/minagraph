@@ -256,10 +256,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Optionally trigger graph fetch automatically
-    setTimeout(() => {
-      document.getElementById("start-graph-btn").click();
+    window.requestIdleCallback(() => {
+      const button = document.getElementById("start-graph-btn");
+      if (button) {
+        button.click();
       history.replaceState(null, '', window.location.pathname);
-    }, 100);
+      }
+    }, { timeout: 3000 });
   } else {  
   loadFetchParams();
   }
