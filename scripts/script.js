@@ -709,23 +709,28 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // --- Listen to service worker push message
   navigator.serviceWorker?.addEventListener('message', event => {
-      if (event.data?.type !== 'push-received') return;
-      const notif = event.data.payload;
-    const actionClicked = event.data.actionClicked; // 👈 peut être undefined
+    if (event.data?.type === 'notification-action') {
+      const { payload, action } = event.data;
 
+      // Exécuter selon l'action
+      if (action === 'show_graph' && payload.chain && payload.address) {
+        console.log('[UI] Triggering graph from notification action');
+        handleNotificationActions(payload); // ou ta logique directe
+      }
+    }
+
+    if (event.data?.type === 'push-received') {
+      const notif = event.data.payload;
       if (!notif?.message_id) {
         console.warn('[UI] Ignored message with no ID');
         return;
       }
 
-      // ✅ Stockage + mise à jour du badge
       saveNotificationToStorage(notif)
         .then(updateNotificationBadge)
         .catch(err => console.error('Failed to store notification:', err));
 
-    // ✅ Gestion des actions si un bouton a été cliqué
-    if (actionClicked === 'show_graph' && notif.chain && notif.address) {
-      handleNotificationActions(notif);
+      handleNotificationActions(notif); // Optionnel ici si déjà couvert plus haut
     }
   });
 
