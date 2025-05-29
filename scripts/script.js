@@ -258,6 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Optionally trigger graph fetch automatically
     setTimeout(() => {
       document.getElementById("start-graph-btn").click();
+      history.replaceState(null, '', window.location.pathname);
     }, 100);
   } else {  
   loadFetchParams();
