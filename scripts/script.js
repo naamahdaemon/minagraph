@@ -256,13 +256,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Optionally trigger graph fetch automatically
-    window.requestIdleCallback(() => {
-      const button = document.getElementById("start-graph-btn");
-      if (button) {
-        button.click();
+    setTimeout(() => {
+      document.getElementById("start-graph-btn").click();
       history.replaceState(null, '', window.location.pathname);
-      }
-    }, { timeout: 3000 });
+    }, 100);
   } else {  
   loadFetchParams();
   }
@@ -734,7 +731,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(updateNotificationBadge)
         .catch(err => console.error('Failed to store notification:', err));
 
-      handleNotificationActions(notif); // Optionnel ici si déjà couvert plus haut
+      //handleNotificationActions(notif); // Optionnel ici si déjà couvert plus haut
     }
   });
 
@@ -793,7 +790,7 @@ function handleNotificationActions(notif) {
   if (notif.action_primary === 'show_graph' && notif.chain && notif.address) {
     console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
     try {
-      window.BASE_KEY = notif.address;
+      BASE_KEY = notif.address;
       main(2, true, notif.chain); 
     } catch (e) {
       console.error('Error triggering graph from notification:', e);
