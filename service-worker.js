@@ -194,14 +194,8 @@ self.addEventListener('notificationclick', function(event) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           // ? Focus and post action if needed
           client.focus();
-
-          if (action === 'show_graph') {
-            client.postMessage({
-              type: 'push-received',
-              payload: data,
-              actionClicked: 'show_graph'
-            });
-          }
+          // ? Envoie les données au client via postMessage
+          client.postMessage({ type: 'notification-action', payload: data, action });
 
           return;
         }
@@ -209,7 +203,17 @@ self.addEventListener('notificationclick', function(event) {
 
       // ? If no client open, open new tab
       if (clients.openWindow) {
-        return clients.openWindow(click_action);
+        const url = new URL(click_action, self.location.origin);
+
+        if (action === 'show_graph' && data.chain && data.address) {
+          url.searchParams.set('chain', data.chain);
+          url.searchParams.set('address', data.address);
+          url.searchParams.set('firstiterationlimit', "1");
+          url.searchParams.set('depth', "2");
+          url.searchParams.set('iterationlimit', "10");
+          url.searchParams.set('autostart', '1'); // facultatif selon ton usage
+        }
+        return clients.openWindow(url.toString());
       }
     })
   );
