@@ -195,8 +195,9 @@ self.addEventListener('notificationclick', function(event) {
           // ? Focus and post action if needed
           client.focus();
           // ? Envoie les données au client via postMessage
+          setTimeout(() => {
           client.postMessage({ type: 'notification-action', payload: data, action });
-
+          }, 1000); // delay to let the page initialize
           return;
         }
       }

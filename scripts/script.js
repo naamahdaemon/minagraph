@@ -257,9 +257,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Optionally trigger graph fetch automatically
     setTimeout(() => {
-      document.getElementById("start-graph-btn").click();
+      // Safer version: call main() directly
+      BASE_KEY = param_address;
+      main(parseInt(param_depth || "2"), true, param_chain);
       history.replaceState(null, '', window.location.pathname);
-    }, 100);
+    }, 600);
   } else {  
   loadFetchParams();
   }
