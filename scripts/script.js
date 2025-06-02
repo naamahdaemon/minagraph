@@ -4002,7 +4002,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   }
   visitedKeysByChain.clear();
   
-  await buildGraphRecursively(BASE_KEY, depth, chainOverride);
+  await buildGraphRecursively(BASE_KEY, depth, 0, chainOverride);
 
   applyNodeSizesByDegree();
   //fruchtermanReingold(graph);
