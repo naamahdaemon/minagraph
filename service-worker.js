@@ -184,37 +184,20 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  const action = event.action;
-  const data = event.notification.data || {};
-  const click_action = data.click_action || '/';
+  // Open the PWA window or focus if already open
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
+        // Focus if any window of your origin is already open
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // ? Focus and post action if needed
-          client.focus();
-          // ? Envoie les données au client via postMessage
-          setTimeout(() => {
-          client.postMessage({ type: 'notification-action', payload: data, action });
-          }, 1000); // delay to let the page initialize
-          return;
+          return client.focus();
         }
       }
 
-      // ? If no client open, open new tab
+      // Else open a new window
       if (clients.openWindow) {
-        const url = new URL(click_action, self.location.origin);
-
-        if (action === 'show_graph' && data.chain && data.address) {
-          url.searchParams.set('chain', data.chain);
-          url.searchParams.set('address', data.address);
-          url.searchParams.set('firstiterationlimit', "1");
-          url.searchParams.set('depth', "2");
-          url.searchParams.set('iterationlimit', "10");
-          url.searchParams.set('autostart', '1'); // facultatif selon ton usage
-        }
-        return clients.openWindow(url.toString());
+        return clients.openWindow('/');
       }
     })
   );
@@ -266,8 +249,7 @@ self.addEventListener('push', function(event) {
       await self.registration.showNotification(title, {
         body,
         icon,
-        data: notificationData,
-        actions // ? ajout des boutons dans l’affichage natif
+        data: notificationData
       });
 
       const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
