@@ -5329,29 +5329,37 @@ function saveNotificationToStorage(data) {
         return;
       }
 
-      const indexRequest = store.getAll();
+      const getRequest = store.get(newEntry.message_id);
 
-      indexRequest.onsuccess = () => {
-        const existing = indexRequest.result.find(n =>
-          n.message_id === newEntry.message_id
-        );
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
 
         if (existing) {
-          console.log('[UI] Duplicate message_id, skipping.');
+          const hasAllFields =
+            existing.click_action && existing.chain && existing.address && existing.action_primary;
+
+          if (hasAllFields) {
+            console.log('[UI] Duplicate message_id with complete data, skipping:', newEntry.message_id);
           resolve();
+            return;
         } else {
-          try {
-          store.add(newEntry);
-          tx.oncomplete = resolve;
-          tx.onerror = reject;
-          } catch (e) {
-            console.error('[UI] IndexedDB add error:', e);
-            reject(e);
+            // Overwrite with more complete data
+            console.log('[UI] Overwriting incomplete notification:', newEntry.message_id);
+            store.put(newEntry);
           }
+        } else {
+          console.log('[UI] Saving new notification:', newEntry.message_id);
+          store.add(newEntry);
         }
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = (err) => {
+          console.error('[UI] IndexedDB transaction error:', err);
+          reject(err);
+        };
       };
 
-      indexRequest.onerror = reject;
+      getRequest.onerror = reject;
     });
   });
 }
@@ -5392,7 +5400,33 @@ async function showNotificationList() {
   } else {
     container.innerHTML = notifs
       .sort((a, b) => b.timestamp - a.timestamp)
-      .map(n => `
+      .map(n => {
+        const showGraphBtn = (n.action_primary === 'show_graph' && n.chain && n.address)
+          ? `<button onclick="handleShowGraph('${n.chain}', '${n.address}')" style="
+              margin-top: 6px;
+              margin-right: 6px;
+              padding: 4px 8px;
+              background: #2c88ff;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+            ">Show Graph</button>`
+          : '';
+
+        const dismissBtn = `<button onclick="deleteAndRefresh('${n.message_id}')" style="
+            margin-top: 6px;
+            padding: 4px 8px;
+            background: #444;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+          ">Dismiss</button>`;
+
+        return `
         <div class="notif-item" data-id="${n.message_id}" style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
           <strong>${n.title}</strong><br>
           <small>${n.body}</small><br>
@@ -5407,18 +5441,17 @@ async function showNotificationList() {
             cursor: pointer;
             font-size: 14px;
           " title="Delete" onclick="deleteAndRefresh('${n.message_id}')">✖</button>
+            <div style="margin-top: 6px;">${showGraphBtn}${dismissBtn}</div>
         </div>
-      `).join('')
+        `;
+      }).join('');
 
       // ✅ Enable swipe-to-delete
       container.querySelectorAll('.notif-item').forEach(el => {
         let startX = null;
 
-        // --- Mobile: touch
-        el.addEventListener('touchstart', e => {
-          startX = e.touches[0].clientX;
-        });
-
+      // Mobile
+      el.addEventListener('touchstart', e => { startX = e.touches[0].clientX; });
         el.addEventListener('touchmove', e => {
           if (startX === null) return;
           const deltaX = e.touches[0].clientX - startX;
@@ -5477,6 +5510,15 @@ async function showNotificationList() {
 
   container.style.display = 'block';
 }
+
+// Global graph launcher
+window.handleShowGraph = function(chain, address) {
+  if (!chain || !address) return;
+  console.log('[UI] Triggering graph display from notification list:', chain, address);
+  BASE_KEY = address;
+  main(2, true, chain);
+};
+
 
 // Then attach it globally
 window.deleteAndRefresh = async function(message_id) {
