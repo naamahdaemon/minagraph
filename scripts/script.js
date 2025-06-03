@@ -5462,7 +5462,7 @@ async function showNotificationList() {
         return `
         <div class="notif-item" data-id="${n.message_id}" style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
           <strong>${n.title}</strong><br>
-          <small>${n.body}</small><br>
+            <small>${(n.body || '').replace(/\n/g, '<br/>')}</small><br/>
           <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
           <button style="
             position: absolute;
@@ -5564,7 +5564,9 @@ function showToastNotification(title, body) {
   const toast = document.getElementById('toast');
   if (!toast) return;
 
-  toast.innerHTML = `<strong>${title}</strong><br>${body}`;
+  const safeBody = (body || '').replace(/\n/g, '<br/>');
+
+  toast.innerHTML = `<strong>${title}</strong><br>${safeBody}`;
   toast.style.display = 'block';
 
   if (window._toastTimeout) {
