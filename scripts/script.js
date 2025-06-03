@@ -5417,7 +5417,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 12px;
+              font-size: 10px;
             ">Sender Graph</button>`;
           }
           if (n.receiver) {
@@ -5430,7 +5430,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 12px;
+              font-size: 10px;
             ">Receiver Graph</button>`;
           }
           if (!n.sender && !n.receiver && n.address) {
@@ -5443,7 +5443,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 12px;
+              font-size: 10px;
             ">Show Graph</button>`;
           }
         }
@@ -5456,7 +5456,7 @@ async function showNotificationList() {
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 10px;
           ">Dismiss</button>`;
 
         return `
@@ -5549,7 +5549,7 @@ window.handleShowGraph = function(chain, address) {
   if (!chain || !address) return;
   console.log('[UI] Triggering graph display from notification list:', chain, address);
   BASE_KEY = address;
-  main(2, true, chain);
+  main(1, true, chain);
 };
 
 
