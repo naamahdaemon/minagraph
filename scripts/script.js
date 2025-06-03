@@ -5336,7 +5336,10 @@ function saveNotificationToStorage(data) {
 
         if (existing) {
           const hasAllFields =
-            existing.click_action && existing.chain && existing.address && existing.action_primary;
+            existing.click_action &&
+            existing.chain &&
+            (existing.sender || existing.receiver || existing.address) &&
+            existing.action_primary;
 
           if (hasAllFields) {
             console.log('[UI] Duplicate message_id with complete data, skipping:', newEntry.message_id);
@@ -5401,8 +5404,11 @@ async function showNotificationList() {
     container.innerHTML = notifs
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(n => {
-        const showGraphBtn = (n.action_primary === 'show_graph' && n.chain && n.address)
-          ? `<button onclick="handleShowGraph('${n.chain}', '${n.address}')" style="
+        let graphButtons = '';
+
+        if (n.action_primary === 'show_graph' && n.chain) {
+          if (n.sender) {
+            graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.sender}')" style="
               margin-top: 6px;
               margin-right: 6px;
               padding: 4px 8px;
@@ -5412,8 +5418,35 @@ async function showNotificationList() {
               border-radius: 4px;
               cursor: pointer;
               font-size: 12px;
-            ">Show Graph</button>`
-          : '';
+            ">Sender Graph</button>`;
+          }
+          if (n.receiver) {
+            graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.receiver}')" style="
+              margin-top: 6px;
+              margin-right: 6px;
+              padding: 4px 8px;
+              background: #27a745;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+            ">Receiver Graph</button>`;
+          }
+          if (!n.sender && !n.receiver && n.address) {
+            graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.address}')" style="
+              margin-top: 6px;
+              margin-right: 6px;
+              padding: 4px 8px;
+              background: #2c88ff;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+            ">Show Graph</button>`;
+          }
+        }
 
         const dismissBtn = `<button onclick="deleteAndRefresh('${n.message_id}')" style="
             margin-top: 6px;
@@ -5441,7 +5474,7 @@ async function showNotificationList() {
             cursor: pointer;
             font-size: 14px;
           " title="Delete" onclick="deleteAndRefresh('${n.message_id}')">✖</button>
-            <div style="margin-top: 6px;">${showGraphBtn}${dismissBtn}</div>
+            <div style="margin-top: 6px;">${graphButtons}${dismissBtn}</div>
         </div>
         `;
       }).join('');
