@@ -236,7 +236,9 @@ self.addEventListener('push', function(event) {
     chain: data.chain,
     address: data.address,
     action_primary: data.action_primary,
-    action_secondary: data.action_secondary
+    action_secondary: data.action_secondary,
+    ...(data.sender && { sender: data.sender }),
+    ...(data.receiver && { receiver: data.receiver })    
   };
 
   if (!title || !message_id) {
