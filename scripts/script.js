@@ -5548,6 +5548,8 @@ async function showNotificationList() {
 window.handleShowGraph = function(chain, address) {
   if (!chain || !address) return;
   console.log('[UI] Triggering graph display from notification list:', chain, address);
+  LIMIT = parseInt(document.getElementById("param-limit").value, 10);
+  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);  
   BASE_KEY = address;
   main(1, true, chain);
 };
