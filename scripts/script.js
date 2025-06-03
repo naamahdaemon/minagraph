@@ -5417,7 +5417,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 10px;
+              font-size: 11px;
             ">Sender Graph</button>`;
           }
           if (n.receiver) {
@@ -5430,7 +5430,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 10px;
+              font-size: 11px;
             ">Receiver Graph</button>`;
           }
           if (!n.sender && !n.receiver && n.address) {
@@ -5443,7 +5443,7 @@ async function showNotificationList() {
               border: none;
               border-radius: 4px;
               cursor: pointer;
-              font-size: 10px;
+              font-size: 11px;
             ">Show Graph</button>`;
           }
         }
@@ -5456,7 +5456,7 @@ async function showNotificationList() {
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 10px;
+            font-size: 11px;
           ">Dismiss</button>`;
 
         return `
