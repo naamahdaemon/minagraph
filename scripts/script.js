@@ -3459,7 +3459,7 @@ function showNodePanel(node) {
     
   details.innerHTML = html;
   
-  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos" || selectedBlockchain==="mina") {
+  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos" || selectedBlockchain==="mina" || selectedBlockchain==="solana") {
     const watchSpan = document.getElementById("watch-status");
     if (!watchSpan) return;
 
