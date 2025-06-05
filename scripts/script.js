@@ -5196,6 +5196,32 @@ function toggleSort(key) {
   });
 }
 
+function copyAddressToClipboard(el, address) {
+  navigator.clipboard.writeText(address).then(() => {
+    const toast = document.createElement("div");
+    toast.textContent = "✅ Copied!";
+    toast.style.cssText = `
+      position: absolute;
+      top: -18px;
+      left: 0;
+      background: #222;
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    `;
+    el.appendChild(toast);
+    requestAnimationFrame(() => (toast.style.opacity = "1"));
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 1000);
+  });
+}
+
 function showFavoritesAddressesModal() {
   let currentSortKey = null;
   let currentSortAsc = true;
@@ -5277,14 +5303,17 @@ function showFavoritesAddressesModal() {
     const row = document.createElement("tr");
 
     row.innerHTML = `
-        <td style="white-space: nowrap;"><code title="${address}">${shortened}</code></td>
+        <td style="white-space: nowrap;">
+          <code title="${address}" style="cursor: pointer; position: relative;" onclick="copyAddressToClipboard(this, '${address}')">
+            ${shortened}
+          </code>
+        </td>     
         <td style="white-space: nowrap;">${chain}</td>
         <td style="width: 100%;">
           <input value="${label || ""}" onchange="updateFavoriteLabel('${address}', '${chain}', this.value)"
                  style="width: 100%; box-sizing: border-box;" />
         </td>
         <td style="white-space: nowrap; text-align: right; width:1%;">
-          <button class="fav-btn" title="Copier" onclick="navigator.clipboard.writeText('${address}')">📋</button>
           <a class="fav-link" href="${explorerURL}" target="_blank" title="Voir dans explorer">🔗</a>
           <button class="fav-btn" title="QR Code" onclick="showQRCode('${address}')">📱</button>
           <button class="fav-btn" title="Fetch" onclick="fetchFavorite('${address}', '${chain}'); document.getElementById('favorites-overlay')?.remove();">🔍</button>
@@ -5314,7 +5343,7 @@ function createFavoritesModal(toggleSortCallback) {
   closeButton.onclick = () => modal.remove();
 
   const title = document.createElement("h2");
-  title.textContent = "Mes adresses favorites";
+  title.textContent = "⭐ Favorites";
   title.style.fontSize = "20px";
   title.style.marginBottom = "16px";
 
