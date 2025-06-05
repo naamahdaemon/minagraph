@@ -5310,7 +5310,7 @@ function showFavoritesAddressesModal() {
         </td>     
         <td style="white-space: nowrap;">${chain}</td>
         <td style="width: 100%;">
-          <input value="${label || ""}" onchange="updateFavoriteLabel('${address}', '${chain}', this.value)"
+          <input class="fav-label" value="${label || ""}" onchange="updateFavoriteLabel('${address}', '${chain}', this.value)"
                  style="width: 100%; box-sizing: border-box;" />
         </td>
         <td style="white-space: nowrap; text-align: right; width:1%;">
