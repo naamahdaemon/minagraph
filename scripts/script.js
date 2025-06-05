@@ -5343,7 +5343,7 @@ function createFavoritesModal(toggleSortCallback) {
   const title = document.createElement("h2");
   title.textContent = "⭐ Favorites";
   title.style.fontSize = "20px";
-  title.style.marginBottom = "16px";
+  title.style.marginBottom = "32px";
 
   const scrollWrapper = document.createElement("div");
   scrollWrapper.className = "favorites-scroll-wrapper";
@@ -5415,7 +5415,10 @@ function createFavoritesModal(toggleSortCallback) {
   });
 
   const thActions = document.createElement("th");
-  thActions.textContent = "";
+  thActions.style.background = "transparent";
+  thActions.style.border = "none";
+  thActions.style.opacity = "0";
+  thActions.style.pointerEvents = "none";
   tr.appendChild(thActions);
 
   thead.appendChild(tr);
