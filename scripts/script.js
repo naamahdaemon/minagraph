@@ -5281,13 +5281,12 @@ function showFavoritesAddressesModal() {
   }
 
   function updateSortIndicators() {
-    const ths = modal.querySelectorAll("thead th");
-    ths.forEach(th => {
-      const key = th.dataset.sortKey;
-      const indicator = th.querySelector(".sort-indicator");
-      if (!indicator) return;
+    const indicators = modal.querySelectorAll(".sort-indicator");
+    indicators.forEach(indicator => {
+      const sortKey = indicator.closest("th")?.querySelector("input")?.dataset.sortKey;
+      if (!sortKey) return;
 
-      if (key === currentSortKey) {
+      if (sortKey === currentSortKey) {
         indicator.textContent = currentSortAsc ? "▲" : "▼";
       } else {
         indicator.textContent = "↕";
@@ -5322,6 +5321,8 @@ function showFavoritesAddressesModal() {
     `;
       tableBody.appendChild(row);
     });
+    // 🔁 Refresh sort icons after render
+    updateSortIndicators();
   }
 
   // Initial render
@@ -5330,9 +5331,6 @@ function showFavoritesAddressesModal() {
 
 
 function createFavoritesModal(toggleSortCallback) {
-  const scrollWrapper = document.createElement("div");
-  scrollWrapper.className = "favorites-scroll-wrapper";
-
   const modal = document.createElement("div");
   modal.id = "favorites-overlay";
   modal.style.display = "flex";
@@ -5347,11 +5345,15 @@ function createFavoritesModal(toggleSortCallback) {
   title.style.fontSize = "20px";
   title.style.marginBottom = "16px";
 
+  const scrollWrapper = document.createElement("div");
+  scrollWrapper.className = "favorites-scroll-wrapper";
+
   const table = document.createElement("table");
+  table.className = "favorites-table"; // 📌 Add this for CSS
   table.style.cssText = `
     width: 100%;
     min-width: 400px;
-    table-layout: auto;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12px;
   `;
@@ -5364,36 +5366,50 @@ function createFavoritesModal(toggleSortCallback) {
     const sortKey = sortKeys[index];
 
     const th = document.createElement("th");
-    th.style.cursor = "pointer";
-    th.dataset.sortKey = sortKey;
+    th.style.position = "relative";
 
-    // clickable text + indicator
-    const labelSpan = document.createElement("span");
-    labelSpan.textContent = placeholder;
+    const inputWrapper = document.createElement("div");
+    inputWrapper.style.position = "relative";
+    inputWrapper.style.width = "100%";
 
-    const indicator = document.createElement("span");
-    indicator.className = "sort-indicator";
-    indicator.textContent = "↕";
-    indicator.style.marginLeft = "4px";
-    indicator.style.fontSize = "10px";
-    indicator.style.opacity = "0.7";
+    const input = document.createElement("input");
+    input.className = "fav-search";
+    input.placeholder = placeholder;
+    input.dataset.sortKey = sortKey;
+    input.style.cssText = `
+      padding: 6px 22px 6px 6px;
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: #f0f0f0;
+      font-size: 13px;
+    `;
 
-    th.appendChild(labelSpan);
-    th.appendChild(indicator);
+    const icon = document.createElement("span");
+    icon.className = "sort-indicator";
+    icon.textContent = "↕";
+    icon.style.cssText = `
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: #aaa;
+      cursor: pointer;
+      user-select: none;
+    `;
 
-    th.onclick = () => {
+    icon.onclick = (e) => {
+      e.stopPropagation();
       if (typeof toggleSortCallback === "function") {
         toggleSortCallback(sortKey);
       }
     };
 
-    // search field
-    const input = document.createElement("input");
-    input.className = "fav-search";
-    input.placeholder = placeholder;
-    input.style.cssText = "padding: 6px; margin: 2px; width: 100%; border-radius: 4px; border: none;";
-    th.appendChild(document.createElement("br"));
-    th.appendChild(input);
+    inputWrapper.appendChild(input);
+    inputWrapper.appendChild(icon);
+    th.appendChild(inputWrapper);
 
     tr.appendChild(th);
   });
