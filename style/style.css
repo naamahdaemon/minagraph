@@ -875,13 +875,8 @@
 
   #favorites-overlay .favorites-scroll-wrapper {
     overflow-y: auto;
-    flex: 1;
-  }
-
-  #favorites-overlay table {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
+    position: relative;
+    /*max-height: 65vh;*/ /* ajuste selon ton besoin */
   }
 
   #favorites-overlay td {
@@ -1018,5 +1013,55 @@
 
   /* Optional: fix the header border on scroll */
   #favorites-overlay thead {
-    border-bottom: 1px solid #555;
+    border-bottom: 0px solid #555;
+  }
+
+  .favorites-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  /* Ce qui fait coller l’en-tête */
+  .favorites-table thead th {
+    position: sticky;
+    top: 0;
+    background: rgba(46, 46, 46, 0.95);
+    z-index: 10;
+  }  
+
+/*for Testing purpose*/
+/*  .favorites-scroll-wrapper {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .favorites-table thead th {
+    background: #FF3333 !important;
+  }*/
+/*end*/
+
+  
+  .favorites-scroll-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .favorites-scroll-wrapper {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .favorites-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .favorites-table thead th {
+    position: sticky;
+    top: 0;
+    background: rgba(46, 46, 46, 0.95);
+    z-index: 10;
   }

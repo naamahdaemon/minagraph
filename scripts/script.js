@@ -5366,7 +5366,7 @@ function createFavoritesModal(toggleSortCallback) {
     const sortKey = sortKeys[index];
 
     const th = document.createElement("th");
-    th.style.position = "relative";
+    //th.style.position = "relative";
 
     const inputWrapper = document.createElement("div");
     inputWrapper.style.position = "relative";
@@ -5414,11 +5414,27 @@ function createFavoritesModal(toggleSortCallback) {
     tr.appendChild(th);
   });
 
+
+  const emptydiv = document.createElement("input");
+  emptydiv.className = "fav-search";
+  emptydiv.placeholder = "Actions";
+  emptydiv.style.cssText = `
+      padding: 6px 22px 6px 6px;
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: #f0f0f0;
+      font-size: 13px;
+      
+    `;  
+  emptydiv.readonly = true;
   const thActions = document.createElement("th");
-  thActions.style.background = "transparent";
-  thActions.style.border = "none";
-  thActions.style.opacity = "0";
+  //thActions.style.background = "#333333";
+  //thActions.style.border = "none";
+  //thActions.style.opacity = "0";
   thActions.style.pointerEvents = "none";
+  thActions.appendChild(emptydiv);
   tr.appendChild(thActions);
 
   thead.appendChild(tr);
