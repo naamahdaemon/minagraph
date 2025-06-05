@@ -825,3 +825,175 @@
   #toast.show {
     opacity: 1;
   }
+  
+  .notif-item {
+    background: #222;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .notif-item::before {
+    content: "🗑️";
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .notif-item.swiping {
+    background: #8b0000;
+  }
+
+  .notif-item.swiping::before {
+    opacity: 1;
+  }
+
+  #favorites-overlay {
+    position: fixed;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 10px;
+    background-color: rgba(46, 46, 46, 0.85);
+    color: white;
+    z-index: 9999;
+    font-size: 12px;
+    padding: 5px;
+    overflow: hidden; /* important for scrollable content inside */
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+    border: 1px solid #555;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.8);
+  }
+
+  #favorites-overlay .favorites-scroll-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  #favorites-overlay table {
+    width: 100%;
+    table-layout: auto;
+  }
+
+  #favorites-overlay td {
+    padding: 4px 6px;
+    vertical-align: middle;
+  }
+
+  #favorites-overlay td:nth-child(3) {
+    width: auto; /* label expands */
+  }
+
+  /* Do NOT use nowrap on all td's – only selectively on code and chain */
+  #favorites-overlay td:nth-child(1),
+  #favorites-overlay td:nth-child(2),
+  #favorites-overlay td:nth-child(4) {
+    white-space: nowrap;
+    min-width: 80px;
+  }
+
+  /* Close button */
+  #favorites-overlay button.close-fav {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    color: white;
+    border: 2px solid white;
+    font-size: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  #favorites-overlay button.close-fav:hover {
+    background: white;
+    color: black;
+  }
+
+  /* Search fields */
+  #favorites-overlay input.fav-search {
+    background: #1a1a1a;
+    color: #f0f0f0;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 13px;
+  }
+
+  /* Label input field */
+  #favorites-overlay input[type="text"] {
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 13px;
+    width: 100%;
+    min-width: 120px;
+    max-width: 100%;    
+    box-sizing: border-box;
+  }
+
+  /* Action buttons */
+  #favorites-overlay button {
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 3px;
+    margin-right: 4px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  #favorites-overlay button:hover {
+    background: #555;
+  }
+
+  /* Link (Explorer) */
+  #favorites-overlay a {
+    color: #ddd;
+    text-decoration: none;
+    margin-right: 4px;
+  }
+
+  #favorites-overlay a:hover {
+    color: #fff;
+    text-decoration: underline;
+  }
+
+  #favorites-overlay .fav-link {
+    display: inline-block;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 3px;
+    margin-right: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  #favorites-overlay .fav-link:hover {
+    background: #555;
+  }
+
+  #favorites-overlay .sort-indicator {
+    font-size: 10px;
+    margin-left: 4px;
+    opacity: 0.7;
+  }

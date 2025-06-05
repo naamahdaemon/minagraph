@@ -5154,86 +5154,253 @@ function renderFavIcon(container, isFav, address, chain) {
 }
 
 function toggleFavorite(shouldAdd, address, chain) {
-  const favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+  const favorites = getFavorites();
   const index = favorites.findIndex(entry => entry.address === address && entry.chain === chain);
 
   if (shouldAdd && index === -1) {
-    favorites.push({ address, chain });
+    favorites.push({ address, chain, label: "" });
   } else if (!shouldAdd && index !== -1) {
     favorites.splice(index, 1);
   }
 
-  localStorage.setItem("favorites", JSON.stringify(favorites));
+  saveFavorites(favorites);
 
   const favSpan = document.getElementById("favorite-status");
   if (favSpan) renderFavIcon(favSpan, shouldAdd, address, chain);
 }
 
+function toggleSort(key) {
+  if (currentSortKey === key) {
+    currentSortAsc = !currentSortAsc;
+  } else {
+    currentSortKey = key;
+    currentSortAsc = true;
+  }
+
+  favorites.sort((a, b) => {
+    const v1 = (a[currentSortKey] || "").toLowerCase();
+    const v2 = (b[currentSortKey] || "").toLowerCase();
+    return currentSortAsc ? v1.localeCompare(v2) : v2.localeCompare(v1);
+  });
+
+  renderFavoritesTable(favorites);
+
+  // Update sort indicators
+  modal.querySelectorAll("th[data-sort-key]").forEach(th => {
+    const icon = th.querySelector(".sort-indicator");
+    if (th.dataset.sortKey === currentSortKey) {
+      icon.textContent = currentSortAsc ? "▲" : "▼";
+    } else {
+      icon.textContent = "↕";
+    }
+  });
+}
+
 function showFavoritesAddressesModal() {
-  const modal = document.getElementById("favorites-modal");
-  const list = document.getElementById("favorites-list");
+  let currentSortKey = null;
+  let currentSortAsc = true;
+
+  // Supprime tout modal existant pour repartir propre
+  const existing = document.getElementById("favorites-overlay");
+  if (existing) existing.remove();
+
+  // Fonction de tri appelée depuis les en-têtes
+  function toggleSort(key) {
+    if (currentSortKey === key) {
+      currentSortAsc = !currentSortAsc;
+    } else {
+      currentSortKey = key;
+      currentSortAsc = true;
+    }
+    renderFavoritesTable(getFilteredFavorites());
+    updateSortIndicators();
+  }
+
+  const modal = createFavoritesModal(toggleSort);
+  modal.style.display = "flex";
+
   const favorites = getFavorites();
+  const tableBody = modal.querySelector("#favorites-table-body");
+  const searchInputs = modal.querySelectorAll(".fav-search");
 
-  modal.style.display = "block";
-  list.innerHTML = "";
-
-  if (favorites.length === 0) {
-    list.innerHTML = "<p style='color:#aaa;'>No favorites yet.</p>";
+  if (!tableBody) {
+    console.error("❌ #favorites-table-body introuvable dans le modal.");
+    console.log("Contenu du modal:", modal.outerHTML);
     return;
   }
 
-  list.innerHTML = `
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-    </table>
-    <div style="max-height: 300px; overflow-y: auto;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-      <tbody id="favorites-table-body"></tbody>
-    </table>
-    </div>
-  `;
+  searchInputs.forEach(input => {
+    input.addEventListener("input", () => {
+      renderFavoritesTable(getFilteredFavorites());
+    });
+  });
 
-  const tbody = document.getElementById('favorites-table-body');
-  favorites.forEach(({ address, chain }) => {
+  function getFilteredFavorites() {
+    const [addrFilter, chainFilter, labelFilter] = Array.from(searchInputs).map(i => i.value.toLowerCase());
+    let filtered = favorites.filter(f =>
+      f.address.toLowerCase().includes(addrFilter) &&
+      f.chain.toLowerCase().includes(chainFilter) &&
+      (f.label || "").toLowerCase().includes(labelFilter)
+    );
+
+    if (currentSortKey) {
+      filtered.sort((a, b) => {
+        const valA = (a[currentSortKey] || "").toLowerCase();
+        const valB = (b[currentSortKey] || "").toLowerCase();
+        return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+    }
+
+    return filtered;
+  }
+
+  function updateSortIndicators() {
+    const ths = modal.querySelectorAll("thead th");
+    ths.forEach(th => {
+      const key = th.dataset.sortKey;
+      const indicator = th.querySelector(".sort-indicator");
+      if (!indicator) return;
+
+      if (key === currentSortKey) {
+        indicator.textContent = currentSortAsc ? "▲" : "▼";
+      } else {
+        indicator.textContent = "↕";
+      }
+    });
+  }
+
+  function renderFavoritesTable(favs) {
+    tableBody.innerHTML = "";
+    favs.forEach(({ address, chain, label }) => {
     const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
+      const explorerURL = getExplorerURL("account", address, chain);
     const row = document.createElement("tr");
 
     row.innerHTML = `
-      <td style="text-align: left;padding: 3px; font-size: 10px;"><code>${shortened}</code></td>
-      <td style="text-align: left;padding: 3px;"><small style="color:#aaa">${chain}</small></td>
-      <td style="text-align: left;padding: 3px;text-align: right;">
-      <button onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()" style="
-          padding: 2px 7px;
-            font-size: 10px;
-            background: #e53935;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-          ">Remove</button>
-      <button onclick="fetchFavorite('${address}', '${chain}')"  style="
-          padding: 2px 7px;
-            font-size: 10px;
-          background: #06b203;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-          ">Fetch</button>
-        <button onclick="showQRCode('${address}')" style="
-          padding: 2px 7px;
-          font-size: 10px;
-          background: #007bff;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        ">QRC</button>
+        <td style="white-space: nowrap;"><code title="${address}">${shortened}</code></td>
+        <td style="white-space: nowrap;">${chain}</td>
+        <td style="width: 100%;">
+          <input value="${label || ""}" onchange="updateFavoriteLabel('${address}', '${chain}', this.value)"
+                 style="width: 100%; box-sizing: border-box;" />
+        </td>
+        <td style="white-space: nowrap; text-align: right; width:1%;">
+          <button class="fav-btn" title="Copier" onclick="navigator.clipboard.writeText('${address}')">📋</button>
+          <a class="fav-link" href="${explorerURL}" target="_blank" title="Voir dans explorer">🔗</a>
+          <button class="fav-btn" title="QR Code" onclick="showQRCode('${address}')">📱</button>
+          <button class="fav-btn" title="Fetch" onclick="fetchFavorite('${address}', '${chain}'); document.getElementById('favorites-overlay')?.remove();">🔍</button>
+          <button class="fav-btn" title="Supprimer" onclick="unFavThisAddress('${address}', '${chain}'); showFavoritesAddressesModal()">❌</button>
       </td>
     `;
+      tableBody.appendChild(row);
+    });
+  }
 
-    tbody.appendChild(row);
-  });
+  // Initial render
+  renderFavoritesTable(getFilteredFavorites());
 }
+
+
+function createFavoritesModal(toggleSortCallback) {
+  const scrollWrapper = document.createElement("div");
+  scrollWrapper.className = "favorites-scroll-wrapper";
+
+  const modal = document.createElement("div");
+  modal.id = "favorites-overlay";
+  modal.style.display = "flex";
+
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "CLOSE";
+  closeButton.className = "close-fav";
+  closeButton.onclick = () => modal.remove();
+
+  const title = document.createElement("h2");
+  title.textContent = "Mes adresses favorites";
+  title.style.fontSize = "20px";
+  title.style.marginBottom = "16px";
+
+  const table = document.createElement("table");
+  table.style.cssText = `
+    width: 100%;
+    min-width: 400px;
+    table-layout: auto;
+    border-collapse: collapse;
+    font-size: 12px;
+  `;
+
+  const thead = document.createElement("thead");
+  const tr = document.createElement("tr");
+
+  const sortKeys = ["address", "chain", "label"];
+  ["Adresse", "Blockchain", "Label"].forEach((placeholder, index) => {
+    const sortKey = sortKeys[index];
+
+    const th = document.createElement("th");
+    th.style.cursor = "pointer";
+    th.dataset.sortKey = sortKey;
+
+    // clickable text + indicator
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = placeholder;
+
+    const indicator = document.createElement("span");
+    indicator.className = "sort-indicator";
+    indicator.textContent = "↕";
+    indicator.style.marginLeft = "4px";
+    indicator.style.fontSize = "10px";
+    indicator.style.opacity = "0.7";
+
+    th.appendChild(labelSpan);
+    th.appendChild(indicator);
+
+    th.onclick = () => {
+      if (typeof toggleSortCallback === "function") {
+        toggleSortCallback(sortKey);
+      }
+    };
+
+    // search field
+    const input = document.createElement("input");
+    input.className = "fav-search";
+    input.placeholder = placeholder;
+    input.style.cssText = "padding: 6px; margin: 2px; width: 100%; border-radius: 4px; border: none;";
+    th.appendChild(document.createElement("br"));
+    th.appendChild(input);
+
+    tr.appendChild(th);
+  });
+
+  const thActions = document.createElement("th");
+  thActions.textContent = "";
+  tr.appendChild(thActions);
+
+  thead.appendChild(tr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  tbody.id = "favorites-table-body";
+  table.appendChild(tbody);
+
+  scrollWrapper.appendChild(table);
+  modal.appendChild(closeButton);
+  modal.appendChild(title);
+  modal.appendChild(scrollWrapper);
+
+  document.body.appendChild(modal);
+  return modal;
+}
+
+
+
+
+function updateFavoriteLabel(address, chain, newLabel) {
+  const favorites = getFavorites();
+  const idx = favorites.findIndex(f => f.address === address && f.chain === chain);
+  if (idx !== -1) {
+    favorites[idx].label = newLabel;
+    saveFavorites(favorites);
+  }
+}
+
 
 function fetchFavorite(address, chain) {
   const select = document.getElementById("blockchain-select");
