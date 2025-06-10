@@ -4626,7 +4626,7 @@ function toggleFullscreen(forceExit = false) {
     controls.style.display = "flex";
     slicer.style.display = "block";
     legend.style.display="block";
-    legend.style.top = "20px";
+    legend.style.top = "70px";
     if (footer) footer.style.display = "block";
     menu.style.display="block"
 
