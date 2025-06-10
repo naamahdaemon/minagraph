@@ -771,6 +771,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   
+  document.getElementById("favorites-btn").onclick = () => {
+    showFavoritesAddressesModal();
+  };
+
+  document.getElementById("watched-btn").onclick = () => {
+    showWatchedAddressesModal();
+  };
+
+
   if (Notification.permission === 'default') {
     Notification.requestPermission().then(permission => {
       if (permission === 'granted') {
