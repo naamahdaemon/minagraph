@@ -5325,10 +5325,54 @@ function showFavoritesAddressesModal() {
     updateSortIndicators();
   }
 
+  function addManualFavoriteRow() {
+    const row = document.createElement("tr");
+
+    const addressInput = document.createElement("input");
+    addressInput.placeholder = "Full address";
+    addressInput.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";
+
+    const chainSelect = document.createElement("select");
+    ["ethereum", "polygon", "bsc", "solana", "mina", "tezos"].forEach(chain => {
+      const opt = document.createElement("option");
+      opt.value = chain;
+      opt.textContent = chain;
+      chainSelect.appendChild(opt);
+    });
+    chainSelect.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";
+
+    const labelInput = document.createElement("input");
+    labelInput.placeholder = "Label";
+    labelInput.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";
+
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "✔";
+    addBtn.className = "fav-btn";
+    addBtn.onclick = () => {
+      const address = addressInput.value.trim();
+      const chain = chainSelect.value;
+      const label = labelInput.value.trim();
+      if (!address || !chain) return alert("Please fill all fields.");
+      toggleFavorite(true, address, chain);
+      updateFavoriteLabel(address, chain, label);
+  renderFavoritesTable(getFilteredFavorites());
+    };
+
+    [addressInput, chainSelect, labelInput, addBtn].forEach(el => {
+      const td = document.createElement("td");
+      td.appendChild(el);
+      row.appendChild(td);
+    });
+
+    tableBody.prepend(row);
+}
+
+  const addButton = modal.querySelector("#add-favorite-btn");
+  if (addButton) addButton.onclick = () => addManualFavoriteRow();
+
   // Initial render
   renderFavoritesTable(getFilteredFavorites());
 }
-
 
 function createFavoritesModal(toggleSortCallback) {
   const modal = document.createElement("div");
@@ -5428,13 +5472,40 @@ function createFavoritesModal(toggleSortCallback) {
       font-size: 13px;
       
     `;  
+  emptydiv.style.pointerEvents = "none";
   emptydiv.readonly = true;
   const thActions = document.createElement("th");
   //thActions.style.background = "#333333";
   //thActions.style.border = "none";
   //thActions.style.opacity = "0";
-  thActions.style.pointerEvents = "none";
+  //thActions.style.pointerEvents = "none";
+  thActions.style.display = "flex";
+  //thActions.style.justifyContent = "flex-end";
+  //thActions.style.alignItems = "center";
   thActions.appendChild(emptydiv);
+  
+  const addBtn = document.createElement("button");
+  addBtn.textContent = "➕";
+  addBtn.title = "Add a new favorite";
+  addBtn.className = "fav-btn";
+  addBtn.style.float = "right";
+  addBtn.style.cssText = `
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    cursor: pointer;
+    margin-left: auto;
+  `;
+  
+  //addBtn.onclick = () => addManualFavoriteRow();
+  addBtn.id = "add-favorite-btn"; // we'll hook it later
+
+  thActions.appendChild(addBtn);
+  
+  
   tr.appendChild(thActions);
 
   thead.appendChild(tr);
