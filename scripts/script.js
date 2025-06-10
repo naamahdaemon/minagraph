@@ -5355,6 +5355,10 @@ function showFavoritesAddressesModal() {
       if (!address || !chain) return alert("Please fill all fields.");
       toggleFavorite(true, address, chain);
       updateFavoriteLabel(address, chain, label);
+      
+      // ✅ Update the `favorites` array
+      favorites.push({ address, chain, label });      
+      
   renderFavoritesTable(getFilteredFavorites());
     };
 
