@@ -779,6 +779,13 @@ document.addEventListener("DOMContentLoaded", () => {
     showWatchedAddressesModal();
   };
 
+  const importInput = document.getElementById('import-settings');
+  importInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+          loadLocalStorageFromJsonFile(file);
+      }
+  });
 
   if (Notification.permission === 'default') {
     Notification.requestPermission().then(permission => {
@@ -5895,4 +5902,100 @@ function showToastNotification(title, body) {
     toast.classList.remove('show');
     toast.style.display = 'none';
   }, 4000);
+}
+
+/**
+ * Saves all localStorage data to a JSON file.
+ *
+ * @param {string} filename The name of the file to save (e.g., "localStorage_backup.json").
+ */
+function saveLocalStorageToJsonFile(filename = 'localStorage_backup.json') {
+    const dataToSave = {};
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); 
+    const fileToSave = `localStorage_backup_${timestamp}.json`;    
+
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            try {
+                dataToSave[key] = JSON.parse(localStorage.getItem(key));
+            } catch (e) {
+                dataToSave[key] = localStorage.getItem(key);
+            }
+        }
+        console.log('localStorage data collected successfully.');
+    } catch (error) {
+        console.error('Error collecting localStorage data:', error);
+        alert('Failed to collect localStorage data. Check console for details.');
+        return;
+    }
+
+    try {
+        const jsonString = JSON.stringify(dataToSave, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileToSave;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log(`Download initiated for ${fileToSave}`);
+        // Remove the alert - let the browser handle the download feedback
+    } catch (error) {
+        console.error('Error creating or downloading JSON file:', error);
+        alert('Failed to prepare download. Check console for details.');
+    }
+}
+
+/**
+ * Loads localStorage data from a JSON file and restores it.
+ *
+ * @param {File} file The JSON file selected by the user.
+ */
+function loadLocalStorageFromJsonFile(file) {
+    if (!file) {
+        alert('No file selected.');
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+        try {
+            const loadedData = JSON.parse(event.target.result);
+
+            if (typeof loadedData !== 'object' || loadedData === null) {
+                throw new Error('Invalid JSON structure: Expected an object.');
+            }
+
+            // Clear existing localStorage before restoring
+            localStorage.clear();
+            console.log('Existing localStorage cleared.');
+
+            for (const key in loadedData) {
+                if (Object.hasOwnProperty.call(loadedData, key)) {
+                    // localStorage only stores strings, so stringify non-string values
+                    const valueToStore = typeof loadedData[key] === 'string' ? loadedData[key] : JSON.stringify(loadedData[key]);
+                    localStorage.setItem(key, valueToStore);
+                }
+            }
+            console.log('localStorage data restored successfully.');
+            alert('localStorage data loaded successfully!');
+            // You might want to reload the page or trigger a UI update here
+            // window.location.reload();
+        } catch (error) {
+            console.error('Error loading localStorage data from file:', error);
+            alert(`Failed to load data from file: ${error.message}. Please ensure it's a valid JSON backup.`);
+        }
+    };
+
+    reader.onerror = (error) => {
+        console.error('Error reading file:', error);
+        alert('Failed to read the selected file. Check console for details.');
+    };
+
+    reader.readAsText(file);
 }
