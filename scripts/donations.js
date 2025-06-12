@@ -26,15 +26,27 @@ const CHAIN_INFO = {
     137: { name: "Polygon", symbol: "MATIC" }
 };
 
+let statusTimeout;
+
 function showStatus(message, type = 'info') {
-    const statusEl = document.getElementById('status');
-    statusEl.textContent = message;
-    statusEl.className = `status ${type}`;
-    statusEl.style.display = 'block';
+    const statusDiv = document.getElementById('status');
+    if (!statusDiv) return;
+
+    statusDiv.textContent = message;
+    statusDiv.className = `status ${type}`;
+    statusDiv.style.display = 'block';
+
+    clearTimeout(statusTimeout);
+    statusTimeout = setTimeout(hideStatus, 5000); // Masquer après 5s
 }
 
 function hideStatus() {
-    document.getElementById('status').style.display = 'none';
+    const statusDiv = document.getElementById('status');
+    if (!statusDiv) return;
+
+    statusDiv.style.display = 'none';
+    statusDiv.textContent = '';
+    statusDiv.className = 'status';
 }
 
 function setButtonState(loading) {
@@ -153,8 +165,10 @@ async function sendEVMDonation() {
             showStatus("Transaction cancelled by user", 'error');
         } else if (err.message.includes("insufficient funds")) {
             showStatus("Insufficient funds in wallet", 'error');
-        } else if (err.message.includes("User rejected")) {
+        } else if (err.message.includes("user rejected")) {
             showStatus("Connection rejected by user", 'error');
+        } else if (err.message.includes("ACTION_REJECTED")) {
+            showStatus("Transaction cancelled by user", 'error');
         } else {
             showStatus(`Error: ${err.message || err}`, 'error');
         }
