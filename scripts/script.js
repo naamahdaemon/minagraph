@@ -69,6 +69,7 @@ const expandedCommandTypeFilter = () => {
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
 
+/*
 const WALLETCONNECT_PROJECT_ID = "e7c987c4886cb9b77abbda154818712e"; // à créer sur https://cloud.walletconnect.com/
 const EVM_DONATION_ADDRESS = "0x52356a419879331172c1326909316bb8205071e0"; // replace with your address
 
@@ -95,7 +96,7 @@ const ERC20_ABI = [
   "function transfer(address to, uint256 value) public returns (bool)",
   "function decimals() public view returns (uint8)"
 ];
-
+*/
 let allTimestamps = [];  // 🔁 collected from edges
 let currentRange = [0, 0];
 let histogramChart;
