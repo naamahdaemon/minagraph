@@ -68,6 +68,8 @@ const expandedCommandTypeFilter = () => {
 };
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
+
+const WALLETCONNECT_PROJECT_ID = "e7c987c4886cb9b77abbda154818712e"; // à créer sur https://cloud.walletconnect.com/
 const EVM_DONATION_ADDRESS = "0x52356a419879331172c1326909316bb8205071e0"; // replace with your address
 
 const ERC20_ADDRESSES = {
@@ -77,7 +79,7 @@ const ERC20_ADDRESSES = {
     bsc: "0x55d398326f99059fF775485246999027B3197955"
   },
   USDC: {
-    polygon: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    polygon: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", //0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
     ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     bsc: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
   }
@@ -88,6 +90,11 @@ const CHAIN_NAMES = {
   56: "bsc",
   137: "polygon"
 };
+
+const ERC20_ABI = [
+  "function transfer(address to, uint256 value) public returns (bool)",
+  "function decimals() public view returns (uint8)"
+];
 
 let allTimestamps = [];  // 🔁 collected from edges
 let currentRange = [0, 0];
@@ -4637,68 +4644,59 @@ async function sendEVMDonation() {
   const token = document.getElementById("donation-token").value;
   if (!amount || amount <= 0) return alert("Enter a valid amount.");
 
-  let web3;
   let provider;
-
-  if (window.ethereum) {
-    provider = window.ethereum;
-    await provider.request({ method: 'eth_requestAccounts' });
-    web3 = new Web3(provider);
-  } else {
-    provider = new WalletConnectProvider.default({
-      rpc: {
-        1: "https://eth.llamarpc.com",
-        56: "https://bsc-dataseed.binance.org/",
-        137: "https://polygon-rpc.com"
-      }
-    });
-    await provider.enable();
-    web3 = new Web3(provider);
-  }
-
-  const accounts = await web3.eth.getAccounts();
-  const from = accounts[0];
-  const chainId = await web3.eth.getChainId();
-  const chain = CHAIN_NAMES[chainId];
-
-  if (!chain) {
-    alert("Unsupported chain.");
-    return;
-  }
+  let ethersProvider;
+  let signer;
+  let chainId;
+  let chain;
 
   try {
-    if (token === "native") {
-      await web3.eth.sendTransaction({
-        from,
-        to: EVM_DONATION_ADDRESS,
-        value: web3.utils.toWei(amount.toString(), "ether")
-      });
-    } else {
-      const contractAddress = ERC20_ADDRESSES[token][chain];
-      const contract = new web3.eth.Contract([{
-        constant: false,
-        inputs: [
-          { name: "_to", type: "address" },
-          { name: "_value", type: "uint256" }
-        ],
-        name: "transfer",
-        outputs: [{ name: "", type: "bool" }],
-        type: "function"
-      }], contractAddress);
-
-      const decimals = token === "USDT" ? 6 : 6; // override if needed
-      const value = BigInt(amount * 10 ** decimals).toString();
-
-      await contract.methods.transfer(EVM_DONATION_ADDRESS, value).send({ from });
-    }
-
-    alert("Thanks for your donation! ❤️");
-  } catch (err) {
-    console.error(err);
-    alert("Error while donating: " + err.message);
+    if (window.ethereum && window.ethereum.isMetaMask) {
+      // ✅ MetaMask
+    provider = window.ethereum;
+    await provider.request({ method: 'eth_requestAccounts' });
+      ethersProvider = new ethers.BrowserProvider(provider);
+  } else {
+      // ✅ WalletConnect v2
+      provider = await WalletConnectEthereumProvider.init({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        chains: [1, 56, 137],
+        showQrModal: true
+    });
+    await provider.enable();
+      ethersProvider = new ethers.BrowserProvider(provider);
   }
 
-  if (provider.disconnect) provider.disconnect();
+    signer = await ethersProvider.getSigner();
+    chainId = (await ethersProvider.getNetwork()).chainId;
+    chain = CHAIN_NAMES[Number(chainId)];
+
+    if (!chain) return alert("Unsupported chain");
+
+    if (token === "native") {
+      const tx = await signer.sendTransaction({
+        to: EVM_DONATION_ADDRESS,
+        value: ethers.parseEther(amount.toString())
+      });
+      alert(`Thanks! TX hash: ${tx.hash}`);
+    } else {
+      const tokenAddr = ERC20_ADDRESSES[token][chain];
+      if (!tokenAddr) return alert("Unsupported token for this chain");
+
+      const contract = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
+      const decimals = await contract.decimals();
+      const value = ethers.parseUnits(amount.toString(), decimals);
+
+      const tx = await contract.transfer(EVM_DONATION_ADDRESS, value);
+      alert(`Thanks for your donation! TX hash: ${tx.hash}`);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error: " + (err.message || err));
+  }
+
+  // ❌ Optional: if WalletConnect, disconnect after
+  if (provider?.disconnect) provider.disconnect();
 }
 
 
