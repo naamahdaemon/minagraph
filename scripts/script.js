@@ -5019,13 +5019,35 @@ async function unWatchThisAddress_old(address, chain) {
   alert(`✅ Watch unregistered: ${result.status}`);
 }
 
-function renderWatchIcon(container, isWatched, address, chain) {
-  if (isWatched) {
-    container.innerHTML = `<span onclick="toggleWatch(false, '${address}', '${chain}')" title="Unwatch address" style="cursor:pointer; font-size:18px;">🔔</span>`;
-  } else {
-    container.innerHTML = `<span onclick="toggleWatch(true, '${address}', '${chain}')" title="Watch address" style="cursor:pointer; font-size:18px;">🔕</span>`;
+function renderWatchIcon(container, isWatched, address, chain, refreshCallback = null) {
+  container.innerHTML = "";
+  const icon = document.createElement("span");
+  icon.title = isWatched ? "Unwatch address" : "Watch address";
+  icon.style.cursor = "pointer";
+  icon.style.fontSize = "18px";
+  icon.textContent = isWatched ? "🔔" : "🔕";
+  icon.dataset.busy = "false";
+
+  icon.onclick = async () => {
+    if (icon.dataset.busy === "true") return; // prevent spamming
+    icon.dataset.busy = "true";
+
+    try {
+      await toggleWatch(!isWatched, address, chain);
+      if (typeof refreshCallback === "function") {
+        await refreshCallback(); // 🧠 use await here
   }
+    } catch (err) {
+      console.error("Watch toggle failed:", err);
+    } finally {
+      icon.dataset.busy = "false";
 }
+  };
+
+  container.appendChild(icon);
+}
+
+
 
 async function toggleWatch(shouldWatch, address, chain) {
   const userId = getOrCreateUserId();
@@ -5312,7 +5334,7 @@ function showFavoritesAddressesModal() {
 
   function renderFavoritesTable(favs) {
     tableBody.innerHTML = "";
-    favs.forEach(({ address, chain, label }) => {
+    favs.forEach(async ({ address, chain, label }) => {
     const shortened = address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-6)}` : address;
       const explorerURL = getExplorerURL("account", address, chain);
     const row = document.createElement("tr");
@@ -5329,6 +5351,7 @@ function showFavoritesAddressesModal() {
                  style="width: 100%; box-sizing: border-box;" />
         </td>
         <td style="white-space: nowrap; text-align: right; width:1%;">
+          <span id="watch-icon-${address}-${chain}" style="margin-left: 4px;"></span>
           <a class="fav-link" href="${explorerURL}" target="_blank" title="Voir dans explorer">🔗</a>
           <button class="fav-btn" title="QR Code" onclick="showQRCode('${address}')">📱</button>
           <button class="fav-btn" title="Fetch" onclick="fetchFavorite('${address}', '${chain}'); document.getElementById('favorites-overlay')?.remove();">🔍</button>
@@ -5336,6 +5359,16 @@ function showFavoritesAddressesModal() {
       </td>
     `;
       tableBody.appendChild(row);
+      // 🕵️ Check watch status and render the icon
+      const isWatchedNow = await isWatched(address, chain);
+      const iconContainer = row.querySelector(`#watch-icon-${address}-${chain}`);
+      if (iconContainer) {
+        const refreshIcon = async () => {
+          const newStatus = await isWatched(address, chain);
+          renderWatchIcon(iconContainer, newStatus, address, chain, refreshIcon);
+        };
+        renderWatchIcon(iconContainer, isWatchedNow, address, chain, refreshIcon); 
+      }        
     });
     // 🔁 Refresh sort icons after render
     updateSortIndicators();
