@@ -643,7 +643,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   
   document.getElementById("donate-btn").addEventListener("click", sendDonation);
-  document.getElementById("donate-btn-evm").addEventListener("click", sendEVMDonation);
+  //document.getElementById("donate-btn-evm").addEventListener("click", sendEVMDonation);
 
 
   fullscreenBtn.addEventListener("click", () => toggleFullscreen());
