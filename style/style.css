@@ -419,7 +419,7 @@
     /* Base legend style */
     #legend.legend-box {
       position: fixed;
-      top: 70px;
+      top: 20px;
       left: 50px;
       background: #222;
       color: white;
@@ -435,12 +435,14 @@
     /* 💻 Desktop layout: shift legend if sidebar is visible */
     @media screen and (min-width: 769px) {
       #app-container.sidebar-open #legend.legend-box {
-        left: 330px; /* 280px sidebar + 50px margin */
+        left: auto; /* 280px sidebar + 50px margin */
+        right: 20px;
       }
 
       /* If sidebar is hidden (fullscreen or collapsed) */
       #app-container:not(.sidebar-open) #legend.legend-box {
-        left: 50px;
+        left: auto;
+        right: 20px;
       }
     }
 
