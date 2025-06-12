@@ -19,7 +19,10 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.8.1/dist/ethers.umd.min.js"></script>
+  <!--<script src="https://unpkg.com/@walletconnect/ethereum-provider@2.15.0/dist/index.umd.min.js"></script>-->
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.21.2/dist/index.umd.min.js"></script>
+  <script src="./scripts/donations.js"></script>
+
   <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
 
@@ -277,9 +280,10 @@
           <option value="USDT">USDT</option>
           <option value="USDC">USDC</option>
         </select>
-        <button id="donate-btn-evm" style="width: 100%; background: #0e76a8; color: white; padding: 8px; border: none; border-radius: 4px;">
+        <button id="donate-btn-evm" onclick="sendEVMDonation()" style="width: 100%; background: #0e76a8; color: white; padding: 8px; border: none; border-radius: 4px;">
           Donate with EVM Wallet
         </button>
+        <div id="status" class="status"></div>        
       </div>
       
     </div>
