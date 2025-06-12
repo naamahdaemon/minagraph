@@ -17,6 +17,8 @@
   <link href="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>  
   <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
 
@@ -263,6 +265,22 @@
           Donate with Auro Wallet
         </button>
       </div>
+      <div style="margin-top: 20px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
+          <label style="margin: 0;font-size:9px;">Or use your favorite EVM wallet</label>
+          <span class="info-icon" title="Support this project using any EVM wallet.">ℹ</span>
+        </div>
+        <input id="donation-amount-evm" type="number" min="0.01" step="0.01" placeholder="Amount" style="width: 100%; margin-bottom: 5px;" />
+        <select id="donation-token" style="width: 100%; margin-bottom: 5px;">
+          <option value="native">Native token (ETH, MATIC, BNB...)</option>
+          <option value="USDT">USDT</option>
+          <option value="USDC">USDC</option>
+        </select>
+        <button id="donate-btn-evm" style="width: 100%; background: #0e76a8; color: white; padding: 8px; border: none; border-radius: 4px;">
+          Donate with EVM Wallet
+        </button>
+      </div>
+      
     </div>
 
     <!-- Watched Addresses Modal -->

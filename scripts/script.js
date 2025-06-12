@@ -68,6 +68,27 @@ const expandedCommandTypeFilter = () => {
 };
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
+const EVM_DONATION_ADDRESS = "0x52356a419879331172c1326909316bb8205071e0"; // replace with your address
+
+const ERC20_ADDRESSES = {
+  USDT: {
+    polygon: "0x3813e82e6f7098b9583FC0F33a962D02018B6803",
+    ethereum: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    bsc: "0x55d398326f99059fF775485246999027B3197955"
+  },
+  USDC: {
+    polygon: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    bsc: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+  }
+};
+
+const CHAIN_NAMES = {
+  1: "ethereum",
+  56: "bsc",
+  137: "polygon"
+};
+
 let allTimestamps = [];  // 🔁 collected from edges
 let currentRange = [0, 0];
 let histogramChart;
@@ -614,6 +635,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   
   document.getElementById("donate-btn").addEventListener("click", sendDonation);
+  document.getElementById("donate-btn-evm").addEventListener("click", sendEVMDonation);
 
 
   fullscreenBtn.addEventListener("click", () => toggleFullscreen());
@@ -4609,6 +4631,76 @@ async function sendDonation() {
     alert("Error while sending donation: " + err.message);
   }
 }
+
+async function sendEVMDonation() {
+  const amount = parseFloat(document.getElementById("donation-amount-evm").value);
+  const token = document.getElementById("donation-token").value;
+  if (!amount || amount <= 0) return alert("Enter a valid amount.");
+
+  let web3;
+  let provider;
+
+  if (window.ethereum) {
+    provider = window.ethereum;
+    await provider.request({ method: 'eth_requestAccounts' });
+    web3 = new Web3(provider);
+  } else {
+    provider = new WalletConnectProvider.default({
+      rpc: {
+        1: "https://eth.llamarpc.com",
+        56: "https://bsc-dataseed.binance.org/",
+        137: "https://polygon-rpc.com"
+      }
+    });
+    await provider.enable();
+    web3 = new Web3(provider);
+  }
+
+  const accounts = await web3.eth.getAccounts();
+  const from = accounts[0];
+  const chainId = await web3.eth.getChainId();
+  const chain = CHAIN_NAMES[chainId];
+
+  if (!chain) {
+    alert("Unsupported chain.");
+    return;
+  }
+
+  try {
+    if (token === "native") {
+      await web3.eth.sendTransaction({
+        from,
+        to: EVM_DONATION_ADDRESS,
+        value: web3.utils.toWei(amount.toString(), "ether")
+      });
+    } else {
+      const contractAddress = ERC20_ADDRESSES[token][chain];
+      const contract = new web3.eth.Contract([{
+        constant: false,
+        inputs: [
+          { name: "_to", type: "address" },
+          { name: "_value", type: "uint256" }
+        ],
+        name: "transfer",
+        outputs: [{ name: "", type: "bool" }],
+        type: "function"
+      }], contractAddress);
+
+      const decimals = token === "USDT" ? 6 : 6; // override if needed
+      const value = BigInt(amount * 10 ** decimals).toString();
+
+      await contract.methods.transfer(EVM_DONATION_ADDRESS, value).send({ from });
+    }
+
+    alert("Thanks for your donation! ❤️");
+  } catch (err) {
+    console.error(err);
+    alert("Error while donating: " + err.message);
+  }
+
+  if (provider.disconnect) provider.disconnect();
+}
+
 
 function toggleFullscreen(forceExit = false) {
   isFullscreen = forceExit ? false : !isFullscreen;
