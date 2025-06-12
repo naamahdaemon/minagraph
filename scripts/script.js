@@ -4639,7 +4639,7 @@ async function sendDonation() {
   }
 }
 
-async function sendEVMDonation() {
+/*async function sendEVMDonation() {
   const amount = parseFloat(document.getElementById("donation-amount-evm").value);
   const token = document.getElementById("donation-token").value;
   if (!amount || amount <= 0) return alert("Enter a valid amount.");
@@ -4652,19 +4652,26 @@ async function sendEVMDonation() {
 
   try {
     if (window.ethereum && window.ethereum.isMetaMask) {
-      // ✅ MetaMask
+      // ✅ MetaMask or injected provider
     provider = window.ethereum;
     await provider.request({ method: 'eth_requestAccounts' });
       ethersProvider = new ethers.BrowserProvider(provider);
-  } else {
-      // ✅ WalletConnect v2
-      provider = await WalletConnectEthereumProvider.init({
+    } else if (window.WalletConnectEthereumProvider?.default) {
+      // ✅ WalletConnect (even with no wallet installed, shows QR modal)
+      const WalletConnectProvider = window.WalletConnectEthereumProvider.default;
+
+      provider = await WalletConnectProvider.init({
         projectId: WALLETCONNECT_PROJECT_ID,
         chains: [1, 56, 137],
         showQrModal: true
     });
-    await provider.enable();
+
+      await provider.connect(); // Instead of enable() to trigger QR modal
       ethersProvider = new ethers.BrowserProvider(provider);
+    } else {
+      // ❌ Neither MetaMask nor WalletConnect available
+      alert("WalletConnect is not loaded. Please check your script import.");
+      return;
   }
 
     signer = await ethersProvider.getSigner();
@@ -4695,10 +4702,15 @@ async function sendEVMDonation() {
     alert("Error: " + (err.message || err));
   }
 
-  // ❌ Optional: if WalletConnect, disconnect after
-  if (provider?.disconnect) provider.disconnect();
+  // Optional disconnect
+  if (provider?.disconnect) {
+    try {
+      await provider.disconnect();
+    } catch (e) {
+      console.warn("WalletConnect disconnect failed:", e);
 }
-
+  }
+}*/
 
 function toggleFullscreen(forceExit = false) {
   isFullscreen = forceExit ? false : !isFullscreen;
