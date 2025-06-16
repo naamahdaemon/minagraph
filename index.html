@@ -62,6 +62,21 @@
   gtag('js', new Date());
   gtag('config', 'G-VR50WVP209'); 
 </script>  
+<script>
+  function toggleFoldableSection(header) {
+    const content = header.nextElementSibling;
+    const arrow = header.querySelector('.arrow');
+    const isOpen = content.classList.contains('open');
+    content.classList.toggle('open');
+    arrow.textContent = isOpen ? '▼' : '▲';
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.foldable-header').forEach(header => {
+      header.addEventListener('click', () => toggleFoldableSection(header));
+    });
+  });
+</script>
 <body>
   <button id="menu-toggle" title="Toggle Sidebar (S)">☰</button>
   <div id="app-container">
@@ -74,219 +89,251 @@
       font-family: sans-serif;
       border-right: 1px solid #444;
     "><br/>
-      <h2 style="font-size: 16px; margin-bottom: 10px;">Blockchain</h2>
-      <label for="blockchain-select">Select Blockchain</label>
-      <select id="blockchain-select" style="margin-bottom: 20px;">
-        <option value="mina" selected>Mina Protocol</option>
-        <option value="ethereum">Ethereum</option>
-        <option value="polygon">Polygon</option>
-        <option value="bsc">Binance Smart Chain</option>
-        <option value="solana">Solana</option>
-        <option value="zksync">ZKsync</option>
-        <option value="optimism">Optimism</option>
-        <option value="arbitrum">Arbitrum</option>
-        <option value="cronos">Cronos</option>
-        <option value="tezos">Tezos</option>
-        <option value="base">Base</option>
-      </select>
+      <!-- BLOCKCHAIN SECTION -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Blockchain</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-content open">      
+          <label for="blockchain-select">Select Blockchain</label>
+          <select id="blockchain-select" style="margin-bottom: 20px;">
+            <option value="mina" selected>Mina Protocol</option>
+            <option value="ethereum">Ethereum</option>
+            <option value="polygon">Polygon</option>
+            <option value="bsc">Binance Smart Chain</option>
+            <option value="solana">Solana</option>
+            <option value="zksync">ZKsync</option>
+            <option value="optimism">Optimism</option>
+            <option value="arbitrum">Arbitrum</option>
+            <option value="cronos">Cronos</option>
+            <option value="tezos">Tezos</option>
+            <option value="base">Base</option>
+          </select>
 
-      <div style="margin-top: 10px;">
-        <label for="wipe-select">Wipe graph data:</label>
-        <select id="wipe-select">
-          <option value="yes" selected>Yes</option>
-          <option value="no">No</option>
-        </select>
+          <div style="margin-top: 10px;">
+            <label for="wipe-select">Wipe graph data:</label>
+            <select id="wipe-select">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <h2 style="font-size: 16px; margin-bottom: 10px;">Fetch Parameters</h2>
-      <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>
-        START KEY<br />
-        <input 
-          id="param-base-key" 
-          type="text" 
-          placeholder="Starting wallet address to explore"
-          style="width: 100%; margin-bottom: 10px;"
-        >
-      </label>      
-      
-      <!-- TEMPORARILY HIDDEN SECTION -->
-      <div style="display: none;">
-      <div style="position: relative; margin-bottom: 20px;">
-        <label style="display: block; margin-bottom: 4px;">
-          API KEY
-          <span 
-            onclick="document.getElementById('token-help-overlay').style.display = 'block';" 
-            title="Click for more info" 
-            style="cursor: pointer; margin-left: 5px; vertical-align: middle;"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-            </svg>
+      <!-- FETCH PARAMETERS SECTION -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Fetch Parameters</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-content open">  
+          <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>RECURSION DEPTH<br /><input id="param-depth" type="number" value="2" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>
+            START KEY<br />
+            <input 
+              id="param-base-key" 
+              type="text" 
+              placeholder="Starting wallet address to explore"
+              style="width: 100%; margin-bottom: 10px;"
+            >
+          </label>      
+          
+          <!-- TEMPORARILY HIDDEN SECTION -->
+          <div style="display: none;">
+          <div style="position: relative; margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 4px;">
+              API KEY
+              <span 
+                onclick="document.getElementById('token-help-overlay').style.display = 'block';" 
+                title="Click for more info" 
+                style="cursor: pointer; margin-left: 5px; vertical-align: middle;"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+              </span>
+            </label>
+
+            <div style="font-size: 8px; color: #FF3333; margin-bottom: 6px;">
+              TRIAL PERIOD - NO TOKEN REQUIRED
+            </div>
+
+            <!-- Input container with relative positioning -->
+            <div style="position: relative;">
+              <input id="param-api-token" type="password" style="width: 100%; padding-right: 24px; height: 32px; padding: 6px 8px; border-radius: 6px;" />
+
+              <!-- ✖ button INSIDE the input -->
+              <button 
+                id="clear-token-button" 
+                title="Clear token for current blockchain" 
+                onclick="document.getElementById('param-api-token').value = ''"
+                style="
+                  position: absolute;
+                  top: 6px;
+                  right: 6px;
+                  background: none;
+                  border: none;
+                  color: #ccc;
+                  font-size: 12px;
+                  cursor: pointer;
+                  padding: 0;
+                  line-height: 1;
+                "
+              >✖</button>
+            </div>
+          </div>
+
+
+
+          <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
+          <span id="toggle-token-arrow">▸</span> Get new API token
+          <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
+          <span style="font-size:18px; color: white; opacity: 1;">ℹ</span>
           </span>
-        </label>
+          </button>
+          <div id="minataur-token-section" style="display: none; margin-bottom: 20px;">
+            <input id="minataur-email" type="email" placeholder="Enter your email to receive your token" style="width: 100%; margin-bottom: 10px;" />
+            <button id="connect-auro-btn" style="width: 100%; background: #4caf50; color: white; padding: 8px; border: none; border-radius: 4px;">Request Token (Auro Wallet required)</button>
+          </div>
+          </div>     
+          <hr/>
 
-        <div style="font-size: 8px; color: #FF3333; margin-bottom: 6px;">
-          TRIAL PERIOD - NO TOKEN REQUIRED
-        </div>
-
-        <!-- Input container with relative positioning -->
-        <div style="position: relative;">
-          <input id="param-api-token" type="password" style="width: 100%; padding-right: 24px; height: 32px; padding: 6px 8px; border-radius: 6px;" />
-
-          <!-- ✖ button INSIDE the input -->
-          <button 
-            id="clear-token-button" 
-            title="Clear token for current blockchain" 
-            onclick="document.getElementById('param-api-token').value = ''"
-            style="
-              position: absolute;
-              top: 6px;
-              right: 6px;
-              background: none;
-              border: none;
-              color: #ccc;
-              font-size: 12px;
-              cursor: pointer;
-              padding: 0;
-              line-height: 1;
-            "
-          >✖</button>
+          <div>
+                  <!--<label>&nbsp;</label><br />-->
+              <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
+          </div>
         </div>
       </div>
-
-
-
-      <button id="toggle-token-section" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #4fc3f7; color: white; border: none; border-radius: 4px;">
-      <span id="toggle-token-arrow">▸</span> Get new API token
-      <span class="info-icon" title="This tool requires a Minataur API Token.&#10;&#10;To get one, send 1 MINA to the Minataur API address:&#10;B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm&#10;and include your email in the memo field.&#10;&#10;Once confirmed, you'll receive your token by email.&#10;Tokens are valid for 3 days. You can request new ones as needed.&#10;&#10;More info: https://minataur.net/api/restful">
-      <span style="font-size:18px; color: white; opacity: 1;">ℹ</span>
-      </span>
-      </button>
-      <div id="minataur-token-section" style="display: none; margin-bottom: 20px;">
-        <input id="minataur-email" type="email" placeholder="Enter your email to receive your token" style="width: 100%; margin-bottom: 10px;" />
-        <button id="connect-auro-btn" style="width: 100%; background: #4caf50; color: white; padding: 8px; border: none; border-radius: 4px;">Request Token (Auro Wallet required)</button>
-      </div>
-      </div>     
-      <hr/>
-
-      <div>
-          <label>&nbsp;</label><br />
-          <button id="start-graph-btn" style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">Start</button>
-      </div>
-      <h2 style="font-size: 16px; margin-bottom: 10px;">Graph Parameters</h2>
      
-      <label for="layout-algorithm">ALGORITHM</label>
-      <select id="layout-algorithm">
-        <option value="fr" selected>Fruchterman-Reingold</option>
-        <option value="fa">ForceAtlas2</option>
-        <option value="ord">OpenOrd</option>
-      </select>
-      
-      <!-- ForceAtlas2-only settings -->
-      <div id="forceatlas-settings" style="display: none; margin-top: 10px;">
+      <!-- GRAPH PARAMETERS SECTION -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Graph Parameters</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-content">  
+          <label for="layout-algorithm">ALGORITHM</label>
+          <select id="layout-algorithm">
+            <option value="fr" selected>Fruchterman-Reingold</option>
+            <option value="fa">ForceAtlas2</option>
+            <option value="ord">OpenOrd</option>
+          </select>
+          
+          <!-- ForceAtlas2-only settings -->
+          <div id="forceatlas-settings" style="display: none; margin-top: 10px;">
 
-        <label style="display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" id="layout-linlog" />
-          LinLog Mode
-        </label>
-        
-        <label style="display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" id="layout-outbound" />
-          Outbound Attraction Dist
-        </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="layout-linlog" />
+              LinLog Mode
+            </label>
+            
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="layout-outbound" />
+              Outbound Attraction Dist
+            </label>
 
-        <label style="display: flex; align-items: center; gap: 8px;" title="Makes gravity stronger and less dependent on distance">
-          <input type="checkbox" id="layout-strong-gravity" />
-          Strong Gravity Mode
-        </label>
+            <label style="display: flex; align-items: center; gap: 8px;" title="Makes gravity stronger and less dependent on distance">
+              <input type="checkbox" id="layout-strong-gravity" />
+              Strong Gravity Mode
+            </label>
 
-        <label style="display: flex; align-items: center; gap: 8px;" title="Avoids node overlap by enforcing minimum spacing">
-          <input type="checkbox" id="layout-prevent-overlap" checked />
-          Prevent Node Overlap
-        </label>
-        <br/>
-      </div>      
-      
-      <div id="openord-settings" style="display: none;">
-        <label>Edge Weight Influence <input id="layout-ewi" type="number" min="0" max="2" step="0.1" value="0.0"></label>
-        <label>Cooling Factor <input id="layout-cooling" type="number" min="0.5" max="1" step="0.01" value="0.95"></label>
-        <label>Attraction Multiplier <input id="layout-attraction" type="number" min="0.01" max="1" step="0.01" value="0.01"></label>
-        <label>Repulsion Multiplier <input id="layout-repulsion" type="number" min="0.1" max="10" step="0.1" value="1.0"></label>
-        <label>Initial Cluster Count <input id="layout-clusters" type="number" min="1" max="20" step="1" value="5"></label>
-      </div>
-      
-      
-      <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="5000" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
-      <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
-      <input type="checkbox" id="toggle-labels" checked style="vertical-align: middle;">
-      <label for="toggle-labels" style="color:#aaa; display: inline-block; margin-left: 5px; vertical-align: middle;">SHOW LABELS</label><br/><br/>
-      <button id="layout-toggle-btn"
-        style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
-        Apply Layout (L)
-      </button>
-      <div id="layout-progress-wrapper" style="margin-top: 20px;">
-        <label style="color:#aaa;">Layout progress</label>
-        <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
-        <div id="layout-progress-text" style="font-size: 13px; color: #aaa; text-align: right; margin-top: 4px;">0%</div>
-      </div>
-      
-      <h2 style="font-size: 16px; margin-bottom: 10px;">Watched / Favorites</h2>
-      <button onclick="showWatchedAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #2fa3d7; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        📩 View Watched Addresses
-      </button>
-      <button onclick="showFavoritesAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #aa5300; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        ⭐ View Favorites Addresses
-      </button>
-      <h2 style="font-size: 16px; margin-bottom: 10px;">Load / Save</h2>
-      <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
-      <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
-      <input type="file" id="import-json" accept=".json" style="display: none;">
-      <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
-      
-      <button onclick="saveLocalStorageToJsonFile()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT SETTINGS</button>
-      <button onclick="document.getElementById('import-settings').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT SETTINGS</button>
-      <input type="file" id="import-settings" accept=".json" style="display: none;">      
-      
-      <button onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
-      <div style="margin-top: 40px; text-align: center;">
-        <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
-      </div>  
-      <div style="margin-top: 10px;">
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
-          <label style="margin: 0;font-size:9px;">Buy me a coffee (or a Lamborghini 😊)</label>
-          <span class="info-icon" title="Support this project by sending any amount of MINA via Auro Wallet." style="cursor: help; font-size: 14px; opacity: 1;">
-            ℹ
-          </span>
+            <label style="display: flex; align-items: center; gap: 8px;" title="Avoids node overlap by enforcing minimum spacing">
+              <input type="checkbox" id="layout-prevent-overlap" checked />
+              Prevent Node Overlap
+            </label>
+            <br/>
+          </div>      
+          
+          <div id="openord-settings" style="display: none;">
+            <label>Edge Weight Influence <input id="layout-ewi" type="number" min="0" max="2" step="0.1" value="0.0"></label>
+            <label>Cooling Factor <input id="layout-cooling" type="number" min="0.5" max="1" step="0.01" value="0.95"></label>
+            <label>Attraction Multiplier <input id="layout-attraction" type="number" min="0.01" max="1" step="0.01" value="0.01"></label>
+            <label>Repulsion Multiplier <input id="layout-repulsion" type="number" min="0.1" max="10" step="0.1" value="1.0"></label>
+            <label>Initial Cluster Count <input id="layout-clusters" type="number" min="1" max="20" step="1" value="5"></label>
+          </div>
+          
+          
+          <label>GRAPH LAYOUT ITERATIONS<br /><input id="layout-iterations" type="number" value="5000" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>WIDTH<br /><input id="layout-width" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>HEIGHT<br /><input id="layout-height" type="number" step="100" value="2000" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>GRAVITY<br /><input id="layout-gravity" type="number" step="0.01" value="0.01" style="width: 100%; margin-bottom: 10px;"></label>
+          <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
+          <input type="checkbox" id="toggle-labels" checked style="vertical-align: middle;">
+          <label for="toggle-labels" style="color:#aaa; display: inline-block; margin-left: 5px; vertical-align: middle;">SHOW LABELS</label><br/><br/>
+          <button id="layout-toggle-btn"
+            style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
+            Apply Layout (L)
+          </button>
+          <div id="layout-progress-wrapper" style="margin-top: 20px;">
+            <label style="color:#aaa;">Layout progress</label>
+            <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
+            <div id="layout-progress-text" style="font-size: 13px; color: #aaa; text-align: right; margin-top: 4px;">0%</div>
+          </div>
         </div>
-        <input id="donation-amount" type="number" min="0.1" step="0.1" placeholder="Amount in MINA" style="width: 100%; margin-bottom: 10px;" />
-        <button id="donate-btn" style="width: 100%; background: #dd9800; color: white; padding: 8px; border: none; border-radius: 4px;">
-          Donate with Auro Wallet
-        </button>
-      </div>
-      <div style="margin-top: 20px;">
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
-          <label style="margin: 0;font-size:9px;">Or use your favorite EVM wallet</label>
-          <span class="info-icon" title="Support this project using any EVM wallet.">ℹ</span>
-        </div>
-        <input id="donation-amount-evm" type="number" min="0.01" step="0.01" placeholder="Amount" style="width: 100%; margin-bottom: 5px;" />
-        <select id="donation-token" style="width: 100%; margin-bottom: 5px;">
-          <option value="native">Native token (ETH, MATIC, BNB...)</option>
-          <option value="USDT">USDT</option>
-          <option value="USDC">USDC</option>
-        </select>
-        <button id="donate-btn-evm" onclick="sendEVMDonation()" style="width: 100%; background: #0e76a8; color: white; padding: 8px; border: none; border-radius: 4px;">
-          Donate with EVM Wallet
-        </button>
-        <div id="status" class="status"></div>        
       </div>
       
-    </div>
+      <!-- WATCHED / FAVORITES -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Watched / Favorites</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-content">        
+          <button onclick="showWatchedAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #2fa3d7; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            📩 View Watched Addresses
+          </button>
+          <button onclick="showFavoritesAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #aa5300; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            ⭐ View Favorites Addresses
+          </button>
+        </div>
+      </div>
+      
+      <!-- LOAD / SAVE -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Load / Save</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-content">
+          <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
+          <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
+          <input type="file" id="import-json" accept=".json" style="display: none;">
+          <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
+          
+          <button onclick="saveLocalStorageToJsonFile()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT SETTINGS</button>
+          <button onclick="document.getElementById('import-settings').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT SETTINGS</button>
+          <input type="file" id="import-settings" accept=".json" style="display: none;">      
+          
+          <button onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
+          <div style="margin-top: 40px; text-align: center;">
+            <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
+          </div>  
+        </div>
+      </div>
+      
+      <!-- DONATE -->
+      <div class="foldable-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Credits / Donate</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-content open">       
+          <div style="margin-top: 10px;">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
+              <label style="margin: 0;font-size:9px;">Buy me a coffee (or a Lamborghini 😊)</label>
+              <span class="info-icon" title="Support this project by sending any amount of MINA via Auro Wallet." style="cursor: help; font-size: 14px; opacity: 1;">
+                ℹ
+              </span>
+            </div>
+            <input id="donation-amount" type="number" min="0.1" step="0.1" placeholder="Amount in MINA" style="width: 100%; margin-bottom: 10px;" />
+            <button id="donate-btn" style="width: 100%; background: #dd9800; color: white; padding: 8px; border: none; border-radius: 4px;">
+              Donate with Auro Wallet
+            </button>
+          </div>
+          <div style="margin-top: 20px;">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
+              <label style="margin: 0;font-size:9px;">Or use your favorite EVM wallet</label>
+              <span class="info-icon" title="Support this project using any EVM wallet.">ℹ</span>
+            </div>
+            <input id="donation-amount-evm" type="number" min="0.01" step="0.01" placeholder="Amount" style="width: 100%; margin-bottom: 5px;" />
+            <select id="donation-token" style="width: 100%; margin-bottom: 5px;">
+              <option value="native">Native token (ETH, MATIC, BNB...)</option>
+              <option value="USDT">USDT</option>
+              <option value="USDC">USDC</option>
+            </select>
+            <button id="donate-btn-evm" onclick="sendEVMDonation()" style="width: 100%; background: #0e76a8; color: white; padding: 8px; border: none; border-radius: 4px;">
+              Donate with EVM Wallet
+            </button>
+            <div id="status" class="status"></div>        
+          </div>
+        </div>
+      </div>
+    </div> <!--END LEFT SIDEBAR -->
 
     <!-- Watched Addresses Modal -->
     <div id="watched-modal" style="
