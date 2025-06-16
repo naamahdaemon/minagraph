@@ -828,6 +828,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
   updateNotificationBadge();
+
+  if (params.get("reset") === "true") {
+    clearEverything();
+  }  
 });
 
 init();
@@ -6135,3 +6139,42 @@ function loadLocalStorageFromJsonFile(file) {
 
     reader.readAsText(file);
 }
+
+  function clearEverything() {
+    // Clear localStorage
+    localStorage.clear();
+
+    // Clear sessionStorage
+    sessionStorage.clear();
+
+    // Clear all cookies
+    document.cookie.split(';').forEach(cookie => {
+      const eqPos = cookie.indexOf('=');
+      const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    });
+
+    // Delete IndexedDB databases
+    if (window.indexedDB && indexedDB.databases) {
+      indexedDB.databases().then(dbs => {
+        dbs.forEach(db => indexedDB.deleteDatabase(db.name));
+      });
+    }
+
+    // Remove FCM tokens (if using Firebase)
+    if (window.firebase && firebase.messaging) {
+      firebase.messaging().getToken().then(token => {
+        firebase.messaging().deleteToken(token);
+      });
+    }
+
+    // Clear caches (Service Worker)
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+    }
+
+    console.log('✅ Everything cleared. Reloading...');
+
+    // Reload after a short delay to ensure all async operations complete
+    setTimeout(() => window.location.href = window.location.origin + window.location.pathname, 1000);
+  }
