@@ -91,7 +91,7 @@
     "><br/>
       <!-- BLOCKCHAIN SECTION -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Blockchain</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 15px 0px 0px 0px;">Blockchain</h2></span><span class="arrow">▲</span></div>
         <div class="foldable-content open">      
           <label for="blockchain-select">Select Blockchain</label>
           <select id="blockchain-select" style="margin-bottom: 20px;">
@@ -120,7 +120,7 @@
 
       <!-- FETCH PARAMETERS SECTION -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Fetch Parameters</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Fetch Parameters</h2></span><span class="arrow">▲</span></div>
         <div class="foldable-content open">  
           <label>LIMIT<br /><input id="param-limit" type="number" value="80" style="width: 100%; margin-bottom: 10px;"></label>
           <label>FIRST ITERATION LIMIT<br /><input id="param-first-iteration" type="number" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
@@ -204,7 +204,7 @@
      
       <!-- GRAPH PARAMETERS SECTION -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Graph Parameters</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Graph Parameters</h2></span><span class="arrow">▼</span></div>
         <div class="foldable-content">  
           <label for="layout-algorithm">ALGORITHM</label>
           <select id="layout-algorithm">
@@ -268,7 +268,7 @@
       
       <!-- WATCHED / FAVORITES -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Watched / Favorites</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Watched / Favorites</h2></span><span class="arrow">▼</span></div>
         <div class="foldable-content">        
           <button onclick="showWatchedAddressesModal()" style="width: 100%; margin-bottom: 20px; padding: 8px; background: #2fa3d7; color: white; border: none; border-radius: 4px; cursor: pointer;">
             📩 View Watched Addresses
@@ -281,18 +281,18 @@
       
       <!-- LOAD / SAVE -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Load / Save</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Load / Save</h2></span><span class="arrow">▼</span></div>
         <div class="foldable-content">
-          <button onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
-          <button onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
+          <button id="exportBtn" onclick="exportJSON()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT JSON</button>
+          <button id="importBtn" onclick="document.getElementById('import-json').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT JSON</button>
           <input type="file" id="import-json" accept=".json" style="display: none;">
-          <button onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
+          <button  id="exportPngBtn" onclick="exportPNG()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT PNG</button>
           
-          <button onclick="saveLocalStorageToJsonFile()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT SETTINGS</button>
-          <button onclick="document.getElementById('import-settings').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT SETTINGS</button>
+          <button  id="saveBtn" onclick="saveLocalStorageToJsonFile()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT SETTINGS</button>
+          <button   id="loadBtn" onclick="document.getElementById('import-settings').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT SETTINGS</button>
           <input type="file" id="import-settings" accept=".json" style="display: none;">      
           
-          <button onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
+          <button   id="demoBtn" onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
           <div style="margin-top: 40px; text-align: center;">
             <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>
           </div>  
@@ -301,7 +301,7 @@
       
       <!-- DONATE -->
       <div class="foldable-section">
-        <div class="foldable-header"><span><h2 style="font-size: 16px; margin-bottom: 7px;">Credits / Donate</h2></span><span class="arrow">▲</span></div>
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Credits / Donate</h2></span><span class="arrow">▲</span></div>
         <div class="foldable-content open">       
           <div style="margin-top: 10px;">
             <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 10px; color: #ccc;">
@@ -506,14 +506,16 @@
 
           <button id="fullscreen-toggle" class="control-button" title="Toggle Fullscreen (F)" style="
             padding: 6px 12px;
-            background: rgba(0, 0, 0, 0.7);
             color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             white-space: nowrap;
           ">
-            ⛶
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="white">
+              <!-- four outward-pointing corners -->
+              <path d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zm6 12v6h-6v-2h4v-4h2zm-12 6H3v-6h2v4h4v2z"/>
+            </svg>
           </button>
           
           <button id="reset-db-btn" style="
