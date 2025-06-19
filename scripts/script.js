@@ -475,10 +475,52 @@ document.addEventListener("DOMContentLoaded", () => {
       sidebar.style.color = isLight ? "#111" : "#fff";
     }
 
+    const legend = document.getElementById("legend");
+    if (legend) {
+      legend.style.background = isLight ? "#fff" : "#1e1e1e";
+      legend.style.color = isLight ? "#111" : "#fff";
+    }
+
+    const searchDiv = document.getElementById("searchdiv");
+    if (searchDiv) {
+      searchDiv.style.background = isLight ? "#fff" : "#1e1e1e";
+      searchDiv.style.color = isLight ? "#111" : "#fff";
+    }
+
+    document.querySelectorAll("#layout-toggle-btn, #start-graph-btn, #exportBtn, #importBtn, #exportPngBtn, #saveBtn, #loadBtn, #demoBtn").forEach(btn => {
+      if (btn) {
+        btn.style.background = isLight ? "#eee" : "#444";
+        btn.style.color = isLight ? "#111" : "#fff";
+        btn.style.border = isLight ? "1px solid #aaa" : "none";
+      }
+    });
+
     const controls = document.getElementById("controls");
     if (controls) {
-      controls.style.background = isLight ? "#eee" : "#222";
+      controls.style.background = isLight ? "#fff" : "#222";
+      controls.style.border = isLight ? "1px solid #aaa" : "none";
       controls.style.color = isLight ? "#000" : "#fff";
+    }
+
+    const fillColor = isLight ? "black" : "white";
+    controls.querySelectorAll("svg").forEach(svg => {
+      // 1) override via CSS style (highest priority)
+      svg.style.fill = fillColor;
+      // 2) force any explicit fill-attrs on inner shapes
+      svg.querySelectorAll("path, circle, rect, polygon, ellipse, line, polyline")
+         .forEach(shape => shape.setAttribute("fill", fillColor));
+    });
+
+    const dateSlicer = document.getElementById("date-slicer-container");
+    if (dateSlicer) {
+        dateSlicer.style.background = isLight ? "#fff" : "#444";
+        dateSlicer.style.color = isLight ? "#111" : "#fff";      
+    }
+
+    const menuToggle = document.getElementById("menu-toggle");
+    if (menuToggle) {
+        menuToggle.style.background = isLight ? "#fff" : "#444";
+        menuToggle.style.color = isLight ? "#111" : "#fff";      
     }
 
     const footer = document.getElementById("footer");
@@ -492,7 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sigmaContainer.style.background = isLight ? "#fff" : "#000";
     }
 
-    document.querySelectorAll("#left-sidebar input, #controls input").forEach(input => {
+    document.querySelectorAll("#left-sidebar input, #left-sidebar select,#left-sidebar textarea, #controls input").forEach(input => {
       input.style.background = isLight ? "#fff" : "#222";
       input.style.color = isLight ? "#000" : "#fff";
     });
@@ -4721,6 +4763,8 @@ function toggleFullscreen(forceExit = false) {
   isFullscreen = forceExit ? false : !isFullscreen;
   const legend = document.getElementById("legend");
   const menu = document.getElementById("menu-toggle");
+  const fillColor = currentTheme === "dark" ? "white" : "black"  
+  const exitfillColor = currentTheme === "dark" ? "black" : "white"  
 
   if (isFullscreen) {
     sidebar.style.display = "none";
@@ -4730,6 +4774,8 @@ function toggleFullscreen(forceExit = false) {
     appContainer.classList.remove("sidebar-open"); // 👈 remove margin
     //sidebar.classList.remove("open"); // 👈 remove margin
     fullscreenBtn.textContent = "Exit Fullscreen";
+    exitFullscreenBtn.style.background = exitfillColor;
+    exitFullscreenBtn.style.color = fillColor;
     exitFullscreenBtn.style.display = "block";
     document.body.classList.add("fullscreen-mode");
     legend.style.left = "50px";
@@ -4753,7 +4799,12 @@ function toggleFullscreen(forceExit = false) {
       legend.style.left = "50px";
     }
 
-    fullscreenBtn.textContent = "⛶";
+    const enterFullscreenIcon = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="${fillColor}">
+      <path d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zm6 12v6h-6v-2h4v-4h2zm-12 6H3v-6h2v4h4v2z" fill="${fillColor}"/>
+    </svg>`;
+
+    fullscreenBtn.innerHTML = enterFullscreenIcon;
     exitFullscreenBtn.style.display = "none";
     document.body.classList.remove("fullscreen-mode");
     updateLegendOffset(); // 👈 and here too
@@ -5858,6 +5909,27 @@ function deleteNotification(message_id) {
 
 async function showNotificationList() {
   const container = document.getElementById('notification-list');
+  
+  const isLight   = currentTheme === 'light';
+
+  // theme-aware palette
+  const bgColor             = isLight ? '#fff' : '#222';
+  const textColor           = isLight ? '#000' : '#fff';
+  const secondaryTextColor  = isLight ? '#555' : '#aaa';
+  const borderColor         = isLight ? '#ccc' : '#555';
+  const btnBgDefault        = isLight ? '#eee' : '#444';
+  const btnColorDefault     = isLight ? '#333' : '#ccc';  
+
+  // style the container itself
+  Object.assign(container.style, {
+    background: bgColor,
+    color: textColor,
+    border: `1px solid ${borderColor}`,
+    boxShadow: isLight
+      ? '0 2px 8px rgba(0,0,0,0.15)'
+      : '0 2px 8px rgba(0,0,0,0.5)',
+  });
+  
   const notifs = await getSavedNotifications();
 
   if (!notifs.length) {
@@ -5913,8 +5985,8 @@ async function showNotificationList() {
         const dismissBtn = `<button onclick="deleteAndRefresh('${n.message_id}')" style="
             margin-top: 6px;
             padding: 4px 8px;
-            background: #444;
-            color: #ccc;
+            background: ${btnBgDefault};
+            color: ${btnColorDefault};
             border: none;
             border-radius: 4px;
             cursor: pointer;
@@ -5922,16 +5994,22 @@ async function showNotificationList() {
           ">Dismiss</button>`;
 
         return `
-        <div class="notif-item" data-id="${n.message_id}" style="padding: 6px 4px; border-bottom: 1px solid #444; position: relative;">
+          <div class="notif-item" data-id="${n.message_id}" style="
+            padding: 6px 4px;
+            border-bottom: 1px solid ${borderColor};
+            position: relative;
+            background: ${bgColor};
+            color: ${textColor};
+          ">
           <strong>${n.title}</strong><br>
-            <small>${(n.body || '').replace(/\n/g, '<br/>')}</small><br/>
+            <small style="color: ${secondaryTextColor};">${(n.body || '').replace(/\n/g, '<br/>')}</small><br/>
           <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
           <button style="
             position: absolute;
             top: 4px;
             right: 4px;
             background: transparent;
-            color: #aaa;
+              color: ${secondaryTextColor};
             border: none;
             cursor: pointer;
             font-size: 14px;
