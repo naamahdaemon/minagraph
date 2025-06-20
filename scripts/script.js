@@ -471,7 +471,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const sidebar = document.getElementById("left-sidebar");
     if (sidebar) {
-      sidebar.style.background = isLight ? "#fff" : "#1e1e1e";
+      sidebar.style.background = isLight ? "#EEECFE" : "#1e1e1e";
       sidebar.style.color = isLight ? "#111" : "#fff";
     }
 
@@ -489,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll("#layout-toggle-btn, #start-graph-btn, #exportBtn, #importBtn, #exportPngBtn, #saveBtn, #loadBtn, #demoBtn").forEach(btn => {
       if (btn) {
-        btn.style.background = isLight ? "#eee" : "#444";
+        btn.style.background = isLight ? "#fff" : "#444";
         btn.style.color = isLight ? "#111" : "#fff";
         btn.style.border = isLight ? "1px solid #aaa" : "none";
       }
@@ -519,7 +519,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const menuToggle = document.getElementById("menu-toggle");
     if (menuToggle) {
-        menuToggle.style.background = isLight ? "#fff" : "#444";
+        menuToggle.style.background = isLight ? "rgba(255,255,255,0)" : "rgba(68,68,68,0)";
         menuToggle.style.color = isLight ? "#111" : "#fff";      
     }
 
@@ -531,11 +531,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const sigmaContainer = document.getElementById("sigma-container");
     if (sigmaContainer) {
-      sigmaContainer.style.background = isLight ? "#fff" : "#000";
+      sigmaContainer.style.background = isLight ? "#FEECEE" : "#000";
     }
 
     document.querySelectorAll("#left-sidebar input, #left-sidebar select,#left-sidebar textarea, #controls input").forEach(input => {
-      input.style.background = isLight ? "#fff" : "#222";
+      input.style.background = isLight ? "#FBFCFD" : "#222";
       input.style.color = isLight ? "#000" : "#fff";
     });
 
