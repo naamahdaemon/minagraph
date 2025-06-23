@@ -3743,7 +3743,7 @@ function setupReducers() {
         size: defaultSize * 0.7,
         opacity: 0.1,
         borderSize: 0,
-        borderColor: "#EEECEE",
+        borderColor: isLightTheme() ? "#EEECEE" : "#111",
         zIndex: 0
       };
     }
