@@ -3152,8 +3152,10 @@ function stopLayout() {
 
   document.getElementById("layout-info").textContent =
     `■ Layout stopped at step ${layoutStep}`;
-  layoutBtn.textContent = "Start Layout";
+  layoutBtn.textContent = "Apply Layout";
   isLayoutRunning = false;   
+  document.getElementById("layout-progress").value = 0;
+  document.getElementById("layout-progress-text").textContent = "Stopped";  
 }
 
 // Animate a few FR steps, one every 20 ms, but bail out if stopped
@@ -3166,6 +3168,10 @@ function animateLayout(iterations = 500) {
   const height = parseInt(document.getElementById("layout-height").value) || 2000;  
   pauseLayout = false;
   layoutStep  = 0;
+  let progress = 0;
+  let percent = 0;
+  isLayoutRunning = true; 
+  
   document.getElementById("layout-info").textContent =
     `▶ Animating layout for ${iterations} steps…`;
 
@@ -3178,6 +3184,7 @@ function animateLayout(iterations = 500) {
         pauseLayout
           ? `■ Animation stopped at step ${layoutStep}`
           : `✅ Animation finished after ${layoutStep} steps`;
+        stopLayout();
       return;
     }
 
@@ -3192,7 +3199,13 @@ function animateLayout(iterations = 500) {
     //fruchtermanReingold(graph, { iterations: 1 });
     
       renderer.refresh();
+    progress = layoutStep / iterations;    
+    
     layoutStep++;
+
+    percent = Math.round(progress * 100);
+    document.getElementById("layout-progress").value = percent;
+    document.getElementById("layout-progress-text").textContent = `${percent}%`;
 
     // Schedule the next one in 20 ms
     layoutTimerId = setTimeout(runStep, 20);
@@ -5210,12 +5223,11 @@ document.addEventListener("keydown", function (event) {
     renderer.refresh();
     return;
   } else if (event.key === "Escape") {
-    stopLayout();
-    const layoutBtn = document.getElementById("layout-toggle-btn");
-    if (isLayoutRunning) {
-      stopLayoutInWorker();
-      layoutBtn.textContent = "Apply Layout";
-      isLayoutRunning = false;      
+      if (isLayoutRunning) {
+	      stopLayout();
+	      stopLayoutInWorker();
+	      layoutBtn.textContent = "Apply Layout";
+	      isLayoutRunning = false;      
     }
   }
 
