@@ -3583,11 +3583,21 @@ function initRenderer() {
   
   graph = new Graph({ multi: true });
   //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
-  param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
-  
+  param = {
+    labelColor: {
+        color: isLightTheme() ? "#000" : "#9999ff"
+    },
+    defaultNodeType: "bordered",
+    nodeProgramClasses: {
+      bordered: NodeBorderProgram,
+    },
+  }
   //renderer = new Sigma(graph, container);
 
   renderer = new Sigma(graph,container,param);
+  renderer.setSetting("defaultNodeBorderColor", "#fff");
+  renderer.setSetting("defaultNodeBorderSize", 40);
+  
 
   // Re-apply settings and listeners
   setupReducers();
@@ -3674,7 +3684,7 @@ function setupReducers() {
         //console.log ("Node Focused");
         return {
           ...data,
-          type: "circle",
+          //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
           label: data.label,
@@ -3699,7 +3709,7 @@ function setupReducers() {
       if (isNeighbor) {
         return {
           ...data,
-          type: "circle",
+          //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
           label: showAllLabels ? data.label : "",
@@ -3716,7 +3726,7 @@ function setupReducers() {
           forceLabelBackground: true,                
           zIndex: 1,
           size: defaultSize * 1.5,
-          borderColor: glowColor,
+          borderColor: isLightTheme() ? "#111" : "#eee", //glowColor,
           borderSize: 4,
           opacity: 0.5,
         };
@@ -3725,6 +3735,7 @@ function setupReducers() {
       // Dim unrelated nodes
       return {
         ...data,
+        //type: "circle",
         color: isLightTheme() ? "#eee" : "#111",
         labelColor: {color: isLightTheme() ? "#000" : "#fff"},
         label: "",
@@ -3737,13 +3748,14 @@ function setupReducers() {
     }
 
     // 🧩 Default view
-    return {
+    standardNode = {
       ...data,
+      //type: "circle",
       color: glowColor,
       overrideColor: glowColor, // 🟢 force Sigma to use this color
-      borderColor: glowColor,
-      borderSize: 4,
-      opacity: 0.75,
+      borderColor: isLightTheme() ? "#111" : "#eee",
+      borderSize: 10,
+      opacity: 1,
       label: showAllLabels ? data.label : "",
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
@@ -3759,9 +3771,14 @@ function setupReducers() {
       size: defaultSize,
       zIndex: 1
     };
+    
+    //console.log("Rendering node:", node, standardNode);
+
+    // 🧩 Default view
+    return standardNode;
   });
   
-  renderer.setSetting("defaultNodeColor", "#fff"); // or any default fallback
+  //renderer.setSetting("defaultNodeColor", "#fff"); // or any default fallback
 
 
   renderer.setSetting("edgeReducer", (edge, data) => {
@@ -3840,6 +3857,12 @@ function setupReducers() {
 }
 
 function setupInteractions() {
+  // State for drag'n'drop
+  let draggedNode;
+  let isDragging = false;  
+  let hasMoved = false;
+  let dragStartPos = { x: 0, y: 0 };
+  
   renderer.on("enterNode", ({ node }) => {
     hoveredNode = node;
     tooltip.style.display = "block";
@@ -3864,11 +3887,11 @@ function setupInteractions() {
     renderer.refresh();
   });
 
-  renderer.on("clickNode", ({ node }) => {
+  /*renderer.on("clickNode", ({ node }) => {
     selectedNode = node;
     showNodePanel(node);
     renderer.refresh();
-  });
+  });*/
 
   renderer.on("clickStage", () => {
     hideNodePanel();
@@ -3879,6 +3902,69 @@ function setupInteractions() {
     renderer.getContainer().addEventListener("mousemove", e => {
       tooltip.style.left = e.pageX + 10 + "px";
       tooltip.style.top = e.pageY + 10 + "px";
+    });
+  }
+  
+  if (renderer) {
+    // Down on a node: start drag-mode
+    renderer.on("downNode", ({ node, event }) => {
+      draggedNode = node;
+      isDragging = true;
+      hasMoved = false;
+
+      // remember where the pointer started
+      dragStartPos = { x: event.x, y: event.y };
+
+      graph.setNodeAttribute(draggedNode, "highlighted", true);
+      if (!renderer.getCustomBBox()) renderer.setCustomBBox(renderer.getBBox());
+    });
+
+    // Move anywhere over the stage
+    renderer.on("moveBody", ({ event }) => {
+      if (!isDragging || !draggedNode) return;
+
+      // if movement exceeds a few pixels, mark it as a drag
+      if (!hasMoved) {
+        const dx = event.x - dragStartPos.x;
+        const dy = event.y - dragStartPos.y;
+        if (Math.sqrt(dx*dx + dy*dy) > 4) {
+          hasMoved = true;
+        }
+      }
+
+      // reposition node
+      const pos = renderer.viewportToGraph(event);
+      graph.setNodeAttribute(draggedNode, "x", pos.x);
+      graph.setNodeAttribute(draggedNode, "y", pos.y);
+
+      // prevent camera move
+      event.preventSigmaDefault();
+      event.original.preventDefault();
+      event.original.stopPropagation();
+    });
+
+    // Up on node or on stage: end drag-mode
+    const handleUp = () => {
+      if (draggedNode) {
+        graph.removeNodeAttribute(draggedNode, "highlighted");
+      }
+      isDragging = false;
+      draggedNode = null;
+    };
+    renderer.on("upNode", handleUp);
+    renderer.on("upStage", handleUp);
+
+    // Click on a node — but only if we didn’t actually drag
+    renderer.on("clickNode", ({ node }) => {
+      if (hasMoved) {
+        // user was dragging; swallow the click
+        hasMoved = false;
+        return;
+      }
+      // real click!
+      selectedNode = node;
+      showNodePanel(node);
+      renderer.refresh();
     });
   }
 }
@@ -4111,11 +4197,21 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     hoveredNode = null;
     selectedNode = null;      
 
-  param = {labelColor: {color: isLightTheme() ? "#000" : "#9999ff"}}
+    param = {
+        labelColor: {
+            color: isLightTheme() ? "#000" : "#9999ff"
+        },
+        defaultNodeType: "bordered",
+        nodeProgramClasses: {
+          bordered: NodeBorderProgram,
+        },        
+    }
 
     //renderer = new Sigma(graph, container);
 
     renderer = new Sigma(graph,container,param);
+    renderer.setSetting("defaultNodeBorderColor", "#fff");
+    renderer.setSetting("defaultNodeBorderSize", 40);
   }
  
  if (!wipeGraph)

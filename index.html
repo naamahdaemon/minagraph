@@ -10,7 +10,15 @@
   <meta name="theme-color" content="#000000">
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-VR50WVP209"></script>
   <link href="./style/style.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
+  <!--<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>-->
+  <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>-->
+  <script src="./scripts/sigma.umd.js"></script>
+
+  <script type="module">
+    import { NodeBorderProgram } from "https://cdn.jsdelivr.net/npm/@sigma/node-border@3.0.0/+esm";
+    window.NodeBorderProgram = NodeBorderProgram;
+  </script>
+  
   <script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.0.0"></script>  
