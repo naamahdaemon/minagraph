@@ -3700,8 +3700,8 @@ function setupReducers() {
           //forceLabelBackground: true,
           zIndex: 2,
           size: defaultSize * 2.2,
-          borderColor: glowColor,
-          borderSize: 6,
+          borderColor: isLightTheme() ? "#111" : "#eee",
+          borderSize: 12,
           opacity: 0.9,
         };
       }
