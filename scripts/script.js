@@ -3160,6 +3160,10 @@ function stopLayout() {
 function animateLayout(iterations = 500) {
   // Reset state
   const layoutBtn = document.getElementById("layout-toggle-btn");
+  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
+  const width = parseInt(document.getElementById("layout-width").value) || 2000;
+  const height = parseInt(document.getElementById("layout-height").value) || 2000;  
   pauseLayout = false;
   layoutStep  = 0;
   document.getElementById("layout-info").textContent =
@@ -3178,7 +3182,15 @@ function animateLayout(iterations = 500) {
     }
 
     // One iteration of FR + render
-      fruchtermanReingold(graph, { iterations: 1 });
+    fruchtermanReingold(graph, {
+      iterations:   1,
+      gravity,
+      scalingRatio: scale,
+      width,
+      height
+    });    
+    //fruchtermanReingold(graph, { iterations: 1 });
+    
       renderer.refresh();
     layoutStep++;
 
