@@ -609,6 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   layoutBtn.addEventListener("click", () => {
     if (isLayoutRunning) {
+      stopLayout();
       stopLayoutInWorker();
       layoutBtn.textContent = "Apply Layout";
       isLayoutRunning = false;
@@ -1164,6 +1165,10 @@ function fruchtermanReingold(graph, {
     graph.setNodeAttribute(n, "y", positions[n].y);
   });
 }
+
+// Globals for your layout loop
+let layoutRafId = null;
+let layoutStep = 0;
 
 function applyLayout() {
     const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 5000;
@@ -3124,13 +3129,65 @@ function applyNodeSizesByDegree() {
   });
 }
 
+// Globals
+let layoutTimerId  = null;   // for setTimeout scheduling
+let pauseLayout    = false;
+
+// Stops any running layout (chunked, rAF or setTimeout)
+function stopLayout() {
+  pauseLayout = true;
+  const layoutBtn = document.getElementById("layout-toggle-btn");
+
+  // Cancel the setTimeout-based animation, if any
+  if (layoutTimerId !== null) {
+    clearTimeout(layoutTimerId);
+    layoutTimerId = null;
+  }
+
+  // If you ever also use requestAnimationFrame:
+  if (layoutRafId !== null) {
+    cancelAnimationFrame(layoutRafId);
+    layoutRafId = null;
+  }
+
+  document.getElementById("layout-info").textContent =
+    `■ Layout stopped at step ${layoutStep}`;
+  layoutBtn.textContent = "Start Layout";
+  isLayoutRunning = false;   
+}
+
+// Animate a few FR steps, one every 20 ms, but bail out if stopped
 function animateLayout(iterations = 500) {
-  for (let i = 0; i < iterations; i++) {
-    setTimeout(() => {
+  // Reset state
+  const layoutBtn = document.getElementById("layout-toggle-btn");
+  pauseLayout = false;
+  layoutStep  = 0;
+  document.getElementById("layout-info").textContent =
+    `▶ Animating layout for ${iterations} steps…`;
+
+  function runStep() {
+    layoutBtn.textContent = "Stop Layout";
+    isLayoutRunning = true; 
+    // Exit if user hit Escape (pauseLayout) or we’re done
+    if (pauseLayout || layoutStep >= iterations) {
+      document.getElementById("layout-info").textContent =
+        pauseLayout
+          ? `■ Animation stopped at step ${layoutStep}`
+          : `✅ Animation finished after ${layoutStep} steps`;
+      return;
+    }
+
+    // One iteration of FR + render
       fruchtermanReingold(graph, { iterations: 1 });
       renderer.refresh();
-    }, i * 20);
+    layoutStep++;
+
+    // Schedule the next one in 20 ms
+    layoutTimerId = setTimeout(runStep, 20);
   }
+
+  // Kick it off
+  runStep();
 }
 
 function deleteSelectedNode(nodeId) {
@@ -5140,6 +5197,14 @@ document.addEventListener("keydown", function (event) {
     handleSearch("");
     renderer.refresh();
     return;
+  } else if (event.key === "Escape") {
+    stopLayout();
+    const layoutBtn = document.getElementById("layout-toggle-btn");
+    if (isLayoutRunning) {
+      stopLayoutInWorker();
+      layoutBtn.textContent = "Apply Layout";
+      isLayoutRunning = false;      
+    }
   }
 
   // Ignore all other keys if typing in a field
