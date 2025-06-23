@@ -3859,11 +3859,12 @@ function setupReducers() {
 
 function setupInteractions() {
   // State for drag'n'drop
-  let draggedNode;
+  let draggedNode   = null;
   let isDragging = false;  
   let hasMoved = false;
   let dragStartPos = { x: 0, y: 0 };
   
+  // Hover in/out to show tooltip & halo
   renderer.on("enterNode", ({ node }) => {
     hoveredNode = node;
     tooltip.style.display = "block";
@@ -3888,87 +3889,73 @@ function setupInteractions() {
     renderer.refresh();
   });
 
-  /*renderer.on("clickNode", ({ node }) => {
-    selectedNode = node;
-    showNodePanel(node);
-    renderer.refresh();
-  });*/
-
+  // Click on the background to hide the panel
   renderer.on("clickStage", () => {
     hideNodePanel();
   });
 
-  
-  if (renderer) {
+  // Keep tooltip following pointer
     renderer.getContainer().addEventListener("mousemove", e => {
       tooltip.style.left = e.pageX + 10 + "px";
       tooltip.style.top = e.pageY + 10 + "px";
     });
-  }
   
-  if (renderer) {
-    // Down on a node: start drag-mode
+  // Start drag on downNode (mouse or touch)
     renderer.on("downNode", ({ node, event }) => {
       draggedNode = node;
       isDragging = true;
       hasMoved = false;
-
-      // remember where the pointer started
       dragStartPos = { x: event.x, y: event.y };
 
-      graph.setNodeAttribute(draggedNode, "highlighted", true);
+    graph.setNodeAttribute(node, "highlighted", true);
       if (!renderer.getCustomBBox()) renderer.setCustomBBox(renderer.getBBox());
     });
 
-    // Move anywhere over the stage
+  // During drag, move the node and detect “real” drag vs click
     renderer.on("moveBody", ({ event }) => {
       if (!isDragging || !draggedNode) return;
 
-      // if movement exceeds a few pixels, mark it as a drag
-      if (!hasMoved) {
-        const dx = event.x - dragStartPos.x;
-        const dy = event.y - dragStartPos.y;
-        if (Math.sqrt(dx*dx + dy*dy) > 4) {
+    const dx = event.x - dragStartPos.x,
+          dy = event.y - dragStartPos.y;
+    if (!hasMoved && Math.hypot(dx, dy) > 4) {
           hasMoved = true;
         }
-      }
 
-      // reposition node
       const pos = renderer.viewportToGraph(event);
       graph.setNodeAttribute(draggedNode, "x", pos.x);
       graph.setNodeAttribute(draggedNode, "y", pos.y);
 
-      // prevent camera move
+    // prevent Sigma’s default camera drag
       event.preventSigmaDefault();
       event.original.preventDefault();
       event.original.stopPropagation();
     });
 
-    // Up on node or on stage: end drag-mode
-    const handleUp = () => {
+  // End drag (mouse-up or touch-end) — handle as click if no real drag
+  const endDrag = ({ node }) => {
+    // clear highlighting
       if (draggedNode) {
         graph.removeNodeAttribute(draggedNode, "highlighted");
       }
-      isDragging = false;
-      draggedNode = null;
-    };
-    renderer.on("upNode", handleUp);
-    renderer.on("upStage", handleUp);
 
-    // Click on a node — but only if we didn’t actually drag
-    renderer.on("clickNode", ({ node }) => {
-      if (hasMoved) {
-        // user was dragging; swallow the click
-        hasMoved = false;
-        animateLayout();
-        return;
-      }
-      // real click!
+    if (!hasMoved && node) {
+      // treat as a “clickNode”
       selectedNode = node;
       showNodePanel(node);
       renderer.refresh();
-    });
+    } else if (hasMoved) {
+      // you dragged: optionally re-layout or whatever
+      animateLayout();
   }
+
+    // reset state
+    isDragging   = false;
+    draggedNode  = null;
+    hasMoved     = false;
+  };
+
+  renderer.on("upNode", endDrag);
+  renderer.on("upStage", endDrag);
 }
 
 function setupSearch_old() {
