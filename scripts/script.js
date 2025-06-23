@@ -3960,6 +3960,7 @@ function setupInteractions() {
       if (hasMoved) {
         // user was dragging; swallow the click
         hasMoved = false;
+        animateLayout();
         return;
       }
       // real click!
