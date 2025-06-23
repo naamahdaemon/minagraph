@@ -3736,13 +3736,14 @@ function setupReducers() {
       return {
         ...data,
         //type: "circle",
-        color: isLightTheme() ? "#eee" : "#111",
+        color: isLightTheme() ? "#EEECEE" : "#111",
         labelColor: {color: isLightTheme() ? "#000" : "#fff"},
         label: "",
         labelSize: 36,
         size: defaultSize * 0.7,
         opacity: 0.1,
         borderSize: 0,
+        borderColor: "#EEECEE",
         zIndex: 0
       };
     }
