@@ -3493,7 +3493,10 @@ function showNodePanel(node) {
         })
         .sort((a, b) => b.latestTimestamp - a.latestTimestamp)
         .map(({ n, latestTimestamp }) => {
-        const label = graph.getNodeAttribute(n, 'label');
+          const isFav = isFavorite(n, selectedBlockchain);
+          const favName = getFavoriteName(n, selectedBlockchain);
+          const shortId = n.slice(0,6) + '…' + n.slice(-6);
+          const label = graph.getNodeAttribute(n, 'label');
           const age = Date.now() - (latestTimestamp || 0);
           let recencyBadge = '';
 
@@ -3635,7 +3638,7 @@ function showNodePanel(node) {
         return `
           <div style="margin-bottom: 20px;">
               <div class="linked-node" onclick="showNodePanel('${n}')">
-                ${label}${recencyBadge}
+                ${((isFav && favName) ? ` ⭐ ${favName} (${shortId})` : label)}${recencyBadge}
               </div>
             <div class="mono">
               ${txTable}
@@ -3657,7 +3660,6 @@ function showNodePanel(node) {
   }
 
   const favSpan = document.getElementById("favorite-status");
-  const isFav = isFavorite(node, selectedBlockchain);
   renderFavIcon(favSpan, isFav, node, selectedBlockchain);
 
   
