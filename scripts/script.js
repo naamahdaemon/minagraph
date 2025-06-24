@@ -3719,6 +3719,9 @@ function setupReducers() {
     const chainCount = chains.length;
     const primaryChain = chains[0] || selectedBlockchain;
 
+    // ★— NEW: check if this node is in favorites
+    const isFav = isAddressInFavorites(node, primaryChain);
+
     if (node === window.initialPublicKey) {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
     } else if (primaryChain === "mina") {
@@ -3769,7 +3772,7 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: data.label,
+          label: data.label + (isFav ? " ⭐" : ""),
           labelSize: 36,
           labelColor: {color: "#000"},
           forceLabelColor: true,
@@ -3794,7 +3797,7 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: showAllLabels ? data.label : "",
+          label: showAllLabels ? data.label + (isFav ? " ⭐" : "") : "",
           labelSize: 36,
           // 👇 Force label color
           labelColor: {color: isLightTheme() ? "#000" : "#fff"},
@@ -3839,7 +3842,7 @@ function setupReducers() {
       borderColor: isLightTheme() ? "#111" : "#eee",
       borderSize: 10,
       opacity: 1,
-      label: showAllLabels ? data.label : "",
+      label: showAllLabels ? data.label + (isFav ? " ⭐" : "") : "",
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
       forceLabelColor: true,
