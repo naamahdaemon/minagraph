@@ -130,6 +130,7 @@ let donateBtn;
 let exitFullscreenBtn;
 let slicer;
 let extraTokens = {}; // New loaded tokens
+let auroProvider = null;
 
 const knownTokens = {
   "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
@@ -853,6 +854,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("watched-btn").onclick = () => {
     showWatchedAddressesModal();
   };
+
+  window.addEventListener("mina:announceProvider", (event) => {
+    if (event.detail?.info?.slug === "aurowallet" ||
+        event.detail?.provider?.isAuro) {
+      auroProvider = event.detail.provider;
+      console.log("✔️  Auro provider ready:", auroProvider);
+    }
+  });
+
+  window.dispatchEvent(new Event("mina:requestProvider"));
+  setTimeout(() => window.dispatchEvent(new Event("mina:requestProvider")), 1000);
 
   const importInput = document.getElementById('import-settings');
   importInput.addEventListener('change', (event) => {
@@ -4843,20 +4855,23 @@ async function sendDonation() {
     return;
   }
 
-  if (!window.mina) {
-    //alert("Auro Wallet not detected. Please install it from https://www.aurowallet.com/");
-    showStatus("Auro Wallet not detected. Please install it from https://www.aurowallet.com/", 'error');
+  const provider = auroProvider || window.mina;
+  if (!provider) {
+    showStatus(
+      "Auro Wallet not detected. Please install it from https://www.aurowallet.com/",
+      "error"
+    );
     return;
   }
 
   try {
-    const accounts = await window.mina.requestAccounts();
+    const accounts = await provider.requestAccounts();
     const sender = accounts[0];
     //showStatus(`Donating from: ${sender.slice(0,6) + "..." + sender.slice(-6)}`, 'info');
     showStatus(`Donating from: ${sender}`, 'info');
     console.log("Donating from:", sender);
 
-    const { hash } = await window.mina.sendPayment({
+    const { hash } = await provider.sendPayment({
       to: DONATION_ADDRESS,
       amount: amount.toString(),
       fee: "0.01",
