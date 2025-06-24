@@ -3386,6 +3386,8 @@ function showNodePanel(node) {
   const panel = document.getElementById("side-panel");
   const data = graph.getNodeAttributes(node);
   const neighbors = graph.neighbors(node);
+  let isFav;
+  let favName;
   
   document.getElementById("side-panel").classList.add("open");
   
