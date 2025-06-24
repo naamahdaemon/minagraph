@@ -4834,22 +4834,26 @@ function adjustSidebarState() {
 async function sendDonation() {
   const params = new URLSearchParams(window.location.search);
   const debug = params.get("debug");  
-  if (debug === "1")
-    alert ("in sendDonation");
+  //if (debug === "1")
+  //  alert ("in sendDonation");
   const amount = parseFloat(document.getElementById("donation-amount").value);
   if (!amount || amount <= 0) {
-    alert("Please enter a valid donation amount (at least 0.1 MINA).");
+    //alert("Please enter a valid donation amount (at least 0.1 MINA).");
+    showStatus("Please enter a valid donation amount (at least 0.1 MINA).", 'error');
     return;
   }
 
   if (!window.mina) {
-    alert("Auro Wallet not detected. Please install it from https://www.aurowallet.com/");
+    //alert("Auro Wallet not detected. Please install it from https://www.aurowallet.com/");
+    showStatus("Auro Wallet not detected. Please install it from https://www.aurowallet.com/", 'error');
     return;
   }
 
   try {
     const accounts = await window.mina.requestAccounts();
     const sender = accounts[0];
+    //showStatus(`Donating from: ${sender.slice(0,6) + "..." + sender.slice(-6)}`, 'info');
+    showStatus(`Donating from: ${sender}`, 'info');
     console.log("Donating from:", sender);
 
     const { hash } = await window.mina.sendPayment({
@@ -4859,10 +4863,12 @@ async function sendDonation() {
       memo: "Thanks for Mina Graph!"
     });
 
-    alert("Thanks for your donation! Tx hash: " + hash);
+    //alert("Thanks for your donation! Tx hash: " + hash);
+    showStatus("Thank you for you donation !", 'info');
   } catch (err) {
     console.error("Donation error:", err);
-    alert("Error while sending donation: " + err.message);
+    //alert("Error while sending donation: " + err.message);
+    showStatus(`Donation error: ${err.message}`, 'error');
   }
 }
 
