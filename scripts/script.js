@@ -126,6 +126,7 @@ let sigmaContainer;
 let controls;
 let footer;
 let fullscreenBtn;
+let donateBtn;
 let exitFullscreenBtn;
 let slicer;
 let extraTokens = {}; // New loaded tokens
@@ -171,6 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
   controls = document.getElementById("controls");
   footer = document.querySelector("footer");
   fullscreenBtn = document.getElementById("fullscreen-toggle");
+  donateBtn = document.getElementById("donate-btn");
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
 
@@ -685,7 +687,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("side-panel").classList.remove("open");
   });
   
-  document.getElementById("donate-btn").addEventListener("click", sendDonation);
+  donateBtn.addEventListener("click", () => sendDonation());
   //document.getElementById("donate-btn-evm").addEventListener("click", sendEVMDonation);
 
 
@@ -4830,6 +4832,10 @@ function adjustSidebarState() {
 }
 
 async function sendDonation() {
+  const params = new URLSearchParams(window.location.search);
+  const debug = params.get("debug");  
+  if (debug === "1")
+    alert ("in sendDonation");
   const amount = parseFloat(document.getElementById("donation-amount").value);
   if (!amount || amount <= 0) {
     alert("Please enter a valid donation amount (at least 0.1 MINA).");
