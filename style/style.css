@@ -1069,10 +1069,20 @@
   }
   
   .status {
+    /* size it however you like… */
+    width: 100%;         /* or max-width: 400px; */
+    box-sizing: border-box;
+
+    /* padding / margin / border as before */
       padding: 8px;
       margin: 10px 0;
       border-radius: 5px;
       display: none;
+
+    /* ← NEW: wrapping rules ↓ */
+    white-space: normal;       /* allow wrapping at spaces */
+    overflow-wrap: break-word; /* break long words if needed */
+    word-break: break-word;    /* some browsers need this */
   }
   .status.success {
       background: #d4edda;
