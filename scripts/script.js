@@ -1237,7 +1237,7 @@ function stopLayoutInWorker() {
 function runLayoutInWorker() {
   const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
   const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
+  const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
@@ -3163,7 +3163,7 @@ function animateLayout(iterations = 500) {
   // Reset state
   const layoutBtn = document.getElementById("layout-toggle-btn");
   const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
+  const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;  
   pauseLayout = false;
@@ -3721,6 +3721,7 @@ function setupReducers() {
 
     // ★— NEW: check if this node is in favorites
     const isFav = isAddressInFavorites(node, primaryChain);
+    const favName = getFavoriteName(node, primaryChain);
 
     if (node === window.initialPublicKey) {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
@@ -3772,7 +3773,7 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: data.label + (isFav ? " ⭐" : ""),
+          label: data.label + (isFav ? ` ⭐ (${favName})` : ""),
           labelSize: 36,
           labelColor: {color: "#000"},
           forceLabelColor: true,
@@ -3797,7 +3798,7 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: showAllLabels ? data.label + (isFav ? " ⭐" : "") : "",
+          label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
           labelSize: 36,
           // 👇 Force label color
           labelColor: {color: isLightTheme() ? "#000" : "#fff"},
@@ -3842,7 +3843,7 @@ function setupReducers() {
       borderColor: isLightTheme() ? "#111" : "#eee",
       borderSize: 10,
       opacity: 1,
-      label: showAllLabels ? data.label + (isFav ? " ⭐" : "") : "",
+      label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
       forceLabelColor: true,
@@ -4476,7 +4477,7 @@ async function demo() {
     document.getElementById("layout-algorithm").value = "fr";
     document.getElementById("layout-iterations").value = 5000;
     document.getElementById("layout-gravity").value = 0.01;
-    document.getElementById("layout-scale").value = 5000;
+    document.getElementById("layout-scale").value = 100;
 
     // Largeur/hauteur par défaut si non initialisées
     document.getElementById("layout-width").value = 2000;
@@ -6433,3 +6434,10 @@ function loadLocalStorageFromJsonFile(file) {
     // Reload after a short delay to ensure all async operations complete
     setTimeout(() => window.location.href = window.location.origin + window.location.pathname, 1000);
   }
+  
+  function getFavoriteName(address, chain) {
+    const fav = getFavorites().find(
+      f => f.address === address && f.chain === chain
+    );
+    return fav ? fav.label : null;
+  }  
