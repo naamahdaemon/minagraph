@@ -5,8 +5,8 @@ let BASE_KEY = "";
 let LIMIT = 10;
 let FIRST_ITERATION_LIMIT = 10;
 let DEPTH = 2;
-const GRAVITY = 0.1;
-const SCALINGRATIO = 100;
+const GRAVITY = 0.01;
+const SCALINGRATIO = 1000;
 const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
@@ -1236,8 +1236,8 @@ function stopLayoutInWorker() {
 
 function runLayoutInWorker() {
   const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.1;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
+  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;
 
@@ -3162,8 +3162,8 @@ function stopLayout() {
 function animateLayout(iterations = 500) {
   // Reset state
   const layoutBtn = document.getElementById("layout-toggle-btn");
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.1;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
+  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;  
   pauseLayout = false;
@@ -3774,6 +3774,7 @@ function setupReducers() {
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
           label: data.label + (isFav ? ` ⭐ (${favName})` : ""),
+          //label: showAllLabels ? data.label : "",
           labelSize: 36,
           labelColor: {color: "#000"},
           forceLabelColor: true,
@@ -3799,6 +3800,7 @@ function setupReducers() {
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
           label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
+          //label: showAllLabels ? data.label : "",
           labelSize: 36,
           // 👇 Force label color
           labelColor: {color: isLightTheme() ? "#000" : "#fff"},
@@ -3844,6 +3846,7 @@ function setupReducers() {
       borderSize: 10,
       opacity: 1,
       label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
+      //label: showAllLabels ? data.label : "",
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
       forceLabelColor: true,
