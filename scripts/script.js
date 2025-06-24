@@ -6,9 +6,9 @@ let LIMIT = 10;
 let FIRST_ITERATION_LIMIT = 10;
 let DEPTH = 2;
 const GRAVITY = 0.1;
-const SCALINGRATIO = 1000;
-const WIDTH = 3000;
-const HEIGHT = 3000;
+const SCALINGRATIO = 100;
+const WIDTH = 2000;
+const HEIGHT = 2000;
 const visitedKeys = new Set();
 let visitedKeysByChain = new Map();
 const nameColorMap = new Map();
@@ -1236,7 +1236,7 @@ function stopLayoutInWorker() {
 
 function runLayoutInWorker() {
   const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.1;
   const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;
@@ -1268,7 +1268,7 @@ function runLayoutInWorker() {
       // Ajoute ici les paramètres spécifiques à OpenOrd si besoin
       settings.edgeWeightInfluence = parseFloat(document.getElementById("layout-ewi")?.value) || 0.0;
       settings.coolingFactor = parseFloat(document.getElementById("layout-cooling")?.value) || 0.95;
-      settings.attractionMultiplier = parseFloat(document.getElementById("layout-attraction")?.value) || 0.01;
+      settings.attractionMultiplier = parseFloat(document.getElementById("layout-attraction")?.value) || 0.1;
       settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1.0;
       settings.initialClusterCount = parseInt(document.getElementById("layout-clusters")?.value) || 5;
       break;
@@ -3162,7 +3162,7 @@ function stopLayout() {
 function animateLayout(iterations = 500) {
   // Reset state
   const layoutBtn = document.getElementById("layout-toggle-btn");
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
+  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.1;
   const scale = parseFloat(document.getElementById("layout-scale").value) || 100;
   const width = parseInt(document.getElementById("layout-width").value) || 2000;
   const height = parseInt(document.getElementById("layout-height").value) || 2000;  
@@ -4476,7 +4476,7 @@ async function demo() {
     // Injecter les valeurs spécifiques du layout dans l'UI
     document.getElementById("layout-algorithm").value = "fr";
     document.getElementById("layout-iterations").value = 5000;
-    document.getElementById("layout-gravity").value = 0.01;
+    document.getElementById("layout-gravity").value = 0.1;
     document.getElementById("layout-scale").value = 100;
 
     // Largeur/hauteur par défaut si non initialisées
