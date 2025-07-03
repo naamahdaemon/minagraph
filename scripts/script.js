@@ -132,6 +132,8 @@ let slicer;
 let extraTokens = {}; // New loaded tokens
 let auroProvider = null;
 let zoomSlider;    // no const/var inside DOMContentLoaded
+let rotateSlider;
+
 
 const knownTokens = {
   "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
@@ -563,6 +565,13 @@ document.addEventListener("DOMContentLoaded", () => {
         : 'rgba(34, 34, 34, 0.5)';
     }
 
+    const rotateContainer = document.getElementById('rotate-slider');
+    if (rotateContainer) {
+      rotateContainer.style.background = isLight
+        ? 'rgba(255, 255, 255, 0.5)'
+        // dark mode: rgb(34,34,34) at 50%
+        : 'rgba(34, 34, 34, 0.5)';
+    }
     
   }
 
@@ -913,6 +922,19 @@ document.addEventListener("DOMContentLoaded", () => {
     step: 0.01,
     connect: 'lower'
   });  
+  
+  // === Initialize the rotate slider ===
+  rotateSlider = document.getElementById('rotate-slider');
+  noUiSlider.create(rotateSlider, {
+    orientation: 'horizontal',
+    start: [0],            // degrees 0–360
+    range: {
+      min: [0],
+      max: [360]
+    },
+    step: 1,
+    connect: 'lower'
+  });
 });
 
 init();
@@ -3730,6 +3752,13 @@ function initRenderer() {
     renderer.getCamera().setState({ ratio: zoomLevel });
   });
 
+  // On update: convert degrees to radians and rotate the Sigma camera
+  rotateSlider.noUiSlider.on('update', (values, handle) => {
+    const deg = parseFloat(values[handle]);
+    const rad = deg * Math.PI / 180;
+    renderer.getCamera().setState({ angle: rad });
+  });
+
   // Re-apply settings and listeners
   setupReducers();
   setupInteractions();
@@ -4345,6 +4374,13 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
       const zoomLevel = parseFloat(values[handle]);
       // directly set camera state (no animation)
       renderer.getCamera().setState({ ratio: zoomLevel });
+    });
+
+    // On update: convert degrees to radians and rotate the Sigma camera
+    rotateSlider.noUiSlider.on('update', (values, handle) => {
+      const deg = parseFloat(values[handle]);
+      const rad = deg * Math.PI / 180;
+      renderer.getCamera().setState({ angle: rad });
     });
   }
  
