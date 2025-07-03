@@ -6222,7 +6222,7 @@ async function showNotificationList() {
               margin-top: 6px;
               margin-right: 6px;
               padding: 4px 8px;
-              background: #27a745;
+              background: #6f42c1;
               color: white;
               border: none;
               border-radius: 4px;
@@ -6235,7 +6235,7 @@ async function showNotificationList() {
               margin-top: 6px;
               margin-right: 6px;
               padding: 4px 8px;
-              background: #27a745;
+              background: #D57109;
               color: white;
               border: none;
               border-radius: 4px;
