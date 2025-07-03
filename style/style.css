@@ -1127,7 +1127,7 @@
   /* 1) Ensure the slider container is narrow & padded so the thumb never escapes */
   #zoom-slider {
     width: 8px;         /* thin track */
-    padding: 8px 0;     /* keeps thumb inside */
+    padding: 0px 0px 12px 0;     /* keeps thumb inside */
   }
 
   /* 2) Style the (invisible) rail */
@@ -1164,4 +1164,42 @@
     display: none !important;
   }
 
+  /* 1) Container narrow & padded so thumb stays inside */
+  #rotate-slider {
+    height: 8px;        /* thin track */
+    padding: 1px 16px 0px 0px;     /* keeps thumb inside */
+  }
+
+  /* 2) Style the (invisible) rail */
+  #rotate-slider .noUi-base {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    border: none;
+  }
+
+  /* 3) Hide the filled connect */
+  #rotate-slider .noUi-connect {
+    display: none;
+  }
+
+  /* 4) The circular handle */
+  #rotate-slider .noUi-handle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(150, 150, 150, 0.5);
+    box-shadow: none;
+
+    /* vertical centering */
+    //top: 50%;
+    //transform: translateY(-50%);
+  }
+
+  /* 5) Kill any extra pseudo‐elements */
+  #rotate-slider .noUi-handle::before,
+  #rotate-slider .noUi-handle::after {
+    display: none !important;
+  }
 
