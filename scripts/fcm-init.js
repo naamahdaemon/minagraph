@@ -16,24 +16,26 @@ const messaging = getMessaging(app);
 
 // Enregistrement du SW et récupération du token FCM
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js').then(async (registration) => {
-    const token = await getToken(messaging, {
-      vapidKey: 'BBrIqZPF9RHcrGpk78BQKmut_tL8p058HCLyHy2Ayg_ToRvAiewihSACqmerldGeDfzKgH7Uis5r0wcc0Rui23I',
-      serviceWorkerRegistration: registration
-    });
+  navigator.serviceWorker
+    .register('/service-worker.js', { scope: '/' })
+    .then(async registration => {
+      console.log('[FCM] SW registered:', registration);
+      console.log('[FCM] Notification.permission:', Notification.permission);
 
-    console.log("[FCM] Token:", token);
-
-    const userId = getOrCreateUserId();
-    await fetch('https://akirion.com:4665/api/store-fcm-token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678'
-      },
-      body: JSON.stringify({ userId, fcmToken: token })
-    });
-  }).catch(console.error);
+      try {
+	    const token = await getToken(messaging, {
+	      vapidKey: 'BBrIqZPF9RHcrGpk78BQKmut_tL8p058HCLyHy2Ayg_ToRvAiewihSACqmerldGeDfzKgH7Uis5r0wcc0Rui23I',
+	      serviceWorkerRegistration: registration
+	    });
+        console.log('[FCM] Token:', token);
+      } catch (e) {
+        console.error('[FCM] getToken() failed:', e);
+        // inspect whether there's an existing subscription
+        const sub = await registration.pushManager.getSubscription();
+        console.log('[FCM] existing PushSubscription:', sub);
+      }
+    })
+    .catch(err => console.error('[FCM] SW registration failed:', err));
 }
 
 // ID utilisateur persistant
