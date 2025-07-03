@@ -6202,7 +6202,7 @@ async function showNotificationList() {
               border-radius: 4px;
               cursor: pointer;
               font-size: 11px;
-            ">Sender Graph</button>`;
+            ">Sender</button>`;
           }
           if (n.receiver) {
             graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.receiver}')" style="
@@ -6215,7 +6215,33 @@ async function showNotificationList() {
               border-radius: 4px;
               cursor: pointer;
               font-size: 11px;
-            ">Receiver Graph</button>`;
+            ">Receiver</button>`;
+          }
+          if (n.creatorAccount) {
+            graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.creatorAccount}')" style="
+              margin-top: 6px;
+              margin-right: 6px;
+              padding: 4px 8px;
+              background: #27a745;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 11px;
+            ">BP</button>`;
+          }
+          if (n.coinbaseReceiverAccount) {
+            graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.coinbaseReceiverAccount}')" style="
+              margin-top: 6px;
+              margin-right: 6px;
+              padding: 4px 8px;
+              background: #27a745;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 11px;
+            ">Coinbase</button>`;
           }
           if (!n.sender && !n.receiver && n.address) {
             graphButtons += `<button onclick="handleShowGraph('${n.chain}', '${n.address}')" style="
