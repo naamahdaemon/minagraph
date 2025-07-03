@@ -1122,4 +1122,46 @@
 
   .foldable-content.open {
     display: block;
+  }  
+  
+  /* 1) Ensure the slider container is narrow & padded so the thumb never escapes */
+  #zoom-slider {
+    width: 8px;         /* thin track */
+    padding: 8px 0;     /* keeps thumb inside */
   }
+
+  /* 2) Style the (invisible) rail */
+  #zoom-slider .noUi-base {
+    width: 8px;
+    background: rgba(255, 255, 255, 0.1);  /* very subtle track */
+    border-radius: 4px;
+    border: none;
+  }
+
+  /* 3) Faded fill for the portion below the handle */
+  #zoom-slider .noUi-connect {
+    display: none;
+  }
+
+  /* 4) The circular handle itself */
+  #zoom-slider .noUi-handle {
+    /* size & shape */
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(150, 150, 150, 0.5);
+    box-shadow: none;
+
+    /* horizontal centering */
+    //left: 50%;
+    //transform: translateX(-50%);
+  }
+
+  /* 5) Kill any extra pseudo‐elements */
+  #zoom-slider .noUi-handle::before,
+  #zoom-slider .noUi-handle::after {
+    display: none !important;
+  }
+
+

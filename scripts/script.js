@@ -131,6 +131,7 @@ let exitFullscreenBtn;
 let slicer;
 let extraTokens = {}; // New loaded tokens
 let auroProvider = null;
+let zoomSlider;    // no const/var inside DOMContentLoaded
 
 const knownTokens = {
   "0xdac17f958d2ee523a2206206994597c13d831ec7": { name: "Tether USD", symbol: "USDT", decimals: 6 },
@@ -889,6 +890,19 @@ document.addEventListener("DOMContentLoaded", () => {
   if (params.get("reset") === "true") {
     clearEverything();
   }  
+  
+  // 1) Initialize the noUiSlider
+  zoomSlider = document.getElementById('zoom-slider');
+  noUiSlider.create(zoomSlider, {
+    orientation: 'vertical',
+    start: [1],            // initial zoom ratio
+    range: {
+      min: [0.25],         // 25% zoom
+      max: [5]             // 500% zoom
+    },
+    step: 0.01,
+    connect: 'lower'
+  });  
 });
 
 init();
@@ -3699,6 +3713,13 @@ function initRenderer() {
   renderer.setSetting("defaultNodeBorderSize", 40);
   
 
+  // 2) On slider update, set Sigma camera ratio
+  zoomSlider.noUiSlider.on('update', (values, handle) => {
+    const zoomLevel = parseFloat(values[handle]);
+    // directly set camera state (no animation)
+    renderer.getCamera().setState({ ratio: zoomLevel });
+  });
+
   // Re-apply settings and listeners
   setupReducers();
   setupInteractions();
@@ -4308,6 +4329,13 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     renderer = new Sigma(graph,container,param);
     renderer.setSetting("defaultNodeBorderColor", "#fff");
     renderer.setSetting("defaultNodeBorderSize", 40);
+    
+    // 2) On slider update, set Sigma camera ratio
+    zoomSlider.noUiSlider.on('update', (values, handle) => {
+      const zoomLevel = parseFloat(values[handle]);
+      // directly set camera state (no animation)
+      renderer.getCamera().setState({ ratio: zoomLevel });
+    });
   }
  
  if (!wipeGraph)
