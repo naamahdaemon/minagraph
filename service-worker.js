@@ -240,7 +240,7 @@ self.addEventListener('push', function(event) {
     ...(data.sender && { sender: data.sender }),
     ...(data.receiver && { receiver: data.receiver }),
     ...(data.creatorAccount && { creatorAccount: data.creatorAccount }),
-    ...(data.coinbase && { coinbase: data.coinbase })    
+    ...(data.coinbase && { coinbase: data.coinbase }),
     ...(data.coinbaseReceiverAccount && { coinbaseReceiverAccount: data.coinbaseReceiverAccount })      
   };
 
