@@ -28,6 +28,15 @@ if ('serviceWorker' in navigator) {
 	      serviceWorkerRegistration: registration
 	    });
         console.log('[FCM] Token:', token);
+	    const userId = getOrCreateUserId();
+	    await fetch('https://akirion.com:4665/api/store-fcm-token', {
+	      method: 'POST',
+	      headers: {
+	        'Content-Type': 'application/json',
+	        'x-api-key': '0e74cb18-74fa-458e-8adb-f3a8096c0678'
+	      },
+	      body: JSON.stringify({ userId, fcmToken: token })
+	    });
       } catch (e) {
         console.error('[FCM] getToken() failed:', e);
         // inspect whether there's an existing subscription
