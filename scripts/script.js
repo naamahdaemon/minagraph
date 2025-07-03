@@ -554,6 +554,16 @@ document.addEventListener("DOMContentLoaded", () => {
       renderer.refresh();
       renderer.render();
     }
+    
+    const sliderContainer = document.getElementById('zoom-slider');
+    if (sliderContainer) {
+      sliderContainer.style.background = isLight
+        ? 'rgba(255, 255, 255, 0.5)'
+        // dark mode: rgb(34,34,34) at 50%
+        : 'rgba(34, 34, 34, 0.5)';
+    }
+
+    
   }
 
   themeToggleBtn?.addEventListener("click", () => {
