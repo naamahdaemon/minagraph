@@ -4388,6 +4388,21 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     renderer.setSetting("defaultNodeBorderSize", 40);
     
     initialCameraState = renderer.getCamera().getState();
+    function centerGraph() {
+      // grab current zoom
+      const { ratio } = renderer.getCamera().getState();
+      // restore original center
+      renderer.getCamera().setState({
+        x: initialCameraState.x,
+        y: initialCameraState.y,
+        ratio
+      });
+    }  
+
+    const handle = zoomSlider.querySelector('.noUi-handle');
+    handle.addEventListener('click', e => {
+      if (e.button === 0 && renderer) centerGraph();
+    });
     
     // 2) On slider update, set Sigma camera ratio
     zoomSlider.noUiSlider.on('update', (values, handle) => {
