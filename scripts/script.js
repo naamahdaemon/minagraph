@@ -1426,6 +1426,7 @@ function runLayoutInWorker() {
       currentLayout = null;
     }
   };
+  initialCameraState = renderer.getCamera().getState();
 }
 
 
