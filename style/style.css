@@ -35,6 +35,7 @@
       transform: translateX(-100%);
       transition: transform 0.3s ease;
       background: #1e1e1e;
+      padding-top: 15px;
       z-index: 1002;
     }
 
@@ -102,7 +103,7 @@
       font-size: 16px;
       margin-top: 24px;
       margin-bottom: 10px;
-      border-bottom: 1px solid #333;
+      //border-bottom: 1px solid #333;
       padding-bottom: 4px;
       color: #4fc3f7;
     }
@@ -1100,7 +1101,7 @@
       border: 1px solid #bee5eb;
   }
   
-  .foldable-header {
+  .foldable-header-old {
     font-size: 16px;
     margin-bottom: 10px;
     cursor: pointer;
@@ -1109,6 +1110,27 @@
     justify-content: space-between;
     align-items: center;
   }
+
+  .foldable-header {
+    font-size: 16px;
+  padding: 5px 5px 5px 5px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  
+  /* new styles: */
+  background-color: rgba(255,255,255,0.1);  /* very light grey */
+  border-radius: 6px;         /* rounded corners */
+  }
+
+.foldable-header h2,
+.foldable-header h2 a {
+  text-decoration: none;
+}
+
 
   .foldable-header .arrow {
     font-size: 14px;

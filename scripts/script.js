@@ -546,6 +546,12 @@ document.addEventListener("DOMContentLoaded", () => {
       input.style.color = isLight ? "#000" : "#fff";
     });
 
+    document.querySelectorAll('.foldable-header').forEach(header => {
+      header.style.background = isLight
+        ? 'rgba(255,255,255,0.9)'               // very light grey for light mode
+        : 'rgba(255,255,255,0.1)'; // your existing dark-mode translucent white
+      header.style.borderRadius = '6px';
+    });
     // Apply to Sigma renderer
     if (typeof renderer !== "undefined") {
       //console.log("Inside applyTheme");
