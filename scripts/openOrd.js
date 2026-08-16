@@ -93,7 +93,7 @@ self.onmessage = function (e) {
     // Cool down
     temperature *= coolingFactor;
 
-    if (i % 5 === 0 || i === iterations - 1) {
+    if (settings.reportProgress !== false && (i % 5 === 0 || i === iterations - 1)) {
       self.postMessage({
         type: "progress",
         progress: i / iterations,

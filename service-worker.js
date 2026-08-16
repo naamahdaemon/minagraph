@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v3';
+const CACHE_NAME = 'mina-graph-explorer-v4';
 
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging-compat.js");
