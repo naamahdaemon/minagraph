@@ -147,26 +147,6 @@ const knownTokens = {
   "0x58d0a58e4b165a27e4e1b8c2a3ef39c89b581180": { name: "ShowCoin  ", symbol: "Show", decimals: 18 },
   // Add more as needed
 };
-
-function isMobileEnvironment() {
-  return window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
-}
-
-function getSigmaSettings() {
-  const mobile = isMobileEnvironment();
-  return {
-    labelColor: {
-      color: isLightTheme() ? "#000" : "#9999ff"
-    },
-    defaultNodeType: "bordered",
-    nodeProgramClasses: {
-      bordered: NodeBorderProgram,
-    },
-    hideEdgesOnMove: mobile,
-    labelRenderedSizeThreshold: mobile ? 14 : 6,
-    renderEdgeLabels: false
-  };
-}
 document.addEventListener("DOMContentLoaded", () => {
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
@@ -415,14 +395,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });  
   
-  const labelsToggle = document.getElementById("toggle-labels");
-  if (isMobileEnvironment()) {
-    showAllLabels = false;
-    labelsToggle.checked = false;
-  }
-  labelsToggle.addEventListener("change", (e) => {
+  document.getElementById("toggle-labels").addEventListener("change", (e) => {
     showAllLabels = e.target.checked;
-    renderer?.refresh();
+    renderer.refresh();
   });
   
   document.getElementById("stop-loading-btn").addEventListener("click", () => {
@@ -1246,30 +1221,12 @@ class LayoutController {
     const height = Math.max(1, parseInt(document.getElementById("layout-height").value, 10) || 2000);
     const algorithm = document.getElementById("layout-algorithm").value;
     const nodeCount = graph.order;
-    const mobile = isMobileEnvironment();
-
-    if (mobile && origin === "automatic" && nodeCount > 4000) {
-      document.getElementById("layout-info").textContent =
-        `Automatic layout skipped on mobile for ${nodeCount} nodes; use the manual layout if needed`;
-      setLayoutUiState("completed", "Skipped on mobile");
-      return;
-    }
-
-    const safeLimit = mobile
-      ? nodeCount > 4000 ? 5 : nodeCount > 2000 ? 10 : nodeCount > 1000 ? 30 : nodeCount > 500 ? 100 : requestedIterations
-      : nodeCount > 2000 ? 250 : nodeCount > 500 ? 750 : requestedIterations;
+    const safeLimit = nodeCount > 2000 ? 250 : nodeCount > 500 ? 750 : requestedIterations;
     const iterations = Math.min(requestedIterations, safeLimit);
     const runId = ++this.runId;
 
     let workerFile = "fruchtermanReingold.js";
-    const settings = {
-      iterations,
-      gravity,
-      scalingRatio: scale,
-      width,
-      height,
-      reportProgress: !mobile
-    };
+    const settings = { iterations, gravity, scalingRatio: scale, width, height };
 
     if (algorithm === "fa") {
       workerFile = "forceAtlas.js";
@@ -1337,10 +1294,7 @@ class LayoutController {
         document.getElementById("layout-progress").value = percent;
         setLayoutUiState("running", `${percent}%`);
         const now = performance.now();
-        // Updating thousands of WebGL elements while the worker is still
-        // computing is a common source of mobile GPU/process crashes. Mobile
-        // receives progress text but applies positions only once, on completion.
-        if (!mobile && now - lastRenderTime > 300) {
+        if (now - lastRenderTime > 300) {
           applyPositions(positions);
           renderer.refresh();
           lastRenderTime = now;
@@ -3662,7 +3616,15 @@ function initRenderer() {
   
   graph = new Graph({ multi: true });
   //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
-  param = getSigmaSettings();
+  param = {
+    labelColor: {
+        color: isLightTheme() ? "#000" : "#9999ff"
+    },
+    defaultNodeType: "bordered",
+    nodeProgramClasses: {
+      bordered: NodeBorderProgram,
+    },
+  }
   //renderer = new Sigma(graph, container);
 
   renderer = new Sigma(graph,container,param);
@@ -4285,7 +4247,15 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     hoveredNode = null;
     selectedNode = null;      
 
-    param = getSigmaSettings();
+    param = {
+        labelColor: {
+            color: isLightTheme() ? "#000" : "#9999ff"
+        },
+        defaultNodeType: "bordered",
+        nodeProgramClasses: {
+          bordered: NodeBorderProgram,
+        },        
+    }
 
     //renderer = new Sigma(graph, container);
 

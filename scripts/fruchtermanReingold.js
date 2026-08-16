@@ -58,7 +58,7 @@ self.onmessage = function (e) {
     }
 
     // Send progress every 10 iterations
-    if (settings.reportProgress !== false && (iter % 10 === 0 || iter === settings.iterations - 1)) {
+    if (iter % 10 === 0 || iter === settings.iterations - 1) {
       self.postMessage({
         type: "progress",
         progress: iter / settings.iterations,
