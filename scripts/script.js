@@ -5,8 +5,6 @@ let BASE_KEY = "";
 let LIMIT = 10;
 let FIRST_ITERATION_LIMIT = 10;
 let DEPTH = 2;
-const GRAVITY = 0.01;
-const SCALINGRATIO = 1000;
 const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
@@ -17,7 +15,6 @@ let transactionsByNeighbor = {};
 let totalSteps = 0;
 let currentStep = 0;
 let pause = false;
-let layoutInterval = null;
 let graph, renderer;
 
 let hoveredNode = null;
@@ -639,14 +636,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   layoutBtn.addEventListener("click", () => {
     if (isLayoutRunning) {
-      stopLayout();
-      stopLayoutInWorker();
-      layoutBtn.textContent = "Apply Layout";
-      isLayoutRunning = false;
+      layoutController.stop({ remember: true });
     } else {
       runLayoutInWorker();
-      layoutBtn.textContent = "Stop Layout";
-      isLayoutRunning = true;
     }
   });  
 
@@ -1178,261 +1170,161 @@ function updateLayoutProgressBar(percent) {
   text.textContent = percent + "%";
 }
 
-function fruchtermanReingold(graph, {
-  width = 2000, height = 2000,
-  iterations = 5000, gravity = GRAVITY, scalingRatio = SCALINGRATIO
-} = {}) {
-  const nodes = graph.nodes();
-  const positions = {};
-  nodes.forEach(n => positions[n] = {
-    x: graph.getNodeAttribute(n, 'x') || Math.random() * width,
-    y: graph.getNodeAttribute(n, 'y') || Math.random() * height
-  });
+function setLayoutUiState(state, message = "") {
+  const button = document.getElementById("layout-toggle-btn");
+  const progress = document.getElementById("layout-progress");
+  const progressText = document.getElementById("layout-progress-text");
+  const info = document.getElementById("layout-info");
 
-  for (let iter = 0; iter < iterations && !pause; iter++) {
-    const disp = {};
-    nodes.forEach(v => {
-      disp[v] = { x: 0, y: 0 };
-      nodes.forEach(u => {
-        if (u !== v) {
-          const dx = positions[v].x - positions[u].x;
-          const dy = positions[v].y - positions[u].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-          const rep = scalingRatio * scalingRatio / dist;
-          disp[v].x += dx / dist * rep;
-          disp[v].y += dy / dist * rep;
-        }
-      });
-    });
-
-    graph.forEachEdge((_, __, src, tgt) => {
-      const dx = positions[src].x - positions[tgt].x;
-      const dy = positions[src].y - positions[tgt].y;
-      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-      const att = dist * dist / scalingRatio;
-      const dxNorm = dx / dist * att;
-      const dyNorm = dy / dist * att;
-      disp[src].x -= dxNorm; disp[src].y -= dyNorm;
-      disp[tgt].x += dxNorm; disp[tgt].y += dyNorm;
-    });
-
-    nodes.forEach(v => {
-      const d = Math.sqrt(disp[v].x ** 2 + disp[v].y ** 2);
-      if (d > 0) {
-        positions[v].x += (disp[v].x / d) * Math.min(d, 10);
-        positions[v].y += (disp[v].y / d) * Math.min(d, 10);
-      }
-      positions[v].x -= gravity * (positions[v].x - width / 2) * 0.01;
-      positions[v].y -= gravity * (positions[v].y - height / 2) * 0.01;
-    });
-  }
-
-  nodes.forEach(n => {
-    graph.setNodeAttribute(n, "x", positions[n].x);
-    graph.setNodeAttribute(n, "y", positions[n].y);
-  });
+  if (button) button.textContent = state === "running" ? "Stop Layout" : "Apply Layout";
+  if (progressText && message) progressText.textContent = message;
+  if (info && state === "error") info.textContent = `Layout error: ${message}`;
+  if (progress && state === "stopped") progress.value = 0;
 }
 
-// Globals for your layout loop
-let layoutRafId = null;
-let layoutStep = 0;
+class LayoutController {
+  constructor() {
+    this.worker = null;
+    this.runId = 0;
+    this.algorithm = null;
+  }
 
-function applyLayout() {
-    const iterations = parseInt(document.getElementById("layout-iterations").value, 10) || 5000;
-    const gravity = parseFloat(document.getElementById("layout-gravity").value, 10) || 0.01;
-    const scale = parseFloat(document.getElementById("layout-scale").value, 10) || 1000;
-    const width = parseInt(document.getElementById("layout-width").value, 10) || 2000;
-    const height = parseInt(document.getElementById("layout-height").value, 10) || 2000;        
-    
-    pause = false;
-    
-    document.getElementById("layout-info").textContent =
-      `▶ Applying layout: gravity=${gravity}, scale=${scale}, width=${width}, height=${height}`;
-    
-    //console.log(`gravity: ${gravity}`);
-    
-    let step = 0;
-
-    function runLayoutStep() {
-      if (pause || step >= iterations) return;
-
-      fruchtermanReingold(graph, {
-        iterations: 1,
-        gravity: gravity,
-        scalingRatio: scale,
-        width: width,
-        height: height
-      });
-
-      renderer.refresh();
-      step++;
-
-      requestAnimationFrame(runLayoutStep);
-    }
-
-    requestAnimationFrame(runLayoutStep); // Start loop
-
-    fruchtermanReingold(graph, {
-        iterations: 1,
-        gravity:  gravity,
-        scalingRatio: scale,
-        width: width,
-        height: height
-    });
-    renderer.refresh();
-    step++;        
-};  
-
-function stopLayoutInWorker() {
-  if (layoutWorker) {
-    layoutWorker.terminate();
+  stop({ message = "Stopped", remember = false } = {}) {
+    this.runId++;
+    if (this.worker) this.worker.terminate();
+    this.worker = null;
     layoutWorker = null;
     isLayoutRunning = false;
-
-    document.getElementById("layout-progress").value = 0;
-    document.getElementById("layout-progress-text").textContent = "Stopped";
-
-    console.log("⛔ Layout stopped by user");
-    // ✅ Reset previous layout since it's been cancelled
-    // 🧠 Correctly track what was actually running
-    previousLayout = currentLayout;
+    if (remember && this.algorithm) previousLayout = this.algorithm;
+    this.algorithm = null;
     currentLayout = null;
+    setLayoutUiState("stopped", message);
   }
-}
 
+  run({ iterationsOverride = null } = {}) {
+    this.stop({ message: "0%" });
 
-function runLayoutInWorker() {
-  const iterations = parseInt(document.getElementById("layout-iterations").value) || 5000;
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
-  const width = parseInt(document.getElementById("layout-width").value) || 2000;
-  const height = parseInt(document.getElementById("layout-height").value) || 2000;
+    const requestedIterations = Math.max(1, iterationsOverride ?? (parseInt(document.getElementById("layout-iterations").value, 10) || 5000));
+    const gravity = Math.max(0, parseFloat(document.getElementById("layout-gravity").value) || 0.01);
+    const scale = Math.max(0.0001, parseFloat(document.getElementById("layout-scale").value) || 1000);
+    const width = Math.max(1, parseInt(document.getElementById("layout-width").value, 10) || 2000);
+    const height = Math.max(1, parseInt(document.getElementById("layout-height").value, 10) || 2000);
+    const algorithm = document.getElementById("layout-algorithm").value;
+    const nodeCount = graph.order;
+    const safeLimit = nodeCount > 2000 ? 250 : nodeCount > 500 ? 750 : requestedIterations;
+    const iterations = Math.min(requestedIterations, safeLimit);
+    const runId = ++this.runId;
 
-  const algorithm = document.getElementById("layout-algorithm").value;
-  currentLayout = algorithm; // 🧠 store the currently launched one
+    let workerFile = "fruchtermanReingold.js";
+    const settings = { iterations, gravity, scalingRatio: scale, width, height };
 
-
-  let workerFile;
-  // ✅ Define settings first
-  const settings = {
-    iterations,
-    gravity,
-    scalingRatio: scale,
-    width,
-    height,
-  };
-
-  switch (algorithm) {
-    case "fa":
+    if (algorithm === "fa") {
       workerFile = "forceAtlas.js";
       settings.linLogMode = document.getElementById("layout-linlog")?.checked || false;
       settings.outboundAttractionDistribution = document.getElementById("layout-outbound")?.checked || false;
       settings.strongGravityMode = document.getElementById("layout-strong-gravity")?.checked || false;
       settings.preventOverlap = document.getElementById("layout-prevent-overlap")?.checked ?? true;
-      break;
-    case "ord":
+    } else if (algorithm === "ord") {
       workerFile = "openOrd.js";
-      // Ajoute ici les paramètres spécifiques à OpenOrd si besoin
-      settings.edgeWeightInfluence = parseFloat(document.getElementById("layout-ewi")?.value) || 0.0;
+      settings.edgeWeightInfluence = parseFloat(document.getElementById("layout-ewi")?.value) || 0;
       settings.coolingFactor = parseFloat(document.getElementById("layout-cooling")?.value) || 0.95;
       settings.attractionMultiplier = parseFloat(document.getElementById("layout-attraction")?.value) || 0.1;
-      settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1.0;
-      settings.initialClusterCount = parseInt(document.getElementById("layout-clusters")?.value) || 5;
-      break;
-    case "fr":
-    default:
-      workerFile = "fruchtermanReingold.js";
-      // Aucun paramètre spécifique à ajouter ici
-      break;
-  }
-
-  console.log(workerFile);
-
-  if (layoutWorker) layoutWorker.terminate();
-  isLayoutRunning = false;
-  
-  // 🧪 Force a refresh baseline before applying new layout
-  if (previousLayout === "ord" && algorithm !== "ord") {
-    console.log("Resetting positions before switching from OpenOrd to another layout...");
-    graph.forEachNode(id => {
-      graph.setNodeAttribute(id, "x", Math.random() * 1000 - 500);
-      graph.setNodeAttribute(id, "y", Math.random() * 1000 - 500);
-    });
-    renderer.refresh();
-  }
- 
-  
-  layoutWorker = new Worker(`./scripts/${workerFile}`);
-
-  const nodes = graph.nodes().map(id => ({
-    id,
-    x: graph.getNodeAttribute(id, "x"),
-    y: graph.getNodeAttribute(id, "y")
-  }));
-
-  const edges = graph.edges().map(id => ({
-    source: graph.source(id),
-    target: graph.target(id),
-    weight: graph.getEdgeAttribute(id, "weight") || 1 // Fallback if undefined
-  }));
-
-
-
-  layoutWorker.postMessage({ nodes, edges, settings });
-
-  let lastRenderTime = 0;
-
-  layoutWorker.onmessage = function (e) {
-    const { type, progress, positions } = e.data;
-
-    if (type === "progress") {
-      const percent = Math.round(progress * 100);
-      document.getElementById("layout-progress").value = percent;
-      document.getElementById("layout-progress-text").textContent = `${percent}%`;
-
-      const now = performance.now();
-      if (now - lastRenderTime > 300) { // only update every 300ms
-        for (const id in positions) {
-            const { x, y } = positions[id];
-            if (isNaN(x) || isNaN(y)) {
-              console.warn("💥 NaN detected during OpenOrd progress:", id, positions[id]);
-            }          
-          graph.setNodeAttribute(id, "x", positions[id].x);
-          graph.setNodeAttribute(id, "y", positions[id].y);
-        }
-        renderer.refresh();
-        lastRenderTime = now;
-      }
+      settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1;
     }
 
-    if (type === "done") {
-      for (const id in positions) {
-        const { x, y } = positions[id];
-        if (isNaN(x) || isNaN(y)) {
-          console.warn("💥 NaN detected in node position:", id, positions[id]);
-        }        
-        graph.setNodeAttribute(id, "x", positions[id].x);
-        graph.setNodeAttribute(id, "y", positions[id].y);
-      }
+    if (previousLayout === "ord" && algorithm !== "ord") {
+      graph.forEachNode(id => {
+        graph.setNodeAttribute(id, "x", Math.random() * width);
+        graph.setNodeAttribute(id, "y", Math.random() * height);
+      });
       renderer.refresh();
-
-      // ✅ Terminate worker to clean up
-      if (layoutWorker) {
-        layoutWorker.terminate();
-        layoutWorker = null;
-      }
-
-      // ✅ Reset UI state
-      const layoutBtn = document.getElementById("layout-toggle-btn");
-      if (layoutBtn) layoutBtn.textContent = "Apply Layout";
-      isLayoutRunning = false;
-      
-      // ✅ Update previousLayout state
-      previousLayout = currentLayout;
-      currentLayout = null;
     }
-  };
-  initialCameraState = renderer.getCamera().getState();
+
+    const worker = new Worker(`./scripts/${workerFile}`);
+    this.worker = worker;
+    layoutWorker = worker;
+    this.algorithm = algorithm;
+    currentLayout = algorithm;
+    isLayoutRunning = true;
+    setLayoutUiState("running", "0%");
+
+    if (iterations !== requestedIterations) {
+      document.getElementById("layout-info").textContent =
+        `Layout limited to ${iterations} iterations for ${nodeCount} nodes`;
+    }
+
+    const nodes = graph.nodes().map(id => ({
+      id,
+      x: graph.getNodeAttribute(id, "x"),
+      y: graph.getNodeAttribute(id, "y")
+    }));
+    const edges = graph.edges().map(id => ({
+      source: graph.source(id),
+      target: graph.target(id),
+      weight: graph.getEdgeAttribute(id, "weight") ?? 1
+    }));
+    let lastRenderTime = 0;
+
+    const applyPositions = positions => {
+      for (const id in positions) {
+        if (!graph.hasNode(id)) continue;
+        const { x, y } = positions[id];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        graph.setNodeAttribute(id, "x", x);
+        graph.setNodeAttribute(id, "y", y);
+      }
+    };
+
+    worker.onmessage = event => {
+      if (runId !== this.runId || worker !== this.worker) return;
+      const { type, progress, positions } = event.data;
+      if (type === "progress") {
+        const percent = Math.min(99, Math.round(progress * 100));
+        document.getElementById("layout-progress").value = percent;
+        setLayoutUiState("running", `${percent}%`);
+        const now = performance.now();
+        if (now - lastRenderTime > 300) {
+          applyPositions(positions);
+          renderer.refresh();
+          lastRenderTime = now;
+        }
+      } else if (type === "done") {
+        applyPositions(positions);
+        renderer.refresh();
+        document.getElementById("layout-progress").value = 100;
+        previousLayout = algorithm;
+        this.worker = null;
+        layoutWorker = null;
+        this.algorithm = null;
+        currentLayout = null;
+        isLayoutRunning = false;
+        worker.terminate();
+        setLayoutUiState("completed", "100%");
+      }
+    };
+
+    worker.onerror = event => {
+      if (runId !== this.runId || worker !== this.worker) return;
+      console.error("Layout worker failed", event);
+      const message = event.message || "Worker failure";
+      this.stop({ message });
+      setLayoutUiState("error", message);
+    };
+
+    worker.postMessage({ nodes, edges, settings });
+    initialCameraState = renderer.getCamera().getState();
+  }
+}
+
+const layoutController = new LayoutController();
+
+function stopLayoutInWorker() {
+  layoutController.stop({ remember: true });
+}
+
+
+function runLayoutInWorker() {
+  layoutController.run();
 }
 
 
@@ -3197,90 +3089,12 @@ function applyNodeSizesByDegree() {
   });
 }
 
-// Globals
-let layoutTimerId  = null;   // for setTimeout scheduling
-let pauseLayout    = false;
-
-// Stops any running layout (chunked, rAF or setTimeout)
 function stopLayout() {
-  pauseLayout = true;
-  const layoutBtn = document.getElementById("layout-toggle-btn");
-
-  // Cancel the setTimeout-based animation, if any
-  if (layoutTimerId !== null) {
-    clearTimeout(layoutTimerId);
-    layoutTimerId = null;
-  }
-
-  // If you ever also use requestAnimationFrame:
-  if (layoutRafId !== null) {
-    cancelAnimationFrame(layoutRafId);
-    layoutRafId = null;
-  }
-
-  document.getElementById("layout-info").textContent =
-    `■ Layout stopped at step ${layoutStep}`;
-  layoutBtn.textContent = "Apply Layout";
-  isLayoutRunning = false;   
-  document.getElementById("layout-progress").value = 0;
-  document.getElementById("layout-progress-text").textContent = "Stopped";  
+  layoutController.stop({ remember: true });
 }
 
-// Animate a few FR steps, one every 20 ms, but bail out if stopped
 function animateLayout(iterations = 500) {
-  // Reset state
-  const layoutBtn = document.getElementById("layout-toggle-btn");
-  const gravity = parseFloat(document.getElementById("layout-gravity").value) || 0.01;
-  const scale = parseFloat(document.getElementById("layout-scale").value) || 1000;
-  const width = parseInt(document.getElementById("layout-width").value) || 2000;
-  const height = parseInt(document.getElementById("layout-height").value) || 2000;  
-  pauseLayout = false;
-  layoutStep  = 0;
-  let progress = 0;
-  let percent = 0;
-  isLayoutRunning = true; 
-  
-  document.getElementById("layout-info").textContent =
-    `▶ Animating layout for ${iterations} steps…`;
-
-  function runStep() {
-    layoutBtn.textContent = "Stop Layout";
-    isLayoutRunning = true; 
-    // Exit if user hit Escape (pauseLayout) or we’re done
-    if (pauseLayout || layoutStep >= iterations) {
-      document.getElementById("layout-info").textContent =
-        pauseLayout
-          ? `■ Animation stopped at step ${layoutStep}`
-          : `✅ Animation finished after ${layoutStep} steps`;
-        stopLayout();
-      return;
-    }
-
-    // One iteration of FR + render
-    fruchtermanReingold(graph, {
-      iterations:   1,
-      gravity,
-      scalingRatio: scale,
-      width,
-      height
-    });    
-    //fruchtermanReingold(graph, { iterations: 1 });
-    
-      renderer.refresh();
-    progress = layoutStep / iterations;    
-    
-    layoutStep++;
-
-    percent = Math.round(progress * 100);
-    document.getElementById("layout-progress").value = percent;
-    document.getElementById("layout-progress-text").textContent = `${percent}%`;
-
-    // Schedule the next one in 20 ms
-    layoutTimerId = setTimeout(runStep, 20);
-  }
-
-  // Kick it off
-  runStep();
+  layoutController.run({ iterationsOverride: iterations });
 }
 
 function deleteSelectedNode(nodeId) {
@@ -4505,6 +4319,7 @@ function importJSON(file, mode="", iterations=500) {
         return;
       }
 
+      layoutController.stop({ message: "Graph changed" });
       graph.clear();
       const total = data.nodes.length + data.edges.length;
       let current = 0;
@@ -4652,7 +4467,7 @@ function saveLayoutSettings(algorithm) {
       "layout-strong-gravity",
       "layout-prevent-overlap"
     ],
-    ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion", "layout-clusters"]
+    ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
   };
 
   settings[algorithm] = {};
@@ -5376,11 +5191,8 @@ document.addEventListener("keydown", function (event) {
     renderer.refresh();
     return;
   } else if (event.key === "Escape") {
-      if (isLayoutRunning) {
-	      stopLayout();
-	      stopLayoutInWorker();
-	      layoutBtn.textContent = "Apply Layout";
-	      isLayoutRunning = false;      
+    if (isLayoutRunning) {
+      layoutController.stop({ remember: true });
     }
   }
 

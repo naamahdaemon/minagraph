@@ -23,6 +23,23 @@ Mina Graph Explorer allows you to:
 - Save and load graphs as JSON
 - Export visualizations as PNG images
 
+### Layout execution
+
+Layouts run in a Web Worker managed by a single controller. Starting a new layout
+cancels the previous run, stale worker messages are ignored, and graph mutations
+cannot re-apply positions to deleted nodes. Large graphs automatically use a lower
+iteration limit because the bundled force-directed algorithms have quadratic
+repulsion costs.
+
+The `OpenOrd-inspired` option is experimental: it is a cooled force-directed
+layout, not a complete implementation of the OpenOrd paper.
+
+Worker regression tests can be run with:
+
+```sh
+node tests/layout-workers.test.js
+```
+
 ---
 
 ## ⚙️ How It Works
