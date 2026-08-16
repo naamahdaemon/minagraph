@@ -146,7 +146,7 @@ self.onmessage = function (e) {
     const efficiency = totalTraction / (totalSwinging + 0.01);
     speed = speed * 0.5 + Math.min(10.0, Math.max(0.1, efficiency)) * 0.5;
 
-    if (iter % 10 === 0 || iter === s.iterations - 1) {
+    if (s.reportProgress !== false && (iter % 10 === 0 || iter === s.iterations - 1)) {
       self.postMessage({
         type: "progress",
         progress: iter / s.iterations,
