@@ -17,9 +17,15 @@ self.onmessage = function (e) {
       disp[v.id] = { x: 0, y: 0 };
       for (const u of nodes) {
         if (v.id !== u.id) {
-          const dx = positions[v.id].x - positions[u.id].x;
-          const dy = positions[v.id].y - positions[u.id].y;
-          const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+          let dx = positions[v.id].x - positions[u.id].x;
+          let dy = positions[v.id].y - positions[u.id].y;
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 0.0001) {
+            const angle = Math.random() * Math.PI * 2;
+            dx = Math.cos(angle) * 0.01;
+            dy = Math.sin(angle) * 0.01;
+            dist = 0.01;
+          }
           const repulsion = settings.scalingRatio * settings.scalingRatio / dist;
           disp[v.id].x += dx / dist * repulsion;
           disp[v.id].y += dy / dist * repulsion;

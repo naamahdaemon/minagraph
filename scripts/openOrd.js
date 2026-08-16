@@ -1,13 +1,14 @@
-// scripts/openOrd.js
+// Experimental cooled force-directed layout inspired by OpenOrd.
+// This is intentionally not presented as a complete OpenOrd implementation.
 self.onmessage = function (e) {
   const { nodes, edges, settings } = e.data;
 
-  const iterations = settings.iterations || 500;
-  const edgeWeightInfluence = settings.edgeWeightInfluence || 0.5;
-  const coolingFactor = settings.coolingFactor || 0.95;
-  const attractionMultiplier = settings.attractionMultiplier || 0.1;
-  const repulsionMultiplier = settings.repulsionMultiplier || 1.0;
-  const clusterCount = settings.initialClusterCount || 5;
+  const iterations = settings.iterations ?? 500;
+  const edgeWeightInfluence = settings.edgeWeightInfluence ?? 0.5;
+  const coolingFactor = settings.coolingFactor ?? 0.95;
+  const attractionMultiplier = settings.attractionMultiplier ?? 0.1;
+  const repulsionMultiplier = settings.repulsionMultiplier ?? 1.0;
+  const minTemperature = settings.minTemperature ?? 0.001;
 
   // Initialize positions randomly
   const positions = {};
@@ -27,12 +28,6 @@ self.onmessage = function (e) {
   }
 
 
-  // Cluster assignment
-  const clusters = {};
-  for (const node of nodes) {
-    clusters[node.id] = Math.floor(Math.random() * clusterCount);
-  }
-
   let temperature = 1.0;
 
   for (let i = 0; i < iterations; i++) {
@@ -51,14 +46,22 @@ self.onmessage = function (e) {
 
         const dx = positions[nodeA.id].x - positions[nodeB.id].x;
         const dy = positions[nodeA.id].y - positions[nodeB.id].y;
-        const distance = Math.sqrt(dx * dx + dy * dy) + 0.01;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        let directionX = dx;
+        let directionY = dy;
+        if (distance < 0.0001) {
+          const angle = ((j + 1) * 2.399963229728653) % (Math.PI * 2);
+          directionX = Math.cos(angle) * 0.01;
+          directionY = Math.sin(angle) * 0.01;
+          distance = 0.01;
+        }
 
         const force = repulsionMultiplier / distance;
 
-        displacements[nodeA.id].x += (dx / distance) * force;
-        displacements[nodeA.id].y += (dy / distance) * force;
-        displacements[nodeB.id].x -= (dx / distance) * force;
-        displacements[nodeB.id].y -= (dy / distance) * force;
+        displacements[nodeA.id].x += (directionX / distance) * force;
+        displacements[nodeA.id].y += (directionY / distance) * force;
+        displacements[nodeB.id].x -= (directionX / distance) * force;
+        displacements[nodeB.id].y -= (directionY / distance) * force;
       }
     }
 
@@ -97,6 +100,8 @@ self.onmessage = function (e) {
         positions: clonePositions(positions)
       });
     }
+
+    if (temperature <= minTemperature) break;
   }
 
   self.postMessage({

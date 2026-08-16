@@ -23,6 +23,27 @@ Mina Graph Explorer allows you to:
 - Save and load graphs as JSON
 - Export visualizations as PNG images
 
+### Layout execution
+
+Layouts run in a Web Worker managed by a single controller. Starting a new layout
+cancels the previous run, stale worker messages are ignored, and graph mutations
+cannot re-apply positions to deleted nodes. Large graphs automatically use a lower
+iteration limit because the bundled force-directed algorithms have quadratic
+repulsion costs.
+
+The automatic layout uses a size-aware iteration budget: small initial graphs get
+more time to settle, while incremental updates and node drags use shorter passes.
+The manual layout remains controlled by the iteration field in the sidebar.
+
+The `OpenOrd-inspired` option is experimental: it is a cooled force-directed
+layout, not a complete implementation of the OpenOrd paper.
+
+Worker regression tests can be run with:
+
+```sh
+node tests/layout-workers.test.js
+```
+
 ---
 
 ## ⚙️ How It Works
@@ -56,6 +77,19 @@ To avoid freezing the browser or API throttling, start with small values and inc
 ## 🪪 Prerequisites
 
 You need a **Minataur API key** to fetch blockchain data.
+
+### Run locally
+
+Web Workers and service workers cannot reliably be loaded from a `file://` URL.
+Start the dependency-free development server from the project directory instead:
+
+```sh
+npm run dev
+```
+
+Then open [http://127.0.0.1:8765](http://127.0.0.1:8765). Stop the server with
+`Ctrl+C`. A different port can be selected with the `MINAGRAPH_PORT` environment
+variable.
 
 ### 🔑 How to Get a Minataur API Key
 
