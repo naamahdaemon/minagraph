@@ -4,6 +4,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const listeners = {};
+const postedMessages = [];
+const openedWindows = [];
 const context = {
   console,
   URL,
@@ -17,11 +19,20 @@ const context = {
   },
   self: {
     location: { origin: "https://webapp.minagraph.com" },
-    addEventListener(type, listener) { listeners[type] = listener; }
+    addEventListener(type, listener) { listeners[type] = listener; },
+    clients: {
+      async matchAll() { return []; },
+      async openWindow(url) { openedWindows.push(url); }
+    }
   }
 };
+context.clients = context.self.clients;
 
 const source = fs.readFileSync(path.resolve(__dirname, "..", "service-worker.js"), "utf8");
+assert.ok(
+  source.indexOf("addEventListener('notificationclick'") < source.indexOf('importScripts("https://www.gstatic.com/firebasejs/'),
+  "The custom notification click handler must be registered before Firebase Messaging loads"
+);
 vm.runInNewContext(source, context);
 
 const actions = context.buildNotificationActions({
@@ -61,4 +72,40 @@ assert.deepEqual(
   "Actions require a blockchain identifier"
 );
 
-console.log("Service worker notification action tests passed");
+async function dispatchNotificationClick(data, action = "") {
+  let work;
+  listeners.notificationclick({
+    action,
+    notification: { data, close() {} },
+    waitUntil(promise) { work = promise; }
+  });
+  await work;
+}
+
+(async () => {
+  await dispatchNotificationClick({
+    chain: "polygon",
+    receiver: "receiver-address",
+    address: "fallback-address"
+  });
+  assert.equal(
+    openedWindows.pop(),
+    "/?chain=polygon&address=receiver-address",
+    "Clicking the notification body should open the receiver graph"
+  );
+
+  const existingClient = {
+    url: "https://webapp.minagraph.com/",
+    async focus() {},
+    postMessage(message) { postedMessages.push(message); }
+  };
+  context.self.clients.matchAll = async () => [existingClient];
+  await dispatchNotificationClick({ chain: "mina", receiver: "mina-receiver" });
+  assert.equal(postedMessages[0].payload.address, "mina-receiver");
+  assert.equal(postedMessages[0].action, "show_graph");
+
+  console.log("Service worker notification action tests passed");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
