@@ -1,4 +1,47 @@
-const CACHE_NAME = 'mina-graph-explorer-v6';
+const CACHE_NAME = 'mina-graph-explorer-v7';
+
+// Register this before loading Firebase Messaging. The FCM SDK installs its own
+// notification click handling and can otherwise replace the application's one.
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const addressesByAction = {
+    show_sender: data.sender,
+    show_receiver: data.receiver,
+    show_bp: data.creatorAccount,
+    show_coinbase: data.coinbaseReceiverAccount,
+    show_graph: data.address
+  };
+  // A click on the notification body has no action identifier. In that case,
+  // open the receiver graph, which is the common action offered in-app for
+  // transaction notifications. Older/generic payloads fall back to `address`.
+  const selectedAddress = event.action
+    ? (addressesByAction[event.action] || null)
+    : (data.receiver || data.address || null);
+  const targetUrl = selectedAddress && data.chain
+    ? `/?chain=${encodeURIComponent(data.chain)}&address=${encodeURIComponent(selectedAddress)}`
+    : (data.click_action || '/');
+
+  event.waitUntil((async () => {
+    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existingClient = clientList.find(client => client.url.includes(self.location.origin));
+
+    if (existingClient) {
+      await existingClient.focus();
+      if (selectedAddress && data.chain) {
+        existingClient.postMessage({
+          type: 'notification-action',
+          action: 'show_graph',
+          payload: { ...data, address: selectedAddress }
+        });
+      }
+      return;
+    }
+
+    if (clients.openWindow) await clients.openWindow(targetUrl);
+  })());
+});
 
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging-compat.js");
@@ -179,42 +222,6 @@ self.addEventListener('fetch', event => {
       })
     )
   );
-});
-
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-
-  const data = event.notification.data || {};
-  const addressesByAction = {
-    show_sender: data.sender,
-    show_receiver: data.receiver,
-    show_bp: data.creatorAccount,
-    show_coinbase: data.coinbaseReceiverAccount,
-    show_graph: data.address
-  };
-  const selectedAddress = addressesByAction[event.action] || null;
-  const targetUrl = selectedAddress && data.chain
-    ? `/?chain=${encodeURIComponent(data.chain)}&address=${encodeURIComponent(selectedAddress)}`
-    : (data.click_action || '/');
-
-  event.waitUntil((async () => {
-    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const existingClient = clientList.find(client => client.url.includes(self.location.origin));
-
-    if (existingClient) {
-      await existingClient.focus();
-      if (selectedAddress && data.chain) {
-        existingClient.postMessage({
-          type: 'notification-action',
-          action: 'show_graph',
-          payload: { ...data, address: selectedAddress }
-        });
-      }
-      return;
-    }
-
-    if (clients.openWindow) await clients.openWindow(targetUrl);
-  })());
 });
 
 function buildNotificationActions(data) {
