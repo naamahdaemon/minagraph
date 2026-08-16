@@ -130,7 +130,7 @@ let extraTokens = {}; // New loaded tokens
 let auroProvider = null;
 let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
-let initialCameraState;
+let cameraControlsBound = false;
 
 
 const knownTokens = {
@@ -934,6 +934,7 @@ document.addEventListener("DOMContentLoaded", () => {
     step: 1,
     connect: 'lower'
   });
+  bindCameraControls();
 });
 
 init();
@@ -1319,8 +1320,46 @@ class LayoutController {
     };
 
     worker.postMessage({ nodes, edges, settings });
-    initialCameraState = renderer.getCamera().getState();
   }
+}
+
+function centerGraphInViewport() {
+  if (!renderer) return;
+  const camera = renderer.getCamera();
+  const { ratio, angle } = camera.getState();
+
+  // Sigma normalizes the center of the current graph extent to (0.5, 0.5).
+  // Unlike a state captured at renderer creation, this remains correct after a
+  // layout changes all node positions or after a new graph is loaded.
+  camera.setState({ x: 0.5, y: 0.5, ratio, angle });
+}
+
+function bindCameraControls() {
+  if (cameraControlsBound || !zoomSlider?.noUiSlider || !rotateSlider?.noUiSlider) return;
+  cameraControlsBound = true;
+
+  const handle = zoomSlider.querySelector('.noUi-handle');
+  handle.addEventListener('pointerdown', event => {
+    if (event.button === 0) centerGraphInViewport();
+  });
+
+  zoomSlider.noUiSlider.on('update', (values, handleIndex) => {
+    if (!renderer) return;
+    renderer.getCamera().setState({ ratio: parseFloat(values[handleIndex]) });
+  });
+
+  rotateSlider.noUiSlider.on('update', (values, handleIndex) => {
+    if (!renderer) return;
+    const angle = parseFloat(values[handleIndex]) * Math.PI / 180;
+    renderer.getCamera().setState({ angle });
+  });
+}
+
+function syncCameraControlsToRenderer() {
+  if (!renderer || !zoomSlider?.noUiSlider || !rotateSlider?.noUiSlider) return;
+  const ratio = parseFloat(zoomSlider.noUiSlider.get());
+  const angle = parseFloat(rotateSlider.noUiSlider.get()) * Math.PI / 180;
+  renderer.getCamera().setState({ ratio, angle });
 }
 
 const layoutController = new LayoutController();
@@ -3572,38 +3611,8 @@ function initRenderer() {
   renderer = new Sigma(graph,container,param);
   renderer.setSetting("defaultNodeBorderColor", "#fff");
   renderer.setSetting("defaultNodeBorderSize", 40);
+  syncCameraControlsToRenderer();
   
-  initialCameraState = renderer.getCamera().getState();
-  function centerGraph() {
-    // grab current zoom
-    const { ratio } = renderer.getCamera().getState();
-    // restore original center
-    renderer.getCamera().setState({
-      x: initialCameraState.x,
-      y: initialCameraState.y,
-      ratio
-    });
-  }  
-
-  const handle = zoomSlider.querySelector('.noUi-handle');
-  handle.addEventListener('click', e => {
-    if (e.button === 0 && renderer) centerGraph();
-  });  
-
-  // 2) On slider update, set Sigma camera ratio
-  zoomSlider.noUiSlider.on('update', (values, handle) => {
-    const zoomLevel = parseFloat(values[handle]);
-    // directly set camera state (no animation)
-    renderer.getCamera().setState({ ratio: zoomLevel });
-  });
-
-  // On update: convert degrees to radians and rotate the Sigma camera
-  rotateSlider.noUiSlider.on('update', (values, handle) => {
-    const deg = parseFloat(values[handle]);
-    const rad = deg * Math.PI / 180;
-    renderer.getCamera().setState({ angle: rad });
-  });
-
   // Re-apply settings and listeners
   setupReducers();
   setupInteractions();
@@ -4234,37 +4243,8 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     renderer = new Sigma(graph,container,param);
     renderer.setSetting("defaultNodeBorderColor", "#fff");
     renderer.setSetting("defaultNodeBorderSize", 40);
+    syncCameraControlsToRenderer();
     
-    initialCameraState = renderer.getCamera().getState();
-    function centerGraph() {
-      // grab current zoom
-      const { ratio } = renderer.getCamera().getState();
-      // restore original center
-      renderer.getCamera().setState({
-        x: initialCameraState.x,
-        y: initialCameraState.y,
-        ratio
-      });
-    }  
-
-    const handle = zoomSlider.querySelector('.noUi-handle');
-    handle.addEventListener('click', e => {
-      if (e.button === 0 && renderer) centerGraph();
-    });
-    
-    // 2) On slider update, set Sigma camera ratio
-    zoomSlider.noUiSlider.on('update', (values, handle) => {
-      const zoomLevel = parseFloat(values[handle]);
-      // directly set camera state (no animation)
-      renderer.getCamera().setState({ ratio: zoomLevel });
-    });
-
-    // On update: convert degrees to radians and rotate the Sigma camera
-    rotateSlider.noUiSlider.on('update', (values, handle) => {
-      const deg = parseFloat(values[handle]);
-      const rad = deg * Math.PI / 180;
-      renderer.getCamera().setState({ angle: rad });
-    });
   }
  
  if (!wipeGraph)
