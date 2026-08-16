@@ -31,6 +31,10 @@ cannot re-apply positions to deleted nodes. Large graphs automatically use a low
 iteration limit because the bundled force-directed algorithms have quadratic
 repulsion costs.
 
+The automatic layout uses a size-aware iteration budget: small initial graphs get
+more time to settle, while incremental updates and node drags use shorter passes.
+The manual layout remains controlled by the iteration field in the sidebar.
+
 The `OpenOrd-inspired` option is experimental: it is a cooled force-directed
 layout, not a complete implementation of the OpenOrd paper.
 

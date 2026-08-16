@@ -1188,6 +1188,7 @@ class LayoutController {
     this.worker = null;
     this.runId = 0;
     this.algorithm = null;
+    this.origin = null;
   }
 
   stop({ message = "Stopped", remember = false } = {}) {
@@ -1198,11 +1199,12 @@ class LayoutController {
     isLayoutRunning = false;
     if (remember && this.algorithm) previousLayout = this.algorithm;
     this.algorithm = null;
+    this.origin = null;
     currentLayout = null;
     setLayoutUiState("stopped", message);
   }
 
-  run({ iterationsOverride = null } = {}) {
+  run({ iterationsOverride = null, origin = "manual" } = {}) {
     this.stop({ message: "0%" });
 
     if (window.location.protocol === "file:") {
@@ -1252,14 +1254,15 @@ class LayoutController {
     this.worker = worker;
     layoutWorker = worker;
     this.algorithm = algorithm;
+    this.origin = origin;
     currentLayout = algorithm;
     isLayoutRunning = true;
     setLayoutUiState("running", "0%");
 
-    if (iterations !== requestedIterations) {
-      document.getElementById("layout-info").textContent =
-        `Layout limited to ${iterations} iterations for ${nodeCount} nodes`;
-    }
+    const layoutLabel = origin === "manual" ? "Manual" : "Automatic";
+    document.getElementById("layout-info").textContent = iterations !== requestedIterations
+      ? `${layoutLabel} layout limited to ${iterations} iterations for ${nodeCount} nodes`
+      : `${layoutLabel} layout: ${iterations} iterations`;
 
     const nodes = graph.nodes().map(id => ({
       id,
@@ -1304,6 +1307,7 @@ class LayoutController {
         this.worker = null;
         layoutWorker = null;
         this.algorithm = null;
+        this.origin = null;
         currentLayout = null;
         isLayoutRunning = false;
         worker.terminate();
@@ -1370,7 +1374,7 @@ function stopLayoutInWorker() {
 
 
 function runLayoutInWorker() {
-  layoutController.run();
+  layoutController.run({ origin: "manual" });
 }
 
 
@@ -3139,8 +3143,23 @@ function stopLayout() {
   layoutController.stop({ remember: true });
 }
 
-function animateLayout(iterations = 500) {
-  layoutController.run({ iterationsOverride: iterations });
+function getAutomaticLayoutIterations(profile = "initial") {
+  const nodeCount = graph?.order || 0;
+
+  if (profile === "drag") return nodeCount <= 500 ? 150 : 75;
+  if (profile === "incremental") return nodeCount <= 500 ? 500 : 250;
+  if (nodeCount <= 150) return 2000;
+  if (nodeCount <= 400) return 1200;
+  if (nodeCount <= 1000) return 600;
+  if (nodeCount <= 2000) return 250;
+  return 100;
+}
+
+function animateLayout(iterations = null, profile = "initial") {
+  layoutController.run({
+    iterationsOverride: iterations ?? getAutomaticLayoutIterations(profile),
+    origin: "automatic"
+  });
 }
 
 function deleteSelectedNode(nodeId) {
@@ -3278,7 +3297,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   //hideLoader();
   hideOverlaySpinner();       // ⬅️ Hide spinner overlay
   showNodePanel(key); // 🔁 Refresh node panel after fetch
-  animateLayout();
+  animateLayout(null, "incremental");
 
   BASE_KEY = previousInitialKey;
   //FIRST_ITERATION_LIMIT = initialFirstLimit;
@@ -3974,7 +3993,7 @@ function setupInteractions() {
       renderer.refresh();
     } else if (hasMoved) {
       // you dragged: optionally re-layout or whatever
-      animateLayout();
+      animateLayout(null, "drag");
   }
 
     // reset state
@@ -4257,7 +4276,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
 
   renderer.refresh();
   
-  animateLayout();
+  animateLayout(null, "initial");
   
   hideLoader(); // ✅ hide modal
   
