@@ -1,0 +1,25 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const script = fs.readFileSync(path.join(root, 'scripts', 'script.js'), 'utf8');
+const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
+
+[
+  'technical-info-button',
+  'technical-info-modal',
+  'technical-info-content',
+  'technical-refresh-button',
+  'technical-update-button',
+  'technical-copy-button'
+].forEach(id => assert.match(html, new RegExp(`id=["']${id}["']`), `Missing #${id}`));
+
+assert.match(script, /function collectTechnicalDiagnostics\(/);
+assert.match(script, /type: 'get-technical-diagnostics'/);
+assert.match(worker, /event\.data\?\.type !== 'get-technical-diagnostics'/);
+assert.match(worker, /cacheName: CACHE_NAME/);
+assert.match(worker, /buildDate: APP_BUILD_DATE/);
+
+console.log('Technical panel tests passed');

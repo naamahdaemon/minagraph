@@ -476,6 +476,12 @@
           ">0</span>
         </button>
 
+        <button id="technical-info-button" class="control-button" title="Technical information" aria-label="Technical information">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <path d="M11 17h2v-6h-2v6zm1-15a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2V7h-2v2z"/>
+          </svg>
+        </button>
+
         <div id="notification-list" style="
           position: absolute;
           top: 36px;
@@ -927,6 +933,23 @@
   <div class="overlay-box">
     <div id="overlay-message">Fetching...</div><br/>
     <div class="css-spinner"></div>
+  </div>
+</div>
+
+<div id="technical-info-modal" class="technical-modal" role="dialog" aria-modal="true" aria-labelledby="technical-info-title" hidden>
+  <div class="technical-modal-card">
+    <div class="technical-modal-header">
+      <h2 id="technical-info-title">Technical information</h2>
+      <button id="technical-info-close" class="technical-modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <p class="technical-modal-help">Useful information for checking updates, offline mode and push notifications.</p>
+    <dl id="technical-info-content" class="technical-info-grid"></dl>
+    <div class="technical-modal-actions">
+      <button id="technical-refresh-button" type="button">Refresh</button>
+      <button id="technical-update-button" type="button">Check for update</button>
+      <button id="technical-copy-button" type="button">Copy diagnostics</button>
+    </div>
+    <p id="technical-info-status" class="technical-info-status" aria-live="polite"></p>
   </div>
 </div>
 
