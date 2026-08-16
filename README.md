@@ -74,6 +74,19 @@ To avoid freezing the browser or API throttling, start with small values and inc
 
 You need a **Minataur API key** to fetch blockchain data.
 
+### Run locally
+
+Web Workers and service workers cannot reliably be loaded from a `file://` URL.
+Start the dependency-free development server from the project directory instead:
+
+```sh
+npm run dev
+```
+
+Then open [http://127.0.0.1:8765](http://127.0.0.1:8765). Stop the server with
+`Ctrl+C`. A different port can be selected with the `MINAGRAPH_PORT` environment
+variable.
+
 ### 🔑 How to Get a Minataur API Key
 
 1. Go to: [https://minataur.net/api/restful](https://minataur.net/api/restful)

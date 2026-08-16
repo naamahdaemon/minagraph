@@ -1204,6 +1204,13 @@ class LayoutController {
   run({ iterationsOverride = null } = {}) {
     this.stop({ message: "0%" });
 
+    if (window.location.protocol === "file:") {
+      const message = "Layouts require the local server: run `npm run dev`, then open http://127.0.0.1:8765";
+      setLayoutUiState("error", message);
+      showErrorPopup(message);
+      return;
+    }
+
     const requestedIterations = Math.max(1, iterationsOverride ?? (parseInt(document.getElementById("layout-iterations").value, 10) || 5000));
     const gravity = Math.max(0, parseFloat(document.getElementById("layout-gravity").value) || 0.01);
     const scale = Math.max(0.0001, parseFloat(document.getElementById("layout-scale").value) || 1000);

@@ -1,0 +1,8 @@
+{
+  "name": "minagraph",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "test": "node tests/layout-workers.test.js"
+  }
+}
