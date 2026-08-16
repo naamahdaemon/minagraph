@@ -47,9 +47,16 @@ self.onmessage = function (e) {
       const v = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
         const u = nodes[j];
-        const dx = positions[v.id].x - positions[u.id].x;
-        const dy = positions[v.id].y - positions[u.id].y;
-        let dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+        let dx = positions[v.id].x - positions[u.id].x;
+        let dy = positions[v.id].y - positions[u.id].y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 0.0001) {
+          const angle = ((i + 1) * 2.399963229728653) % (Math.PI * 2);
+          dx = Math.cos(angle) * 0.01;
+          dy = Math.sin(angle) * 0.01;
+          dist = 0.01;
+        }
 
         // Prevent overlap
         if (s.preventOverlap && dist < 1) dist = 1;
@@ -107,8 +114,8 @@ self.onmessage = function (e) {
         disp[node.id].x -= dx * gravityForce;
         disp[node.id].y -= dy * gravityForce;
       } else {
-        disp[node.id].x -= dx / dist * gravityForce * dist;
-        disp[node.id].y -= dy / dist * gravityForce * dist;
+        disp[node.id].x -= dx / dist * gravityForce;
+        disp[node.id].y -= dy / dist * gravityForce;
       }
     }
 
@@ -117,9 +124,6 @@ self.onmessage = function (e) {
       const id = node.id;
       const dx = disp[id].x;
       const dy = disp[id].y;
-
-      const deltaX = dx - (positions[id].x - oldPositions[id].x);
-      const deltaY = dy - (positions[id].y - oldPositions[id].y);
 
       swinging[id] = Math.sqrt((positions[id].x - oldPositions[id].x - dx) ** 2 + (positions[id].y - oldPositions[id].y - dy) ** 2);
       traction[id] = Math.sqrt(dx * dx + dy * dy);
