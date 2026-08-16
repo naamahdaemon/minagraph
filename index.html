@@ -40,6 +40,15 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
+      const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      if (isLocalDevelopment) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(registration => registration.unregister());
+          console.log('[PWA] Service workers disabled for local development');
+        });
+        return;
+      }
+
       navigator.serviceWorker.register('/service-worker.js').then(reg => {
         console.log('[PWA] ServiceWorker registered:', reg);
 

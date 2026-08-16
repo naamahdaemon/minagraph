@@ -3624,7 +3624,10 @@ function setupReducers() {
   }
   
   renderer.setSetting("nodeReducer", (node, data) => {
-    const focusNode = hoveredNode || selectedNode;
+    if (!graph.hasNode(node)) return { ...data, hidden: true };
+
+    const focusCandidate = hoveredNode || selectedNode;
+    const focusNode = focusCandidate && graph.hasNode(focusCandidate) ? focusCandidate : null;
     const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
     const isFocus = focusNode === node;
     const isNeighbor = neighbors?.has(node);
@@ -3795,6 +3798,11 @@ function setupReducers() {
 
 
   renderer.setSetting("edgeReducer", (edge, data) => {
+    // Sigma can render from its cache while Graphology is emitting a removal or
+    // replacement event. Never resolve extremities for an edge that has already
+    // disappeared from the graph.
+    if (!graph.hasEdge(edge)) return { ...data, hidden: true };
+
     const focusNode = hoveredNode || selectedNode;
     const command = data.command_type || data.label;
 
@@ -4171,6 +4179,19 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   const panel = document.getElementById("side-panel");
   
   showLoader(); // ✅ show modal
+
+  if (wipeGraph) {
+    // Reducers close over the global `graph`. Keeping the previous Sigma
+    // instance alive after replacing that object makes it resolve old edge ids
+    // against the new graph while the asynchronous fetch is running.
+    layoutController.stop({ message: "Graph changed" });
+    if (renderer) {
+      renderer.kill();
+      renderer = null;
+    }
+    hoveredNode = null;
+    selectedNode = null;
+  }
 
   totalSteps = 1;
   currentStep = 0;
