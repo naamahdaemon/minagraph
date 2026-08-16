@@ -1,12 +1,17 @@
-const CACHE_NAME = 'mina-graph-explorer-v8';
+const CACHE_NAME = 'mina-graph-explorer-v9';
 const APP_BUILD_DATE = '2026-08-16';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
 // notification click handling and can otherwise replace the application's one.
 self.addEventListener('notificationclick', function(event) {
+  const data = event.notification.data || {};
+
+  // This is a notification built below by Minagraph, so its click must have a
+  // single owner. In particular, do not let Firebase or another listener apply
+  // the notification's default link after a Sender/Receiver action was chosen.
+  if (data.message_id) event.stopImmediatePropagation();
   event.notification.close();
 
-  const data = event.notification.data || {};
   const addressesByAction = {
     show_sender: data.sender,
     show_receiver: data.receiver,
