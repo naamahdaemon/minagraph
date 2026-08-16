@@ -131,6 +131,178 @@ let auroProvider = null;
 let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
 let cameraControlsBound = false;
+let lastTechnicalDiagnostics = null;
+
+function requestServiceWorkerDiagnostics(worker) {
+  if (!worker) return Promise.resolve(null);
+
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => resolve(null), 1500);
+    channel.port1.onmessage = event => {
+      clearTimeout(timeout);
+      resolve(event.data || null);
+    };
+    worker.postMessage({ type: 'get-technical-diagnostics' }, [channel.port2]);
+  });
+}
+
+async function collectTechnicalDiagnostics() {
+  const supportsServiceWorker = 'serviceWorker' in navigator;
+  const registration = supportsServiceWorker
+    ? await navigator.serviceWorker.getRegistration().catch(() => null)
+    : null;
+  const worker = navigator.serviceWorker?.controller || registration?.active || null;
+  const workerInfo = await requestServiceWorkerDiagnostics(worker);
+  const subscription = registration?.pushManager
+    ? await registration.pushManager.getSubscription().catch(() => null)
+    : null;
+  const cacheNames = 'caches' in window ? await caches.keys().catch(() => []) : [];
+  const maxActions = typeof Notification !== 'undefined' && Number.isInteger(Notification.maxActions)
+    ? Notification.maxActions
+    : null;
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  return {
+    appVersion: workerInfo?.cacheName || 'Unavailable',
+    buildDate: workerInfo?.buildDate || 'Unavailable',
+    serviceWorker: !supportsServiceWorker
+      ? 'Unsupported'
+      : registration?.active
+        ? 'Active'
+        : registration?.waiting
+          ? 'Update waiting'
+          : registration?.installing
+            ? 'Installing'
+            : 'Not registered',
+    controlledPage: navigator.serviceWorker?.controller ? 'Yes' : 'No',
+    workerScope: registration?.scope || 'Unavailable',
+    cachedVersion: workerInfo?.cacheName && cacheNames.includes(workerInfo.cacheName)
+      ? 'Present'
+      : cacheNames.length
+        ? `Other cache: ${cacheNames.join(', ')}`
+        : 'No application cache',
+    notificationPermission: typeof Notification === 'undefined' ? 'Unsupported' : Notification.permission,
+    pushSubscription: !registration?.pushManager ? 'Unsupported' : subscription ? 'Active' : 'Inactive',
+    notificationButtons: maxActions === null
+      ? 'Not reported by browser'
+      : maxActions > 0
+        ? `Supported (maximum ${maxActions})`
+        : 'Not supported (maximum 0)',
+    displayMode: standalone ? 'Installed PWA' : 'Browser tab',
+    network: navigator.onLine ? 'Online' : 'Offline',
+    checkedAt: new Date().toLocaleString(),
+    userAgent: navigator.userAgent
+  };
+}
+
+function renderTechnicalDiagnostics(diagnostics) {
+  const container = document.getElementById('technical-info-content');
+  if (!container) return;
+
+  const rows = [
+    ['Application version', diagnostics.appVersion],
+    ['Build date', diagnostics.buildDate],
+    ['Service worker', diagnostics.serviceWorker],
+    ['Page controlled', diagnostics.controlledPage],
+    ['Worker scope', diagnostics.workerScope],
+    ['Offline cache', diagnostics.cachedVersion],
+    ['Notification permission', diagnostics.notificationPermission],
+    ['Push subscription', diagnostics.pushSubscription],
+    ['Notification buttons', diagnostics.notificationButtons],
+    ['Display mode', diagnostics.displayMode],
+    ['Network', diagnostics.network],
+    ['Checked at', diagnostics.checkedAt],
+    ['Browser', diagnostics.userAgent]
+  ];
+
+  container.replaceChildren();
+  rows.forEach(([label, value]) => {
+    const term = document.createElement('dt');
+    const description = document.createElement('dd');
+    const normalized = String(value).toLowerCase();
+    term.textContent = label;
+    description.textContent = value;
+    const isWarning = normalized.includes('inactive')
+      || normalized.includes('unsupported')
+      || normalized.includes('not ')
+      || normalized.includes('unavailable')
+      || normalized.includes('no application cache');
+    const isHealthy = normalized.includes('active')
+      || normalized.includes('supported')
+      || value === 'Yes'
+      || value === 'Online'
+      || value === 'Present';
+    description.className = isWarning
+      ? 'technical-info-value-warning'
+      : isHealthy
+        ? 'technical-info-value-ok'
+        : '';
+    container.append(term, description);
+  });
+}
+
+async function refreshTechnicalDiagnostics() {
+  const status = document.getElementById('technical-info-status');
+  if (status) status.textContent = 'Collecting diagnostics...';
+  try {
+    lastTechnicalDiagnostics = await collectTechnicalDiagnostics();
+    renderTechnicalDiagnostics(lastTechnicalDiagnostics);
+    if (status) status.textContent = '';
+  } catch (error) {
+    console.error('[Diagnostics] Collection failed:', error);
+    if (status) status.textContent = `Unable to collect diagnostics: ${error.message}`;
+  }
+}
+
+async function openTechnicalInfoPanel() {
+  const modal = document.getElementById('technical-info-modal');
+  if (!modal) return;
+  modal.hidden = false;
+  await refreshTechnicalDiagnostics();
+}
+
+async function checkForApplicationUpdate() {
+  const status = document.getElementById('technical-info-status');
+  if (!('serviceWorker' in navigator)) {
+    if (status) status.textContent = 'Service workers are not supported by this browser.';
+    return;
+  }
+
+  if (status) status.textContent = 'Checking for an update...';
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      if (status) status.textContent = 'No service worker is registered.';
+      return;
+    }
+
+    await registration.update();
+    await refreshTechnicalDiagnostics();
+    if (status) {
+      status.textContent = registration.waiting
+        ? 'An update is ready. Reload the application to activate it.'
+        : registration.installing
+          ? 'An update is currently installing.'
+          : 'Update check completed.';
+    }
+  } catch (error) {
+    console.error('[Diagnostics] Update check failed:', error);
+    if (status) status.textContent = `Update check failed: ${error.message}`;
+  }
+}
+
+async function copyTechnicalDiagnostics() {
+  if (!lastTechnicalDiagnostics) await refreshTechnicalDiagnostics();
+  const status = document.getElementById('technical-info-status');
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(lastTechnicalDiagnostics, null, 2));
+    if (status) status.textContent = 'Diagnostics copied.';
+  } catch (error) {
+    if (status) status.textContent = 'Unable to copy diagnostics.';
+  }
+}
 
 
 const knownTokens = {
@@ -177,6 +349,16 @@ document.addEventListener("DOMContentLoaded", () => {
   donateBtn = document.getElementById("donate-btn");
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
+
+  const technicalModal = document.getElementById('technical-info-modal');
+  document.getElementById('technical-info-button')?.addEventListener('click', openTechnicalInfoPanel);
+  document.getElementById('technical-info-close')?.addEventListener('click', () => { technicalModal.hidden = true; });
+  document.getElementById('technical-refresh-button')?.addEventListener('click', refreshTechnicalDiagnostics);
+  document.getElementById('technical-update-button')?.addEventListener('click', checkForApplicationUpdate);
+  document.getElementById('technical-copy-button')?.addEventListener('click', copyTechnicalDiagnostics);
+  technicalModal?.addEventListener('click', event => {
+    if (event.target === technicalModal) technicalModal.hidden = true;
+  });
 
   const params = new URLSearchParams(window.location.search);
   const param_chain = params.get("chain");

@@ -74,12 +74,15 @@ assert.deepEqual(
 
 async function dispatchNotificationClick(data, action = "") {
   let work;
+  let propagationStopped = false;
   listeners.notificationclick({
     action,
     notification: { data, close() {} },
+    stopImmediatePropagation() { propagationStopped = true; },
     waitUntil(promise) { work = promise; }
   });
   await work;
+  return propagationStopped;
 }
 
 (async () => {
@@ -100,8 +103,17 @@ async function dispatchNotificationClick(data, action = "") {
     postMessage(message) { postedMessages.push(message); }
   };
   context.self.clients.matchAll = async () => [existingClient];
-  await dispatchNotificationClick({ chain: "mina", receiver: "mina-receiver" });
-  assert.equal(postedMessages[0].payload.address, "mina-receiver");
+  const minaData = {
+    message_id: "mina-notification",
+    chain: "mina",
+    sender: "mina-sender",
+    receiver: "mina-receiver",
+    action_primary: "show_graph"
+  };
+  assert.equal(await dispatchNotificationClick(minaData, "show_sender"), true);
+  await dispatchNotificationClick(minaData, "show_receiver");
+  assert.equal(postedMessages[0].payload.address, "mina-sender");
+  assert.equal(postedMessages[1].payload.address, "mina-receiver");
   assert.equal(postedMessages[0].action, "show_graph");
 
   console.log("Service worker notification action tests passed");
