@@ -1,4 +1,5 @@
-const CACHE_NAME = 'mina-graph-explorer-v7';
+const CACHE_NAME = 'mina-graph-explorer-v8';
+const APP_BUILD_DATE = '2026-08-16';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
 // notification click handling and can otherwise replace the application's one.
@@ -41,6 +42,18 @@ self.addEventListener('notificationclick', function(event) {
 
     if (clients.openWindow) await clients.openWindow(targetUrl);
   })());
+});
+
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'get-technical-diagnostics') return;
+
+  const response = {
+    cacheName: CACHE_NAME,
+    buildDate: APP_BUILD_DATE,
+    scriptUrl: self.location.href
+  };
+
+  if (event.ports?.[0]) event.ports[0].postMessage(response);
 });
 
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
