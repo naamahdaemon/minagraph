@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v5';
+const CACHE_NAME = 'mina-graph-explorer-v6';
 
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.4.0/firebase-messaging-compat.js");
@@ -184,24 +184,63 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  // Open the PWA window or focus if already open
+  const data = event.notification.data || {};
+  const addressesByAction = {
+    show_sender: data.sender,
+    show_receiver: data.receiver,
+    show_bp: data.creatorAccount,
+    show_coinbase: data.coinbaseReceiverAccount,
+    show_graph: data.address
+  };
+  const selectedAddress = addressesByAction[event.action] || null;
+  const targetUrl = selectedAddress && data.chain
+    ? `/?chain=${encodeURIComponent(data.chain)}&address=${encodeURIComponent(selectedAddress)}`
+    : (data.click_action || '/');
 
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      for (const client of clientList) {
-        // Focus if any window of your origin is already open
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
-        }
-      }
+  event.waitUntil((async () => {
+    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existingClient = clientList.find(client => client.url.includes(self.location.origin));
 
-      // Else open a new window
-      if (clients.openWindow) {
-        return clients.openWindow('/');
+    if (existingClient) {
+      await existingClient.focus();
+      if (selectedAddress && data.chain) {
+        existingClient.postMessage({
+          type: 'notification-action',
+          action: 'show_graph',
+          payload: { ...data, address: selectedAddress }
+        });
       }
-    })
-  );
+      return;
+    }
+
+    if (clients.openWindow) await clients.openWindow(targetUrl);
+  })());
 });
+
+function buildNotificationActions(data) {
+  if (!data.chain) return [];
+
+  const candidates = [
+    { action: 'show_sender', title: 'Sender', address: data.sender },
+    { action: 'show_receiver', title: 'Receiver', address: data.receiver },
+    { action: 'show_bp', title: 'BP', address: data.creatorAccount },
+    { action: 'show_coinbase', title: 'Coinbase', address: data.coinbaseReceiverAccount },
+    { action: 'show_graph', title: 'Show Graph', address: data.address }
+  ];
+  const seenAddresses = new Set();
+  const availableActions = candidates.filter(candidate => {
+    if (!candidate.address || seenAddresses.has(candidate.address)) return false;
+    seenAddresses.add(candidate.address);
+    return true;
+  });
+  const browserLimit = typeof Notification !== 'undefined' && Number.isInteger(Notification.maxActions) && Notification.maxActions > 0
+    ? Notification.maxActions
+    : availableActions.length;
+
+  return availableActions
+    .slice(0, browserLimit)
+    .map(({ action, title }) => ({ action, title }));
+}
 
 self.addEventListener('push', function(event) {
   let data = {};
@@ -217,15 +256,7 @@ self.addEventListener('push', function(event) {
   const icon = '/icons/icon-192.png';
   const message_id = data.message_id;
   const click_action = data.click_action || '/'; // ? URL à ouvrir
-  const actions = [];
-
-  // ? Ajouter des boutons si présents dans le payload
-  if (data.action_primary === 'show_graph' && data.chain && data.address) {
-    actions.push({ action: 'show_graph', title: 'Show Graph' });
-  }
-  if (data.action_secondary) {
-    actions.push({ action: data.action_secondary, title: 'Dismiss' });
-  }
+  const actions = buildNotificationActions(data);
 
   const notificationData = {
     title,
@@ -254,6 +285,7 @@ self.addEventListener('push', function(event) {
       await self.registration.showNotification(title, {
         body,
         icon,
+        actions,
         data: notificationData
       });
 
