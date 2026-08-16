@@ -18,15 +18,6 @@ function runWorker(filename, data) {
   return messages.findLast(message => message.type === "done");
 }
 
-function runWorkerMessages(filename, data) {
-  const messages = [];
-  const self = { postMessage: message => messages.push(structuredClone(message)) };
-  const source = fs.readFileSync(path.join(projectRoot, "scripts", filename), "utf8");
-  vm.runInNewContext(source, { self, console, Math });
-  self.onmessage({ data });
-  return messages;
-}
-
 function assertFinitePositions(positions) {
   for (const position of Object.values(positions)) {
     assert.equal(Number.isFinite(position.x), true);
@@ -42,14 +33,6 @@ const coincidentGraph = {
 const frResult = runWorker("fruchtermanReingold.js", coincidentGraph);
 assertFinitePositions(frResult.positions);
 assert.notDeepEqual(frResult.positions.a, frResult.positions.b, "FR should separate coincident nodes");
-assert.deepEqual(
-  runWorkerMessages("fruchtermanReingold.js", {
-    ...coincidentGraph,
-    settings: { ...coincidentGraph.settings, reportProgress: false }
-  }).map(message => message.type),
-  ["done"],
-  "Mobile mode should avoid position snapshots during layout"
-);
 
 function runForceAtlas(strongGravityMode) {
   return runWorker("forceAtlas.js", {

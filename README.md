@@ -35,11 +35,6 @@ The automatic layout uses a size-aware iteration budget: small initial graphs ge
 more time to settle, while incremental updates and node drags use shorter passes.
 The manual layout remains controlled by the iteration field in the sidebar.
 
-On mobile devices, labels are disabled by default, layout progress snapshots are
-not rendered, and iteration budgets are reduced to protect the browser's memory
-and GPU process. Automatic layout is skipped above 4,000 nodes; it can still be
-started manually when the device has sufficient resources.
-
 The `OpenOrd-inspired` option is experimental: it is a cooled force-directed
 layout, not a complete implementation of the OpenOrd paper.
 
