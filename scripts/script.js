@@ -6073,6 +6073,32 @@ function deleteNotification(message_id) {
   });
 }
 
+function clearAllNotifications() {
+  return openNotificationDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('notifications', 'readwrite');
+      tx.objectStore('notifications').clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  });
+}
+
+async function confirmAndClearAllNotifications() {
+  const confirmed = confirm('Delete all notifications? This action cannot be undone.');
+  if (!confirmed) return;
+
+  try {
+    await clearAllNotifications();
+    await updateNotificationBadge();
+    await showNotificationList();
+  } catch (error) {
+    console.error('Failed to clear notifications:', error);
+    showErrorPopup('Unable to clear notifications. Please try again.');
+  }
+}
+
 async function showNotificationList() {
   const container = document.getElementById('notification-list');
   
@@ -6101,7 +6127,33 @@ async function showNotificationList() {
   if (!notifs.length) {
     container.innerHTML = "<p style='margin:0;color:#888;'>No notifications</p>";
   } else {
-    container.innerHTML = notifs
+    const header = `
+      <div style="
+        position: sticky;
+        top: -8px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: -8px -8px 8px;
+        padding: 8px;
+        background: ${bgColor};
+        border-bottom: 1px solid ${borderColor};
+      ">
+        <strong>Notifications</strong>
+        <button id="clear-all-notifications" type="button" style="
+          padding: 4px 8px;
+          color: white;
+          background: #b3261e;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+        ">Clear all</button>
+      </div>`;
+
+    container.innerHTML = header + notifs
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(n => {
         let graphButtons = '';
@@ -6210,6 +6262,9 @@ async function showNotificationList() {
         </div>
         `;
       }).join('');
+
+      document.getElementById('clear-all-notifications')
+        ?.addEventListener('click', confirmAndClearAllNotifications);
 
       // ✅ Enable swipe-to-delete
       container.querySelectorAll('.notif-item').forEach(el => {
