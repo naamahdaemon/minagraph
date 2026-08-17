@@ -3496,11 +3496,26 @@ function getChainIcon(chain) {
   return blockchainSVGs[chain] || "";
 }
 
-function showNodePanel(node) {
+function isTimestampInCurrentRange(timestamp) {
+  const value = Number(timestamp);
+  const [min, max] = currentRange;
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+function showNodePanel(node, refreshExternalStatus = true) {
   //rebuildTransactionsByNeighbor();
   const panel = document.getElementById("side-panel");
+  const currentWatchIcon = document.querySelector("#watch-status > span");
+  const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
-  const neighbors = graph.neighbors(node);
+  const visibleEdges = graph.edges(node).filter(edge =>
+    isTimestampInCurrentRange(graph.getEdgeAttribute(edge, "timestamp"))
+  );
+  const neighbors = [...new Set(visibleEdges.map(edge => {
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    return source === node ? target : source;
+  }))];
   const isFav = isFavorite(node, selectedBlockchain);
   let favName;
   
@@ -3509,15 +3524,14 @@ function showNodePanel(node) {
   selectedNode = node;
 
   let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
-  graph.forEachEdge((e, attr, src, tgt) => {
-    if (src === node || tgt === node) {
-      if (attr.status !== "applied") failed++;
-          else if (attr.command_type === "delegation") del++;
-          else if (attr.command_type === "stake" || attr.command_type === "delegate") del++;
-          else if (attr.command_type === "payment" || attr.command_type === "transfer") tx++;
-          else if (attr.command_type === "contract_call" || attr.command_type === "zkapp" || attr.command_type === "contract_creation") sc++;
-          else if (attr.command_type === "token_transfer" || attr.command_type === "nft_transfer") tt++;
-    }
+  visibleEdges.forEach(edge => {
+    const attr = graph.getEdgeAttributes(edge);
+    if (attr.status !== "applied") failed++;
+        else if (attr.command_type === "delegation") del++;
+        else if (attr.command_type === "stake" || attr.command_type === "delegate") del++;
+        else if (attr.command_type === "payment" || attr.command_type === "transfer") tx++;
+        else if (attr.command_type === "contract_call" || attr.command_type === "zkapp" || attr.command_type === "contract_creation") sc++;
+        else if (attr.command_type === "token_transfer" || attr.command_type === "nft_transfer") tt++;
   });
 
 
@@ -3589,17 +3603,20 @@ function showNodePanel(node) {
     ">🗑️ Delete this node from the Graph</button>         
     <p style="margin-bottom: 0px;"><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
     ${fetchButtonsHTML}
-    <p><strong>Degree:</strong> ${graph.degree(node)}</p>
+    <p><strong>Degree (selected period):</strong> ${neighbors.length}</p>
     <p><strong>#Transactions:</strong> ${tx}</p>
     <p><strong>#Delegations:</strong> ${del}</p>
     <p><strong>#Smart Contracts:</strong> ${sc}</p>
     <p><strong>#Token Transfers:</strong> ${tt}</p>
     <p><strong>#Failed Transactions:</strong> ${failed}</p>
+    <p style="font-size: 11px; color: #aaa;">
+      Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
+    </p>
     <p><strong>Linked Nodes & Transactions:</strong></p>
     <div>
-      ${neighbors
+      ${neighbors.length ? neighbors
         .map(n => {
-          const directEdges = graph.edges().filter(e => {
+          const directEdges = visibleEdges.filter(e => {
             const source = graph.source(e);
             const target = graph.target(e);
             return (source === node && target === n) || (source === n && target === node);
@@ -3627,7 +3644,7 @@ function showNodePanel(node) {
             }
           }
 
-        const directEdges = graph.edges().filter(e => {
+        const directEdges = visibleEdges.filter(e => {
           const source = graph.source(e);
           const target = graph.target(e);
           return (source === node && target === n) || (source === n && target === node);
@@ -3762,7 +3779,7 @@ function showNodePanel(node) {
             </div>
           </div>
         `;
-      }).join('')}
+      }).join('') : '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>'}
     </div>`;
     
   details.innerHTML = html;
@@ -3771,9 +3788,13 @@ function showNodePanel(node) {
     const watchSpan = document.getElementById("watch-status");
     if (!watchSpan) return;
 
-    isWatched(node, selectedBlockchain).then(watched => {
-      renderWatchIcon(watchSpan, watched, node, selectedBlockchain);
-    });
+    if (refreshExternalStatus) {
+      isWatched(node, selectedBlockchain).then(watched => {
+        renderWatchIcon(watchSpan, watched, node, selectedBlockchain);
+      });
+    } else {
+      renderWatchIcon(watchSpan, cachedWatchState, node, selectedBlockchain);
+    }
   }
 
   const favSpan = document.getElementById("favorite-status");
@@ -5315,8 +5336,7 @@ function applyDateFilter() {
   document.getElementById("slicer-end-label").textContent = `To: ${formatter(max)}`;
 
   graph.forEachEdge((e, attrs) => {
-    const ts = parseInt(attrs.timestamp);
-    const keep = ts >= min && ts <= max;
+    const keep = isTimestampInCurrentRange(attrs.timestamp);
     graph.setEdgeAttribute(e, "hidden", !keep);
   });
 
@@ -5331,6 +5351,10 @@ function applyDateFilter() {
   graph.forEachNode((n) => {
     graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
   });
+
+  if (selectedNode && graph.hasNode(selectedNode)) {
+    showNodePanel(selectedNode, false);
+  }
 
   renderer.refresh();
 }
