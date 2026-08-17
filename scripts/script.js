@@ -3594,13 +3594,17 @@ function showNodePanel(node, refreshExternalStatus = true) {
     </h3>      
     <button onclick="deleteSelectedNode('${node}')" title="Delete node (Del)" style="
       margin: 5px 0;
+      max-width: 100%;
       background: #e53935;
       color: white;
       border: none;
       padding: 4px 10px;
       border-radius: 4px;
       cursor: pointer;
-    ">🗑️ Delete this node from the Graph</button>         
+      font-size: 14px;
+      line-height: 1.4;
+      white-space: nowrap;
+    ">🗑️ Delete Node from Graph</button>
     <p style="margin-bottom: 0px;"><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
     ${fetchButtonsHTML}
     <p><strong>Degree (selected period):</strong> ${neighbors.length}</p>
