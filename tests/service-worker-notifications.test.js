@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const listeners = {};
 const postedMessages = [];
 const openedWindows = [];
+let skipWaitingCalls = 0;
 const context = {
   console,
   URL,
@@ -20,6 +21,7 @@ const context = {
   self: {
     location: { origin: "https://webapp.minagraph.com" },
     addEventListener(type, listener) { listeners[type] = listener; },
+    async skipWaiting() { skipWaitingCalls++; },
     clients: {
       async matchAll() { return []; },
       async openWindow(url) { openedWindows.push(url); }
@@ -86,6 +88,14 @@ async function dispatchNotificationClick(data, action = "") {
 }
 
 (async () => {
+  let activationWork;
+  listeners.message({
+    data: { type: "activate-update" },
+    waitUntil(promise) { activationWork = promise; }
+  });
+  await activationWork;
+  assert.equal(skipWaitingCalls, 1, "An explicit update activation should call skipWaiting");
+
   await dispatchNotificationClick({
     chain: "polygon",
     receiver: "receiver-address",

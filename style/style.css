@@ -1207,6 +1207,10 @@
     background: #2c88ff;
   }
 
+  #technical-activate-update-button {
+    background: #27a745;
+  }
+
   @media (max-width: 520px) {
     .technical-info-grid {
       grid-template-columns: 1fr;
