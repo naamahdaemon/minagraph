@@ -1,5 +1,6 @@
-const CACHE_NAME = 'mina-graph-explorer-v9';
-const APP_BUILD_DATE = '2026-08-16';
+const CACHE_NAME = 'mina-graph-explorer-v10';
+const APP_BUILD_DATE = '2026-08-17';
+const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v9';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
 // notification click handling and can otherwise replace the application's one.
@@ -50,6 +51,11 @@ self.addEventListener('notificationclick', function(event) {
 });
 
 self.addEventListener('message', event => {
+  if (event.data?.type === 'activate-update') {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+
   if (event.data?.type !== 'get-technical-diagnostics') return;
 
   const response = {
@@ -190,6 +196,10 @@ self.addEventListener('install', event => {
           console.warn(`[SW] Skipped: ${url}`, err);
         }
       }
+      const existingCaches = await caches.keys();
+      if (existingCaches.includes(FORCE_ACTIVATE_FROM_CACHE)) {
+        await self.skipWaiting();
+      }
     })
   );
 });
@@ -197,19 +207,58 @@ self.addEventListener('install', event => {
 // Activation : suppression anciens caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => 
-      Promise.all(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
         keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      )
-    )
+      );
+      await self.clients.claim();
+    })()
   );
-  self.clients.claim();
 });
 
 // Interception des requêtes
+async function cacheSuccessfulGet(request, response) {
+  if (request.method === 'GET' && (response.ok || response.type === 'opaque')) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function networkFirst(request, navigationFallback = false) {
+  try {
+    const response = await fetch(request);
+    if (!response.ok && response.type !== 'opaque') {
+      return (await caches.match(request)) || response;
+    }
+    return await cacheSuccessfulGet(request, response);
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (navigationFallback) {
+      const fallback = await caches.match('/index.html');
+      if (fallback) return fallback;
+    }
+    throw error;
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  return cacheSuccessfulGet(request, response);
+}
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
+
+  if (request.method !== 'GET') {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // API (Minataur ou proxy) → Network first
   if (
@@ -217,29 +266,17 @@ self.addEventListener('fetch', event => {
     url.hostname.includes('akirion.com') ||
     url.pathname.startsWith('/proxy')
   ) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          return caches.open(CACHE_NAME).then(cache => {
-            cache.put(request, response.clone());
-            return response;
-          });
-        })
-        .catch(() => caches.match(request))
-    );
+    event.respondWith(networkFirst(request));
     return;
   }
 
-  // Autres fichiers → Cache first
-  event.respondWith(
-    caches.match(request).then(cached =>
-      cached || fetch(request).catch(() => {
-        if (request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      })
-    )
-  );
+  // Local application files: network-first with an offline cache fallback.
+  if (url.origin === self.location.origin) {
+    event.respondWith(networkFirst(request, request.mode === 'navigate'));
+    return;
+  }
+
+  event.respondWith(cacheFirst(request));
 });
 
 function buildNotificationActions(data) {

@@ -132,6 +132,13 @@ let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
 let cameraControlsBound = false;
 let lastTechnicalDiagnostics = null;
+let reloadAfterServiceWorkerActivation = false;
+
+navigator.serviceWorker?.addEventListener('controllerchange', () => {
+  if (!reloadAfterServiceWorkerActivation) return;
+  reloadAfterServiceWorkerActivation = false;
+  window.location.reload();
+});
 
 function requestServiceWorkerDiagnostics(worker) {
   if (!worker) return Promise.resolve(null);
@@ -154,6 +161,7 @@ async function collectTechnicalDiagnostics() {
     : null;
   const worker = navigator.serviceWorker?.controller || registration?.active || null;
   const workerInfo = await requestServiceWorkerDiagnostics(worker);
+  const waitingWorkerInfo = await requestServiceWorkerDiagnostics(registration?.waiting || null);
   const subscription = registration?.pushManager
     ? await registration.pushManager.getSubscription().catch(() => null)
     : null;
@@ -166,15 +174,16 @@ async function collectTechnicalDiagnostics() {
 
   return {
     appVersion: workerInfo?.cacheName || 'Unavailable',
+    availableVersion: waitingWorkerInfo?.cacheName || 'None',
     buildDate: workerInfo?.buildDate || 'Unavailable',
     serviceWorker: !supportsServiceWorker
       ? 'Unsupported'
-      : registration?.active
-        ? 'Active'
-        : registration?.waiting
-          ? 'Update waiting'
-          : registration?.installing
-            ? 'Installing'
+      : registration?.waiting
+        ? 'Update waiting'
+        : registration?.installing
+          ? 'Installing'
+          : registration?.active
+            ? 'Active'
             : 'Not registered',
     controlledPage: navigator.serviceWorker?.controller ? 'Yes' : 'No',
     workerScope: registration?.scope || 'Unavailable',
@@ -193,7 +202,8 @@ async function collectTechnicalDiagnostics() {
     displayMode: standalone ? 'Installed PWA' : 'Browser tab',
     network: navigator.onLine ? 'Online' : 'Offline',
     checkedAt: new Date().toLocaleString(),
-    userAgent: navigator.userAgent
+    userAgent: navigator.userAgent,
+    updateReady: Boolean(registration?.waiting)
   };
 }
 
@@ -203,6 +213,7 @@ function renderTechnicalDiagnostics(diagnostics) {
 
   const rows = [
     ['Application version', diagnostics.appVersion],
+    ['Available update', diagnostics.availableVersion],
     ['Build date', diagnostics.buildDate],
     ['Service worker', diagnostics.serviceWorker],
     ['Page controlled', diagnostics.controlledPage],
@@ -249,6 +260,8 @@ async function refreshTechnicalDiagnostics() {
   try {
     lastTechnicalDiagnostics = await collectTechnicalDiagnostics();
     renderTechnicalDiagnostics(lastTechnicalDiagnostics);
+    const activateButton = document.getElementById('technical-activate-update-button');
+    if (activateButton) activateButton.hidden = !lastTechnicalDiagnostics.updateReady;
     if (status) status.textContent = '';
   } catch (error) {
     console.error('[Diagnostics] Collection failed:', error);
@@ -279,6 +292,11 @@ async function checkForApplicationUpdate() {
     }
 
     await registration.update();
+    if (registration.installing) {
+      registration.installing.addEventListener('statechange', event => {
+        if (event.target.state === 'installed') refreshTechnicalDiagnostics();
+      });
+    }
     await refreshTechnicalDiagnostics();
     if (status) {
       status.textContent = registration.waiting
@@ -291,6 +309,20 @@ async function checkForApplicationUpdate() {
     console.error('[Diagnostics] Update check failed:', error);
     if (status) status.textContent = `Update check failed: ${error.message}`;
   }
+}
+
+async function activateApplicationUpdate() {
+  const status = document.getElementById('technical-info-status');
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (!registration?.waiting) {
+    if (status) status.textContent = 'No update is ready to activate.';
+    await refreshTechnicalDiagnostics();
+    return;
+  }
+
+  if (status) status.textContent = 'Activating update...';
+  reloadAfterServiceWorkerActivation = true;
+  registration.waiting.postMessage({ type: 'activate-update' });
 }
 
 async function copyTechnicalDiagnostics() {
@@ -355,6 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('technical-info-close')?.addEventListener('click', () => { technicalModal.hidden = true; });
   document.getElementById('technical-refresh-button')?.addEventListener('click', refreshTechnicalDiagnostics);
   document.getElementById('technical-update-button')?.addEventListener('click', checkForApplicationUpdate);
+  document.getElementById('technical-activate-update-button')?.addEventListener('click', activateApplicationUpdate);
   document.getElementById('technical-copy-button')?.addEventListener('click', copyTechnicalDiagnostics);
   technicalModal?.addEventListener('click', event => {
     if (event.target === technicalModal) technicalModal.hidden = true;
