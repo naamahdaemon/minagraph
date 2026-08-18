@@ -375,6 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
   arrow = document.getElementById("toggle-token-arrow");
   tokenSection = document.getElementById("minataur-token-section");
   sigmaContainer = document.getElementById("sigma-container");
+  sigmaContainer.addEventListener("pointerdown", () => sigmaContainer.focus({ preventScroll: true }));
   controls = document.getElementById("controls");
   footer = document.querySelector("footer");
   fullscreenBtn = document.getElementById("fullscreen-toggle");
@@ -1579,6 +1580,42 @@ function syncCameraControlsToRenderer() {
   const ratio = parseFloat(zoomSlider.noUiSlider.get());
   const angle = parseFloat(rotateSlider.noUiSlider.get()) * Math.PI / 180;
   renderer.getCamera().setState({ ratio, angle });
+}
+
+function handleGraphKeyboardNavigation(event) {
+  if (!renderer || document.activeElement !== sigmaContainer || !event.key.startsWith("Arrow")) return false;
+
+  const camera = renderer.getCamera();
+  const state = camera.getState();
+  const panStep = 0.08 * state.ratio;
+  const rotationStep = 5 * Math.PI / 180;
+  let nextState;
+
+  if (event.shiftKey) {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      const angle = (state.angle + direction * rotationStep + 2 * Math.PI) % (2 * Math.PI);
+      nextState = { angle };
+      rotateSlider?.noUiSlider?.set(angle * 180 / Math.PI);
+    } else {
+      const factor = event.key === "ArrowUp" ? 0.85 : 1 / 0.85;
+      const ratio = Math.min(5, Math.max(0.25, state.ratio * factor));
+      nextState = { ratio };
+      zoomSlider?.noUiSlider?.set(ratio);
+    }
+  } else {
+    const movements = {
+      ArrowLeft: { x: state.x - panStep },
+      ArrowRight: { x: state.x + panStep },
+      ArrowUp: { y: state.y - panStep },
+      ArrowDown: { y: state.y + panStep }
+    };
+    nextState = movements[event.key];
+  }
+
+  if (nextState) camera.setState(nextState);
+  event.preventDefault();
+  return true;
 }
 
 const layoutController = new LayoutController();
@@ -5468,6 +5505,8 @@ document.addEventListener("keydown", function (event) {
 
   // Ignore all other keys if typing in a field
   if ((tag === "input" || tag === "textarea")) return;
+
+  if (handleGraphKeyboardNavigation(event)) return;
 
   // Layout (L)
   if (event.key === "l" || event.key === "L") {
