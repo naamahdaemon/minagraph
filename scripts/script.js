@@ -1582,6 +1582,24 @@ function syncCameraControlsToRenderer() {
   renderer.getCamera().setState({ ratio, angle });
 }
 
+function getRotatedPanDelta(key, step, angle) {
+  const screenDirections = {
+    ArrowLeft: { x: -step, y: 0 },
+    ArrowRight: { x: step, y: 0 },
+    ArrowUp: { x: 0, y: -step },
+    ArrowDown: { x: 0, y: step }
+  };
+  const direction = screenDirections[key];
+  if (!direction) return null;
+
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: direction.x * cos - direction.y * sin,
+    y: direction.x * sin + direction.y * cos
+  };
+}
+
 function handleGraphKeyboardNavigation(event) {
   if (!renderer || document.activeElement !== sigmaContainer || !event.key.startsWith("Arrow")) return false;
 
@@ -1604,13 +1622,8 @@ function handleGraphKeyboardNavigation(event) {
       zoomSlider?.noUiSlider?.set(ratio);
     }
   } else {
-    const movements = {
-      ArrowLeft: { x: state.x - panStep },
-      ArrowRight: { x: state.x + panStep },
-      ArrowUp: { y: state.y - panStep },
-      ArrowDown: { y: state.y + panStep }
-    };
-    nextState = movements[event.key];
+    const delta = getRotatedPanDelta(event.key, panStep, state.angle);
+    nextState = delta ? { x: state.x + delta.x, y: state.y + delta.y } : null;
   }
 
   if (nextState) camera.setState(nextState);
