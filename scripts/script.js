@@ -112,6 +112,19 @@ const expandedCommandTypeFilter = () => {
   });
   return expanded;
 };
+
+function transactionMatchesActiveLegendFilters(transaction) {
+  const visibleTypes = expandedCommandTypeFilter();
+  const command = transaction?.command_type || transaction?.label;
+  const typeMatch = visibleTypes.size === 0 || visibleTypes.has(command);
+  const chainMatch = chainFilter.size === 0 || chainFilter.has(transaction?.blockchain);
+  return typeMatch && chainMatch;
+}
+
+function refreshLegendFilteredViews() {
+  if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
+  if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+}
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
 
@@ -588,10 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.legend-chain').forEach(el => el.classList.remove('active'));
 
-        // Refresh only if renderer exists
-        if (typeof renderer !== "undefined" && renderer?.refresh) {
-          renderer.refresh();
-        }
+        refreshLegendFilteredViews();
         return; // Exit early, no further processing needed for reset
       } else {
         const aliases = commandTypeAliases[type] || [type];
@@ -622,10 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       console.log("🧪 Final filter set:", Array.from(commandTypeFilter));
-      // Refresh only if renderer exists
-      if (typeof renderer !== "undefined" && renderer?.refresh) {
-        renderer.refresh();
-      }
+      refreshLegendFilteredViews();
     });
   });
   
@@ -651,10 +658,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       console.log(`🌐 Final chain filter set: ${Array.from(chainFilter)}`);
-      // Refresh only if renderer exists
-      if (typeof renderer !== "undefined" && renderer?.refresh) {
-        renderer.refresh();
-      }
+      refreshLegendFilteredViews();
     });
   });
 
@@ -3868,9 +3872,11 @@ function showNodePanel(node, refreshExternalStatus = true) {
   const currentWatchIcon = document.querySelector("#watch-status > span");
   const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
-  const visibleEdges = graph.edges(node).filter(edge =>
-    isTimestampInCurrentRange(graph.getEdgeAttribute(edge, "timestamp"))
-  );
+  const visibleEdges = graph.edges(node).filter(edge => {
+    const attributes = graph.getEdgeAttributes(edge);
+    return isTimestampInCurrentRange(attributes.timestamp) &&
+      transactionMatchesActiveLegendFilters(attributes);
+  });
   const neighbors = [...new Set(visibleEdges.map(edge => {
     const source = graph.source(edge);
     const target = graph.target(edge);
@@ -4267,19 +4273,12 @@ function setupReducers() {
     //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
 
-    // 🎯 Filter by command type
-    const visibleTypes = expandedCommandTypeFilter();
+    const hasActiveLegendFilters = commandTypeFilter.size > 0 || chainFilter.size > 0;
+    const matchesActiveFilters = !hasActiveLegendFilters || graph.edges(node).some(edge =>
+      transactionMatchesActiveLegendFilters(graph.getEdgeAttributes(edge))
+    );
 
-    const typeMatch = visibleTypes.size === 0 || graph.edges(node).some(e => {
-        const command = graph.getEdgeAttribute(e, "command_type") || graph.getEdgeAttribute(e, "label");
-        return visibleTypes.has(command);
-      });
-
-    // 🎯 Match if at least one chain is in the active filter
-    const chainMatch = chainFilter.size === 0 || chains.some(c => chainFilter.has(c));
-
-
-    if (!typeMatch || !chainMatch) {
+    if (!matchesActiveFilters) {
         return {
           ...data,
           color: isLightTheme() ? "#eee" : "#111",
@@ -4429,20 +4428,6 @@ function setupReducers() {
       case "nft_transfer": baseColor = "#f9a825"; break;
     }
 
-    // Filter by command type
-    const visibleTypes = expandedCommandTypeFilter();
-    const typeMatch = visibleTypes.size === 0 || visibleTypes.has(command);
-
-    // Filter by blockchain chain array (from .chains attribute)
-    const sourceChains = sourceNode?.chains || [];
-    const targetChains = targetNode?.chains || [];
-
-    const chainMatch =
-      chainFilter.size === 0 ||
-      (sourceChains.some(c => chainFilter.has(c)) &&
-       targetChains.some(c => chainFilter.has(c)));
-
-
     const fadedStyle = {
         ...data,
         color: isLightTheme() ? "#eee" : "#111",
@@ -4451,7 +4436,7 @@ function setupReducers() {
         zIndex: 0
       };
 
-    if (!typeMatch || !chainMatch) return fadedStyle;
+    if (!transactionMatchesActiveLegendFilters(data)) return fadedStyle;
 
     if (focusNode) {
       const neighbors = new Set(graph.neighbors(focusNode));
