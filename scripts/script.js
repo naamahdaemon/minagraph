@@ -5,12 +5,60 @@ let BASE_KEY = "";
 let LIMIT = 10;
 let FIRST_ITERATION_LIMIT = 10;
 let DEPTH = 2;
+let FETCH_START_TIMESTAMP = null;
+let FETCH_END_TIMESTAMP = null;
+const fetchBlockRangeCache = new Map();
 const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
 let visitedKeysByChain = new Map();
 const nameColorMap = new Map();
 let transactionsByNeighbor = {};
+
+function dateInputToUtcTimestamp(value, endOfDay = false) {
+  if (!value) return null;
+  const suffix = endOfDay ? "T23:59:59.999Z" : "T00:00:00.000Z";
+  const timestamp = Date.parse(`${value}${suffix}`);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function syncFetchDateRangeFromInputs() {
+  const startValue = document.getElementById("param-start-date")?.value || "";
+  const endValue = document.getElementById("param-end-date")?.value || "";
+  const start = dateInputToUtcTimestamp(startValue, false);
+  const end = dateInputToUtcTimestamp(endValue, true);
+  if (start !== null && end !== null && start > end) {
+    showErrorPopup("Fetch start date must be before or equal to end date.");
+    return false;
+  }
+  FETCH_START_TIMESTAMP = start;
+  FETCH_END_TIMESTAMP = end;
+  return true;
+}
+
+function getTransactionTimestampMs(transaction) {
+  const value = transaction?.timestamp ?? transaction?.blockTime ?? transaction?.timeStamp;
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string" && !/^\d+(\.\d+)?$/.test(value)) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric < 1e12 ? numeric * 1000 : numeric;
+}
+
+function isTransactionInFetchDateRange(transaction) {
+  if (FETCH_START_TIMESTAMP === null && FETCH_END_TIMESTAMP === null) return true;
+  const timestamp = getTransactionTimestampMs(transaction);
+  if (timestamp === null) return false;
+  return (FETCH_START_TIMESTAMP === null || timestamp >= FETCH_START_TIMESTAMP) &&
+    (FETCH_END_TIMESTAMP === null || timestamp <= FETCH_END_TIMESTAMP);
+}
+
+function filterTransactionsByFetchDateRange(transactions) {
+  return (transactions || []).filter(isTransactionInFetchDateRange);
+}
 
 let totalSteps = 0;
 let currentStep = 0;
@@ -401,6 +449,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const param_firstLimit = params.get("firstiterationlimit");
   const param_depth = params.get("depth");
   const param_limit = params.get("iterationlimit");
+  const param_startDate = params.get("startdate");
+  const param_endDate = params.get("enddate");
   
   // Load selected blockchain from localStorage
   const storedBlockchain = localStorage.getItem('selectedBlockchain');
@@ -448,6 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
     DEPTH = parseInt(document.getElementById("param-depth").value, 10);
     BASE_KEY = document.getElementById("param-base-key").value.trim();
     API_TOKEN = document.getElementById("param-api-token").value.trim();
+    if (!syncFetchDateRangeFromInputs()) return;
 
     // Get the wipe option
     const wipeGraph = document.getElementById("wipe-select").value === "yes";
@@ -504,6 +555,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (param_limit) {
       document.getElementById("param-limit").value = param_limit;
     }
+    if (param_startDate) document.getElementById("param-start-date").value = param_startDate;
+    if (param_endDate) document.getElementById("param-end-date").value = param_endDate;
+    syncFetchDateRangeFromInputs();
 
     // Optionally trigger graph fetch automatically
     setTimeout(() => {
@@ -1802,23 +1856,41 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
   
   const transactions = [];
 
-  const signaturesPayload = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "getSignaturesForAddress",
-    params: [publicKey, { limit }]
-  };
+  const hasDateRange = FETCH_START_TIMESTAMP !== null || FETCH_END_TIMESTAMP !== null;
+  const signatures = [];
+  let before;
+  let pageCount = 0;
 
-  const signaturesRes = await fetch(baseUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(signaturesPayload)
-  });
+  do {
+    const pageLimit = hasDateRange ? 1000 : limit;
+    const options = { limit: pageLimit };
+    if (before) options.before = before;
+    const signaturesPayload = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getSignaturesForAddress",
+      params: [publicKey, options]
+    };
+    const signaturesRes = await fetch(baseUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(signaturesPayload)
+    });
+    const signaturesJson = await signaturesRes.json();
+    if (!Array.isArray(signaturesJson?.result)) throw new Error("Invalid Solana signature response");
+    const page = signaturesJson.result;
+    signatures.push(...(hasDateRange ? page.filter(sig => isTransactionInFetchDateRange(sig)) : page));
 
-  const signaturesJson = await signaturesRes.json();
-  if (!signaturesJson?.result) throw new Error("Invalid Solana signature response");
+    const oldestTimestamp = page.length ? getTransactionTimestampMs(page[page.length - 1]) : null;
+    if (!hasDateRange || !page.length || page.length < pageLimit || signatures.length >= limit ||
+        (FETCH_START_TIMESTAMP !== null && oldestTimestamp !== null && oldestTimestamp < FETCH_START_TIMESTAMP)) break;
+    before = page[page.length - 1].signature;
+    pageCount++;
+  } while (!cancelRequested && pageCount < 200);
 
-  for (const sig of signaturesJson.result) {
+  if (pageCount >= 200) console.warn(`Solana date pagination stopped after 200 pages for ${publicKey}.`);
+
+  for (const sig of signatures.slice(0, limit)) {
     const txPayload = {
       jsonrpc: "2.0",
       id: 1,
@@ -2058,6 +2130,38 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
   return transactions;
 }
 
+async function getCronosBlockRange(baseTargetUrl, headers) {
+  if (FETCH_START_TIMESTAMP === null && FETCH_END_TIMESTAMP === null) {
+    return { startblock: "0", endblock: "99999999" };
+  }
+  const cacheKey = `cronos:${FETCH_START_TIMESTAMP ?? "start"}:${FETCH_END_TIMESTAMP ?? "end"}`;
+  if (fetchBlockRangeCache.has(cacheKey)) return fetchBlockRangeCache.get(cacheKey);
+
+  const blockAt = async (timestamp, closest) => {
+    const params = new URLSearchParams({
+      module: "block",
+      action: "getblocknobytime",
+      timestamp: Math.floor(timestamp / 1000).toString(),
+      closest
+    });
+    const target = encodeURIComponent(`${baseTargetUrl}?${params}`);
+    const res = await fetch(`https://www.akirion.com:4664/proxy?url=${target}`, { headers });
+    if (!res.ok) throw new Error(`Cronos block lookup error: ${res.status}`);
+    const json = await res.json();
+    if (json.status === "0") throw new Error(json.message || "Cronos block lookup failed");
+    const value = typeof json.result === "object" ? json.result.blockNumber : json.result;
+    if (value === undefined || value === null) throw new Error("Invalid Cronos block lookup response");
+    return value.toString();
+  };
+
+  const range = {
+    startblock: FETCH_START_TIMESTAMP === null ? "0" : await blockAt(FETCH_START_TIMESTAMP, "after"),
+    endblock: FETCH_END_TIMESTAMP === null ? "99999999" : await blockAt(FETCH_END_TIMESTAMP, "before")
+  };
+  fetchBlockRangeCache.set(cacheKey, range);
+  return range;
+}
+
 async function fetchCronosTransactions(normalizedKey, limit = 10000, baseUrl) {
   const headers = {
     'x-api-key': '75e3206b-5dc8-493c-ad1e-72fe521b3a01'
@@ -2068,14 +2172,15 @@ async function fetchCronosTransactions(normalizedKey, limit = 10000, baseUrl) {
   if (!currentEncodedTarget) throw new Error("Missing 'url' param in proxy URL");
 
   const baseTargetUrl = decodeURIComponent(currentEncodedTarget);
+  const blockRange = await getCronosBlockRange(baseTargetUrl, headers);
 
   // === 2. Construire l'URL complète avec tous les paramètres
   const queryParams = new URLSearchParams({
     module: "account",
     action: "txlist",
     address: normalizedKey, // <- injecté depuis appel
-    startblock: "0",
-    endblock: "99999999",
+    startblock: blockRange.startblock,
+    endblock: blockRange.endblock,
     sort: "asc",
     page: "1",
     offset: limit.toString()
@@ -2189,14 +2294,29 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
   };
 
   const operations = [];
+  const addDateFilters = params => {
+    if (FETCH_START_TIMESTAMP !== null) params.set("timestamp.ge", new Date(FETCH_START_TIMESTAMP).toISOString());
+    if (FETCH_END_TIMESTAMP !== null) params.set("timestamp.le", new Date(FETCH_END_TIMESTAMP).toISOString());
+    return params;
+  };
 
   // 1. Fetch transfers (simple + contract calls)
-  const txRes = await fetch(`${baseUrl}/operations/transactions?anyof.sender.target=${tezosAddress}&limit=${limit}&sort.desc=id`, { headers });
+  const transactionParams = addDateFilters(new URLSearchParams({
+    "anyof.sender.target": tezosAddress,
+    limit: limit.toString(),
+    "sort.desc": "id"
+  }));
+  const txRes = await fetch(`${baseUrl}/operations/transactions?${transactionParams}`, { headers });
   const txs = await txRes.json();
   operations.push(...txs);
 
   // 2. Fetch delegations
-  const delRes = await fetch(`${baseUrl}/operations/delegations?anyof.sender.newDelegate=${tezosAddress}&limit=${limit}&sort.desc=id`, { headers });
+  const delegationParams = addDateFilters(new URLSearchParams({
+    "anyof.sender.newDelegate": tezosAddress,
+    limit: limit.toString(),
+    "sort.desc": "id"
+  }));
+  const delRes = await fetch(`${baseUrl}/operations/delegations?${delegationParams}`, { headers });
   const dels = await delRes.json();
   operations.push(...dels);
 
@@ -2310,7 +2430,12 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
   }
 
   // 2. Fetch FA2 token transfers (independent of contract calls)
-  const tokenRes = await fetch(`${baseUrl}/tokens/transfers?anyof.from.to=${tezosAddress}&limit=${limit}&sort.desc=timestamp`, { headers });
+  const tokenTransferParams = addDateFilters(new URLSearchParams({
+    "anyof.from.to": tezosAddress,
+    limit: limit.toString(),
+    "sort.desc": "timestamp"
+  }));
+  const tokenRes = await fetch(`${baseUrl}/tokens/transfers?${tokenTransferParams}`, { headers });
   const tokenTransfers = await tokenRes.json();
 
   // Optional: push tokenTransfers into a second loop or convert to the same structure
@@ -2371,6 +2496,61 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
 }
 
 
+async function callAlchemyRpc(url, headers, method, params = []) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+  });
+  if (!res.ok) throw new Error(`Alchemy RPC ${method} error: ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || `Alchemy RPC ${method} failed`);
+  return json.result;
+}
+
+async function getAlchemyBlockRange(blockchain, url, headers) {
+  if (FETCH_START_TIMESTAMP === null && FETCH_END_TIMESTAMP === null) {
+    return { fromBlock: "0x0", toBlock: "latest" };
+  }
+
+  const cacheKey = `${blockchain}:${FETCH_START_TIMESTAMP ?? "start"}:${FETCH_END_TIMESTAMP ?? "end"}`;
+  if (fetchBlockRangeCache.has(cacheKey)) return fetchBlockRangeCache.get(cacheKey);
+
+  const latestHex = await callAlchemyRpc(url, headers, "eth_blockNumber");
+  const latest = Number(BigInt(latestHex));
+  const blockTimestamp = async blockNumber => {
+    const block = await callAlchemyRpc(url, headers, "eth_getBlockByNumber", [`0x${blockNumber.toString(16)}`, false]);
+    return Number(BigInt(block.timestamp)) * 1000;
+  };
+  const latestTimestamp = await blockTimestamp(latest);
+
+  const firstBlockAtOrAfter = async target => {
+    if (target > latestTimestamp) return latest + 1;
+    let low = 0;
+    let high = latest;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (await blockTimestamp(middle) < target) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  };
+
+  const from = FETCH_START_TIMESTAMP === null ? 0 : await firstBlockAtOrAfter(FETCH_START_TIMESTAMP);
+  let to = latest;
+  if (FETCH_END_TIMESTAMP !== null && FETCH_END_TIMESTAMP < latestTimestamp) {
+    to = Math.max(0, (await firstBlockAtOrAfter(FETCH_END_TIMESTAMP + 1)) - 1);
+  }
+
+  const range = {
+    fromBlock: `0x${from.toString(16)}`,
+    toBlock: `0x${to.toString(16)}`,
+    empty: from > to
+  };
+  fetchBlockRangeCache.set(cacheKey, range);
+  return range;
+}
+
 async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   const baseUrls = {
     ethereum: `https://eth-mainnet.g.alchemy.com/v2/`,
@@ -2423,12 +2603,14 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   };
 
   const category = categoryByChain[blockchain] || ["external"];
+  const blockRange = await getAlchemyBlockRange(blockchain, url, apiKeyHeader);
+  if (blockRange.empty) return [];
 
 
   // Setup query parameters for both directions
   const baseParams = {
-    fromBlock: "0x0",
-    toBlock: "latest",
+    fromBlock: blockRange.fromBlock,
+    toBlock: blockRange.toBlock,
     category,
     withMetadata: true,
     maxCount: `0x${limit.toString(16)}`,
@@ -2601,6 +2783,46 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   return enriched;
 }
 
+async function fetchMinaTransactions(publicKey, limit) {
+  const hasDateRange = FETCH_START_TIMESTAMP !== null || FETCH_END_TIMESTAMP !== null;
+  const pageSize = hasDateRange ? Math.min(1000, Math.max(100, limit)) : limit;
+  const collected = [];
+  let offset = 0;
+  let pageCount = 0;
+  const maxPages = 200;
+
+  while (!cancelRequested && collected.length < limit && pageCount < maxPages) {
+    const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
+      method: "POST",
+      headers: {
+        "Minataur-Authorization": API_TOKEN,
+        "x-api-key": "755beb7f-24bc-4ead-924c-031e89af6d89",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ publicKey, limit: pageSize, offset })
+    });
+
+    if (!res.ok) throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
+    const json = await res.json();
+    const page = json?.payload?.transactions;
+    if (!Array.isArray(page)) throw new Error("Unexpected response format from Minataur API");
+
+    if (!hasDateRange) return page;
+    collected.push(...page.filter(isTransactionInFetchDateRange));
+
+    const timestamps = page.map(getTransactionTimestampMs).filter(Number.isFinite);
+    const oldestTimestamp = timestamps.length ? Math.min(...timestamps) : null;
+    if (!page.length || page.length < pageSize ||
+        (FETCH_START_TIMESTAMP !== null && oldestTimestamp !== null && oldestTimestamp < FETCH_START_TIMESTAMP)) break;
+
+    offset += pageSize;
+    pageCount++;
+  }
+
+  if (pageCount >= maxPages) console.warn(`Minataur date pagination stopped after ${maxPages} pages for ${publicKey}.`);
+  return collected.slice(0, limit);
+}
+
 
 
 async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockchain, delay = 0) {
@@ -2632,29 +2854,8 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
         let transactions = [];
 
         if (blockchain === 'mina') {
-            const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
-                method: "POST",
-                headers: {
-                    "Minataur-Authorization": API_TOKEN,
-                    'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ publicKey: normalizedKey, limit })
-            });
-            
             console.log("Calling Minataur API");
-
-            if (!res.ok) {
-                throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
-            }
-
-            const json = await res.json();
-
-            if (!json || !json.payload || !json.payload.transactions) {
-                throw new Error("Unexpected response format from Minataur API");
-            }
-
-            transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+            transactions = Array.from(new Map((await fetchMinaTransactions(normalizedKey, limit)).map(tx => [tx.hash, tx])).values());
 
             transactions.forEach(tx => {
               tx.blockchain = 'mina';
@@ -3167,29 +3368,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         //log_api_call(blockchain);
 
         if (blockchain === 'mina') {
-            const res = await fetch("https://www.akirion.com:4664/proxy?url=https://minataur.net/api/v1/transactions", {
-                method: "POST",
-                headers: {
-                    "Minataur-Authorization": API_TOKEN,
-                    'x-api-key': '755beb7f-24bc-4ead-924c-031e89af6d89',
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ publicKey: normalizedKey, limit })
-            });
-            
             console.log("Calling Minataur API");
-
-            if (!res.ok) {
-                throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
-            }
-
-            const json = await res.json();
-
-            if (!json || !json.payload || !json.payload.transactions) {
-                throw new Error("Unexpected response format from Minataur API");
-            }
-
-            transactions = Array.from(new Map((json.payload.transactions || []).map(tx => [tx.hash, tx])).values());
+            transactions = Array.from(new Map((await fetchMinaTransactions(normalizedKey, limit)).map(tx => [tx.hash, tx])).values());
 
             transactions.forEach(tx => {
               tx.blockchain = 'mina';
@@ -3205,6 +3385,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
+
+        transactions = filterTransactionsByFetchDateRange(transactions);
 
         console.log(transactions);
 
@@ -4996,10 +5178,15 @@ function loadFetchParams() {
   const storedDepth = localStorage.getItem("param-depth");
   const storedLimit = localStorage.getItem("param-limit");
   const storedFirstLimit = localStorage.getItem("param-first-iteration");
+  const storedStartDate = localStorage.getItem("param-start-date");
+  const storedEndDate = localStorage.getItem("param-end-date");
 
   if (storedDepth !== null) document.getElementById("param-depth").value = storedDepth;
   if (storedLimit !== null) document.getElementById("param-limit").value = storedLimit;
   if (storedFirstLimit !== null) document.getElementById("param-first-iteration").value = storedFirstLimit;
+  if (storedStartDate !== null) document.getElementById("param-start-date").value = storedStartDate;
+  if (storedEndDate !== null) document.getElementById("param-end-date").value = storedEndDate;
+  syncFetchDateRangeFromInputs();
 }
 
 function setupFetchParamListeners() {
@@ -5011,6 +5198,14 @@ function setupFetchParamListeners() {
   });
   document.getElementById("param-first-iteration").addEventListener("input", e => {
     localStorage.setItem("param-first-iteration", e.target.value);
+  });
+  document.getElementById("param-start-date").addEventListener("input", e => {
+    localStorage.setItem("param-start-date", e.target.value);
+    syncFetchDateRangeFromInputs();
+  });
+  document.getElementById("param-end-date").addEventListener("input", e => {
+    localStorage.setItem("param-end-date", e.target.value);
+    syncFetchDateRangeFromInputs();
   });
 }
 
