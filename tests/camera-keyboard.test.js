@@ -10,6 +10,8 @@ assert.match(html, /id="sigma-container"[^>]*tabindex="0"/);
 assert.match(script, /function handleGraphKeyboardNavigation\(event\)/);
 assert.match(script, /document\.activeElement !== sigmaContainer/);
 assert.match(script, /event\.shiftKey/);
+assert.match(script, /event\.key\.toLowerCase\(\) === "c"/);
+assert.match(script, /centerGraphInViewport\(\)/);
 assert.match(script, /ArrowLeft/);
 assert.match(script, /ArrowRight/);
 assert.match(script, /ArrowUp/);
@@ -25,16 +27,24 @@ const unrotatedUp = context.result('ArrowUp', 1, 0);
 assert.ok(Math.abs(unrotatedUp.x) < 1e-12);
 assert.ok(Math.abs(unrotatedUp.y + 1) < 1e-12);
 
+const unrotatedLeft = context.result('ArrowLeft', 1, 0);
+assert.ok(Math.abs(unrotatedLeft.x - 1) < 1e-12);
+assert.ok(Math.abs(unrotatedLeft.y) < 1e-12);
+
+const unrotatedRight = context.result('ArrowRight', 1, 0);
+assert.ok(Math.abs(unrotatedRight.x + 1) < 1e-12);
+assert.ok(Math.abs(unrotatedRight.y) < 1e-12);
+
 const quarterTurnUp = context.result('ArrowUp', 1, Math.PI / 2);
 assert.ok(Math.abs(quarterTurnUp.x - 1) < 1e-12);
 assert.ok(Math.abs(quarterTurnUp.y) < 1e-12);
 
 const quarterTurnLeft = context.result('ArrowLeft', 1, Math.PI / 2);
 assert.ok(Math.abs(quarterTurnLeft.x) < 1e-12);
-assert.ok(Math.abs(quarterTurnLeft.y + 1) < 1e-12);
+assert.ok(Math.abs(quarterTurnLeft.y - 1) < 1e-12);
 
 const quarterTurnRight = context.result('ArrowRight', 1, Math.PI / 2);
 assert.ok(Math.abs(quarterTurnRight.x) < 1e-12);
-assert.ok(Math.abs(quarterTurnRight.y - 1) < 1e-12);
+assert.ok(Math.abs(quarterTurnRight.y + 1) < 1e-12);
 
 console.log('Camera keyboard tests passed');
