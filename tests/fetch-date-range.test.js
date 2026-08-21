@@ -24,6 +24,8 @@ assert.match(source, /params\.set\("timestamp\.ge"/);
 assert.match(source, /params\.set\("timestamp\.le"/);
 assert.match(source, /async function getAlchemyBlockRange\(/);
 assert.match(source, /action: "getblocknobytime"/);
+assert.match(source, /cronos:\s*`https:\/\/explorer-api\.cronos\.org\/mainnet\/api\/v2`/);
+assert.doesNotMatch(source, /api\.cronoscan\.com/);
 assert.match(source, /transactions = filterTransactionsByFetchDateRange\(transactions\)/);
 
 console.log('Fetch date range tests passed');

@@ -2560,7 +2560,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     zksync: `https://zksync-mainnet.g.alchemy.com/v2/`,
     optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
     arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`,
-    cronos: `https://api.cronoscan.com/api`,  // pour cohérence
+    cronos: `https://explorer-api.cronos.org/mainnet/api/v2`,
     tezos: `https://api.tzkt.io/v1`,
     base: `https://base-mainnet.g.alchemy.com/v2/`
   };
