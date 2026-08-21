@@ -45,6 +45,7 @@
 
     #left-sidebar input[type="text"],
     #left-sidebar input[type="number"],
+    #left-sidebar input[type="date"],
     #left-sidebar input[type="email"],
     #left-sidebar input[type="password"],
     #left-sidebar select {
@@ -63,6 +64,7 @@
 
     #left-sidebar input[type="text"]:focus,
     #left-sidebar input[type="number"]:focus,
+    #left-sidebar input[type="date"]:focus,
     #left-sidebar input[type="email"]:focus,
     #left-sidebar input[type="password"]:focus,
     #left-sidebar select:focus {

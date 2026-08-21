@@ -1,0 +1,29 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+const dateHelper = source.match(/function dateInputToUtcTimestamp\(value, endOfDay = false\) \{[\s\S]*?\n\}/)?.[0];
+const timestampHelper = source.match(/function getTransactionTimestampMs\(transaction\) \{[\s\S]*?\n\}/)?.[0];
+
+assert.ok(dateHelper, 'UTC date input helper should exist');
+assert.ok(timestampHelper, 'Transaction timestamp helper should exist');
+
+const context = {};
+vm.runInNewContext(`${dateHelper}; ${timestampHelper}; result = { dateInputToUtcTimestamp, getTransactionTimestampMs };`, context);
+assert.equal(context.result.dateInputToUtcTimestamp('2026-08-21'), Date.parse('2026-08-21T00:00:00.000Z'));
+assert.equal(context.result.dateInputToUtcTimestamp('2026-08-21', true), Date.parse('2026-08-21T23:59:59.999Z'));
+assert.equal(context.result.getTransactionTimestampMs({ timestamp: 1_700_000_000 }), 1_700_000_000_000);
+assert.equal(context.result.getTransactionTimestampMs({ timestamp: '2026-08-21T12:00:00Z' }), Date.parse('2026-08-21T12:00:00Z'));
+
+assert.match(source, /async function fetchMinaTransactions\(publicKey, limit\)/);
+assert.match(source, /body: JSON\.stringify\(\{ publicKey, limit: pageSize, offset \}\)/);
+assert.match(source, /options\.before = before/);
+assert.match(source, /params\.set\("timestamp\.ge"/);
+assert.match(source, /params\.set\("timestamp\.le"/);
+assert.match(source, /async function getAlchemyBlockRange\(/);
+assert.match(source, /action: "getblocknobytime"/);
+assert.match(source, /transactions = filterTransactionsByFetchDateRange\(transactions\)/);
+
+console.log('Fetch date range tests passed');
