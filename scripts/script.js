@@ -1639,8 +1639,8 @@ function syncCameraControlsToRenderer() {
 
 function getRotatedPanDelta(key, step, angle) {
   const screenDirections = {
-    ArrowLeft: { x: -step, y: 0 },
-    ArrowRight: { x: step, y: 0 },
+    ArrowLeft: { x: step, y: 0 },
+    ArrowRight: { x: -step, y: 0 },
     ArrowUp: { x: 0, y: -step },
     ArrowDown: { x: 0, y: step }
   };
@@ -1656,7 +1656,15 @@ function getRotatedPanDelta(key, step, angle) {
 }
 
 function handleGraphKeyboardNavigation(event) {
-  if (!renderer || document.activeElement !== sigmaContainer || !event.key.startsWith("Arrow")) return false;
+  if (!renderer || document.activeElement !== sigmaContainer) return false;
+
+  if (event.key.toLowerCase() === "c") {
+    centerGraphInViewport();
+    event.preventDefault();
+    return true;
+  }
+
+  if (!event.key.startsWith("Arrow")) return false;
 
   const camera = renderer.getCamera();
   const state = camera.getState();
