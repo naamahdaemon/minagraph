@@ -264,6 +264,24 @@
       font-size: 8px !important;
     }
 
+    .transaction-sort-button {
+      width: 100%;
+      height: auto !important;
+      min-height: 24px;
+      padding: 2px 3px !important;
+      border-radius: 3px !important;
+      color: inherit !important;
+      font: inherit !important;
+      white-space: nowrap;
+    }
+
+    .transaction-sort-button:hover,
+    .transaction-sort-button:focus-visible {
+      color: #4fc3f7 !important;
+      background: rgba(79, 195, 247, 0.12) !important;
+      outline: 1px solid #4fc3f7;
+    }
+
     #date-slicer-container.on-left {
       left: auto !important;
       right: 530px !important; /* 👈 positions the slicer just left of the side panel */
