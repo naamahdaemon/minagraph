@@ -20,6 +20,7 @@ let graph, renderer;
 let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
+let showNodeTransactionsChronologically = false;
 
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
@@ -3585,6 +3586,92 @@ function isTimestampInCurrentRange(timestamp) {
   return Number.isFinite(value) && value >= min && value <= max;
 }
 
+function setNodeTransactionsChronological(enabled) {
+  showNodeTransactionsChronologically = Boolean(enabled);
+  if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+}
+
+function formatNodeTransactionAmount(tx) {
+  const isAlchemyChain = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(tx.blockchain);
+  if (!["token_transfer", "nft_transfer"].includes(tx.label)) {
+    return isAlchemyChain
+      ? parseFloat(tx.amount || 0).toFixed(2)
+      : formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain));
+  }
+
+  if (!tx.token_amount) return "-";
+  const decimals = tx.token_decimals !== undefined && tx.token_decimals !== null
+    ? tx.token_decimals
+    : (getKnownTokenInfo(tx.token_contract)?.decimals ?? 18);
+  const normalizedAmount = typeof tx.token_amount === "string" && tx.token_amount.startsWith("0x")
+    ? BigInt(tx.token_amount).toString()
+    : tx.token_amount.toString();
+  const tokenInfo = getKnownTokenInfo(tx.token_contract);
+  const tokenLabel = tx.token_name || tx.token_symbol || tokenInfo?.symbol || "token";
+  return `${formatTokenAmount(normalizedAmount, decimals)} ${tokenLabel}`;
+}
+
+function renderChronologicalNodeTransactions(visibleEdges, node) {
+  if (!visibleEdges.length) return '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>';
+
+  const operations = visibleEdges.map(edge => {
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    return {
+      tx: graph.getEdgeAttributes(edge),
+      linkedNode: source === node ? target : source
+    };
+  }).sort((a, b) => Number(b.tx.timestamp || 0) - Number(a.tx.timestamp || 0));
+
+  return `
+    <div class="mono">
+      <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Timestamp</th>
+            <th style="text-align:left;">Linked Node</th>
+            <th>Chain</th>
+            <th>Block</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Fee</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operations.map(({ tx, linkedNode }) => {
+            const linkedLabel = graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode;
+            const transactionLink = tx.hash
+              ? getExplorerURL("transaction", tx.hash, tx.blockchain)
+              : getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain);
+            const typeLabel = `${tx.label || "-"}${tx.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ""}`;
+            const isAlchemyChain = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(tx.blockchain);
+            const fee = isAlchemyChain
+              ? parseFloat(tx.fee || 0).toFixed(2)
+              : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain));
+            return `
+              <tr title="${tx.memo || ""}">
+                <td>${formatTimestamp(tx.timestamp)}</td>
+                <td>
+                  <a href="#" onclick="showNodePanel('${linkedNode}'); return false;" style="color:#4fc3f7; text-decoration:none;">
+                    ${linkedLabel}
+                  </a>
+                </td>
+                <td>${tx.blockchain}</td>
+                <td>${tx.block_id || tx.block_hash
+                  ? `<a href="${getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${tx.block_id || tx.block_hash}</a>`
+                  : "-"}</td>
+                <td><a href="${transactionLink}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${typeLabel}</a></td>
+                <td>${formatNodeTransactionAmount(tx)}</td>
+                <td>${fee}</td>
+                <td>${tx.status || "-"}</td>
+              </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function showNodePanel(node, refreshExternalStatus = true) {
   //rebuildTransactionsByNeighbor();
   const panel = document.getElementById("side-panel");
@@ -3699,9 +3786,17 @@ function showNodePanel(node, refreshExternalStatus = true) {
     <p style="font-size: 11px; color: #aaa;">
       Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
     </p>
-    <p><strong>Linked Nodes & Transactions:</strong></p>
+    <p style="margin-bottom: 6px;"><strong>Linked Nodes & Transactions:</strong></p>
+    <label style="display:flex; align-items:center; gap:6px; margin-bottom:12px; font-size:12px; cursor:pointer;">
+      <input type="checkbox" id="chronological-transactions-toggle"
+        ${showNodeTransactionsChronologically ? "checked" : ""}
+        onchange="setNodeTransactionsChronological(this.checked)">
+      Show all transactions chronologically
+    </label>
     <div>
-      ${neighbors.length ? neighbors
+      ${showNodeTransactionsChronologically
+        ? renderChronologicalNodeTransactions(visibleEdges, node)
+        : (neighbors.length ? neighbors
         .map(n => {
           const directEdges = visibleEdges.filter(e => {
             const source = graph.source(e);
@@ -3866,7 +3961,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
             </div>
           </div>
         `;
-      }).join('') : '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>'}
+      }).join('') : '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>')}
     </div>`;
     
   details.innerHTML = html;
