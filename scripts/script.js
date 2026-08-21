@@ -193,6 +193,7 @@ let auroProvider = null;
 let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
 let cameraControlsBound = false;
+let recenterAfterLayout = false;
 let lastTechnicalDiagnostics = null;
 let reloadAfterServiceWorkerActivation = false;
 
@@ -1587,6 +1588,10 @@ class LayoutController {
         isLayoutRunning = false;
         worker.terminate();
         setLayoutUiState("completed", "100%");
+        if (recenterAfterLayout) {
+          recenterAfterLayout = false;
+          requestAnimationFrame(() => centerGraphInViewport({ trackLayout: false }));
+        }
       }
     };
 
@@ -1602,15 +1607,94 @@ class LayoutController {
   }
 }
 
-function centerGraphInViewport() {
-  if (!renderer) return;
+function calculateNormalizedCenter(allPositions, visiblePositions) {
+  const finite = position => Number.isFinite(position?.x) && Number.isFinite(position?.y);
+  const all = allPositions.filter(finite);
+  const visible = visiblePositions.filter(finite);
+  if (all.length === 0 || visible.length === 0) return { x: 0.5, y: 0.5 };
+
+  const extent = positions => positions.reduce((bounds, position) => ({
+    minX: Math.min(bounds.minX, position.x),
+    maxX: Math.max(bounds.maxX, position.x),
+    minY: Math.min(bounds.minY, position.y),
+    maxY: Math.max(bounds.maxY, position.y)
+  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+  const allExtent = extent(all);
+  const visibleExtent = extent(visible);
+  const normalizationScale = Math.max(
+    allExtent.maxX - allExtent.minX,
+    allExtent.maxY - allExtent.minY,
+    1
+  );
+  const allCenterX = (allExtent.minX + allExtent.maxX) / 2;
+  const allCenterY = (allExtent.minY + allExtent.maxY) / 2;
+  const visibleCenterX = (visibleExtent.minX + visibleExtent.maxX) / 2;
+  const visibleCenterY = (visibleExtent.minY + visibleExtent.maxY) / 2;
+
+  return {
+    x: 0.5 + (visibleCenterX - allCenterX) / normalizationScale,
+    y: 0.5 + (visibleCenterY - allCenterY) / normalizationScale
+  };
+}
+
+function getRecenteringNodePositions() {
+  const allPositions = [];
+  const visiblePositions = [];
+  const hasLegendFilters = commandTypeFilter.size > 0 || chainFilter.size > 0;
+
+  graph.forEachNode((node, attributes) => {
+    const position = { x: Number(attributes.x), y: Number(attributes.y) };
+    allPositions.push(position);
+    if (attributes.hidden === true) return;
+
+    const matchesLegend = !hasLegendFilters || graph.edges(node).some(edge => {
+      const edgeAttributes = graph.getEdgeAttributes(edge);
+      return edgeAttributes.hidden !== true && transactionMatchesActiveLegendFilters(edgeAttributes);
+    });
+    if (matchesLegend) visiblePositions.push(position);
+  });
+
+  return { allPositions, visiblePositions: visiblePositions.length > 0 ? visiblePositions : allPositions };
+}
+
+function applyGraphRecentering() {
+  if (!renderer || !graph?.order) return;
   const camera = renderer.getCamera();
   const { ratio, angle } = camera.getState();
+  const { allPositions, visiblePositions } = getRecenteringNodePositions();
+  const graphCenter = calculateNormalizedCenter(allPositions, visiblePositions);
+  const dimensions = renderer.getDimensions();
+  const sidePanel = document.getElementById("side-panel");
+  const coveredWidth = sidePanel?.classList.contains("open")
+    ? Math.min(sidePanel.offsetWidth, dimensions.width)
+    : 0;
+  const desiredViewportCenter = {
+    x: Math.max(0, dimensions.width - coveredWidth) / 2,
+    y: dimensions.height / 2
+  };
+  const centeredState = { ...graphCenter, ratio, angle };
+  const pointAtDesiredCenter = renderer.viewportToFramedGraph(desiredViewportCenter, {
+    cameraState: centeredState
+  });
 
-  // Sigma normalizes the center of the current graph extent to (0.5, 0.5).
-  // Unlike a state captured at renderer creation, this remains correct after a
-  // layout changes all node positions or after a new graph is loaded.
-  camera.setState({ x: 0.5, y: 0.5, ratio, angle });
+  camera.setState({
+    x: graphCenter.x + graphCenter.x - pointAtDesiredCenter.x,
+    y: graphCenter.y + graphCenter.y - pointAtDesiredCenter.y,
+    ratio,
+    angle
+  });
+}
+
+function centerGraphInViewport({ trackLayout = true } = {}) {
+  if (!renderer) return;
+  if (trackLayout && isLayoutRunning) recenterAfterLayout = true;
+
+  // Refresh Sigma's normalization before using the current graph coordinates,
+  // then repeat once on the next frame in case the refresh was scheduled.
+  renderer.refresh();
+  applyGraphRecentering();
+  requestAnimationFrame(applyGraphRecentering);
 }
 
 function bindCameraControls() {
