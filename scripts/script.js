@@ -194,6 +194,8 @@ let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
 let cameraControlsBound = false;
 let recenterAfterLayout = false;
+const NODE_TRANSACTION_SORT_STORAGE_KEY = "minagraph-node-transaction-sort";
+let nodeTransactionSort = loadNodeTransactionSort();
 let lastTechnicalDiagnostics = null;
 let reloadAfterServiceWorkerActivation = false;
 
@@ -3869,6 +3871,120 @@ function setNodeTransactionsChronological(enabled) {
   if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
 }
 
+function loadNodeTransactionSort() {
+  const fallback = { column: "timestamp", direction: "desc" };
+  try {
+    const saved = JSON.parse(localStorage.getItem(NODE_TRANSACTION_SORT_STORAGE_KEY));
+    const columns = new Set(["timestamp", "linkedNode", "blockchain", "block", "type", "amount", "fee", "status"]);
+    if (columns.has(saved?.column) && ["asc", "desc"].includes(saved?.direction)) return saved;
+  } catch (error) {
+    console.warn("Unable to restore transaction sorting:", error);
+  }
+  return fallback;
+}
+
+function setNodeTransactionSort(column) {
+  nodeTransactionSort = {
+    column,
+    direction: nodeTransactionSort.column === column && nodeTransactionSort.direction === "asc" ? "desc" : "asc"
+  };
+  try {
+    localStorage.setItem(NODE_TRANSACTION_SORT_STORAGE_KEY, JSON.stringify(nodeTransactionSort));
+  } catch (error) {
+    console.warn("Unable to save transaction sorting:", error);
+  }
+  if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+}
+
+function renderSortableTransactionHeader(column, label, textAlign = "center") {
+  const active = nodeTransactionSort.column === column;
+  const indicator = active ? (nodeTransactionSort.direction === "asc" ? " ▲" : " ▼") : "";
+  const nextDirection = active && nodeTransactionSort.direction === "asc" ? "descending" : "ascending";
+  return `<th style="text-align:${textAlign};" aria-sort="${active ? (nodeTransactionSort.direction === "asc" ? "ascending" : "descending") : "none"}">
+    <button type="button" class="transaction-sort-button" onclick="setNodeTransactionSort('${column}')"
+      title="Sort ${nextDirection}">${label}<span aria-hidden="true">${indicator}</span></button>
+  </th>`;
+}
+
+function parseNodeTransactionNumber(value) {
+  if (typeof value === "string" && /^0x[0-9a-f]+$/i.test(value)) return Number(BigInt(value));
+  const number = Number.parseFloat(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getSortableNodeTransactionAmount(tx, field) {
+  const value = parseNodeTransactionNumber(tx[field]);
+  const alchemyChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"];
+  if (field === "amount" && alchemyChains.includes(tx.blockchain)) return value;
+  if (field === "token_amount") {
+    const decimals = tx.token_decimals ?? getKnownTokenInfo(tx.token_contract)?.decimals ?? 18;
+    return value / Math.pow(10, decimals);
+  }
+  return value / Math.pow(10, getDecimalsForBlockchain(tx.blockchain));
+}
+
+function addressesMatchForTransaction(left, right) {
+  if (!left || !right) return false;
+  const a = String(left);
+  const b = String(right);
+  return a.startsWith("0x") && b.startsWith("0x")
+    ? a.toLowerCase() === b.toLowerCase()
+    : a === b;
+}
+
+function getNodeTransactionDirection(tx, node) {
+  const isSender = addressesMatchForTransaction(tx.sender_key, node);
+  const isReceiver = addressesMatchForTransaction(tx.receiver_key || tx.token_receiver, node);
+  if (isSender && isReceiver) return 0;
+  if (isSender) return -1;
+  if (isReceiver) return 1;
+  return null;
+}
+
+function formatSignedNodeTransactionAmount(tx, node) {
+  const formattedAmount = formatNodeTransactionAmount(tx);
+  if (formattedAmount === "-" || formattedAmount === "") return formattedAmount;
+  const direction = getNodeTransactionDirection(tx, node);
+  if (direction === -1) return `−${formattedAmount}`;
+  if (direction === 1) return `+${formattedAmount}`;
+  if (direction === 0) return `±${formattedAmount}`;
+  return formattedAmount;
+}
+
+function getNodeTransactionSortValue(item, column, node) {
+  const tx = item.tx || item;
+  switch (column) {
+    case "timestamp": return Number(tx.timestamp || 0);
+    case "linkedNode": return item.linkedNodeLabel || item.linkedNode || "";
+    case "blockchain": return tx.blockchain || "";
+    case "block": return Number.isFinite(Number(tx.block_id)) ? Number(tx.block_id) : (tx.block_id || tx.block_hash || "");
+    case "type": return `${tx.label || tx.command_type || ""}${tx.contract_call_entrypoint || ""}`;
+    case "amount": {
+      const amount = getSortableNodeTransactionAmount(
+        tx,
+        ["token_transfer", "nft_transfer"].includes(tx.label) ? "token_amount" : "amount"
+      );
+      const direction = getNodeTransactionDirection(tx, node);
+      return direction === null ? amount : amount * direction;
+    }
+    case "fee": return getSortableNodeTransactionAmount(tx, "fee");
+    case "status": return tx.status || "";
+    default: return "";
+  }
+}
+
+function sortNodeTransactions(items, node) {
+  const direction = nodeTransactionSort.direction === "asc" ? 1 : -1;
+  return items.map((item, index) => ({ item, index })).sort((left, right) => {
+    const a = getNodeTransactionSortValue(left.item, nodeTransactionSort.column, node);
+    const b = getNodeTransactionSortValue(right.item, nodeTransactionSort.column, node);
+    let comparison;
+    if (typeof a === "number" && typeof b === "number") comparison = a - b;
+    else comparison = String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+    return comparison === 0 ? left.index - right.index : comparison * direction;
+  }).map(entry => entry.item);
+}
+
 function formatNodeTransactionAmount(tx) {
   const isAlchemyChain = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(tx.blockchain);
   if (!["token_transfer", "nft_transfer"].includes(tx.label)) {
@@ -3892,28 +4008,30 @@ function formatNodeTransactionAmount(tx) {
 function renderChronologicalNodeTransactions(visibleEdges, node) {
   if (!visibleEdges.length) return '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>';
 
-  const operations = visibleEdges.map(edge => {
+  const operations = sortNodeTransactions(visibleEdges.map(edge => {
     const source = graph.source(edge);
     const target = graph.target(edge);
+    const linkedNode = source === node ? target : source;
     return {
       tx: graph.getEdgeAttributes(edge),
-      linkedNode: source === node ? target : source
+      linkedNode,
+      linkedNodeLabel: graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode
     };
-  }).sort((a, b) => Number(b.tx.timestamp || 0) - Number(a.tx.timestamp || 0));
+  }), node);
 
   return `
     <div class="mono">
       <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
         <thead>
           <tr>
-            <th style="text-align:left;">Timestamp</th>
-            <th style="text-align:left;">Linked Node</th>
-            <th>Chain</th>
-            <th>Block</th>
-            <th>Type</th>
-            <th>Amount</th>
-            <th>Fee</th>
-            <th>Status</th>
+            ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
+            ${renderSortableTransactionHeader("linkedNode", "Linked Node", "left")}
+            ${renderSortableTransactionHeader("blockchain", "Chain")}
+            ${renderSortableTransactionHeader("block", "Block")}
+            ${renderSortableTransactionHeader("type", "Type")}
+            ${renderSortableTransactionHeader("amount", "Amount")}
+            ${renderSortableTransactionHeader("fee", "Fee")}
+            ${renderSortableTransactionHeader("status", "Status")}
           </tr>
         </thead>
         <tbody>
@@ -3940,7 +4058,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
                   ? `<a href="${getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${tx.block_id || tx.block_hash}</a>`
                   : "-"}</td>
                 <td><a href="${transactionLink}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${typeLabel}</a></td>
-                <td>${formatNodeTransactionAmount(tx)}</td>
+                <td>${formatSignedNodeTransactionAmount(tx, node)}</td>
                 <td>${fee}</td>
                 <td>${tx.status || "-"}</td>
               </tr>`;
@@ -4114,24 +4232,24 @@ function showNodePanel(node, refreshExternalStatus = true) {
 
         const interactions = directEdges.map(e => graph.getEdgeAttributes(e));
 
-          interactions.sort((a, b) => b.timestamp - a.timestamp);
+          const sortedInteractions = sortNodeTransactions(interactions, node);
 
         const txTable = interactions.length > 0 ? `
           <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
             <thead>
               <tr>
-                <th>Chain</th>
-                <th style="text-align:left;">Timestamp</th>
-                <th>Block</th>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Fee</th>
-                <th>Status</th>
+                ${renderSortableTransactionHeader("blockchain", "Chain")}
+                ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
+                ${renderSortableTransactionHeader("block", "Block")}
+                ${renderSortableTransactionHeader("type", "Type")}
+                ${renderSortableTransactionHeader("amount", "Amount")}
+                ${renderSortableTransactionHeader("fee", "Fee")}
+                ${renderSortableTransactionHeader("status", "Status")}
                 <!--<th>Chain</th>-->
               </tr>
             </thead>
             <tbody>
-              ${interactions.map(tx => {
+              ${sortedInteractions.map(tx => {
                 console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
                   const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum", "base"].includes(chain);
                 return `
@@ -4164,9 +4282,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                       `;
                     })()}
                   </td>
-                  <td>${isAlchemyChain(tx.blockchain) 
-                         ? parseFloat(tx.amount || 0).toFixed(2)
-                         : formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain))}</td>
+                  <td>${formatSignedNodeTransactionAmount(tx, node)}</td>
                   <td>${isAlchemyChain(tx.blockchain) 
                          ? parseFloat(tx.fee || 0).toFixed(2)
                          : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
