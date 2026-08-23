@@ -1497,6 +1497,7 @@ class LayoutController {
     this.algorithm = null;
     this.origin = null;
     currentLayout = null;
+    recenterAfterLayout = false;
     setLayoutUiState("stopped", message);
   }
 
@@ -1678,6 +1679,12 @@ function getRecenteringNodePositions() {
   return { allPositions, visiblePositions: visiblePositions.length > 0 ? visiblePositions : allPositions };
 }
 
+function getSidePanelCoveredWidth(panelWidth, viewportWidth, compactViewport) {
+  if (compactViewport || !Number.isFinite(panelWidth) || !Number.isFinite(viewportWidth)) return 0;
+  if (panelWidth <= 0 || viewportWidth <= 0 || panelWidth >= viewportWidth * 0.8) return 0;
+  return Math.min(panelWidth, viewportWidth);
+}
+
 function applyGraphRecentering() {
   if (!renderer || !graph?.order) return;
   const camera = renderer.getCamera();
@@ -1687,7 +1694,11 @@ function applyGraphRecentering() {
   const dimensions = renderer.getDimensions();
   const sidePanel = document.getElementById("side-panel");
   const coveredWidth = sidePanel?.classList.contains("open")
-    ? Math.min(sidePanel.offsetWidth, dimensions.width)
+    ? getSidePanelCoveredWidth(
+        sidePanel.offsetWidth,
+        dimensions.width,
+        window.matchMedia("(max-width: 768px)").matches
+      )
     : 0;
   const desiredViewportCenter = {
     x: Math.max(0, dimensions.width - coveredWidth) / 2,
@@ -1721,15 +1732,16 @@ function bindCameraControls() {
   if (cameraControlsBound || !zoomSlider?.noUiSlider || !rotateSlider?.noUiSlider) return;
   cameraControlsBound = true;
 
-  const handle = zoomSlider.querySelector('.noUi-handle');
-  handle.addEventListener('pointerdown', event => {
-    if (event.button === 0) centerGraphInViewport();
-  });
-
   zoomSlider.noUiSlider.on('update', (values, handleIndex) => {
     if (!renderer) return;
     renderer.getCamera().setState({ ratio: parseFloat(values[handleIndex]) });
   });
+
+  // `slide` is emitted after noUiSlider has calculated the new value. This
+  // covers handle drags as well as clicks on the rail and keeps the panel
+  // offset correct for the new zoom ratio.
+  zoomSlider.noUiSlider.on('slide', () => centerGraphInViewport());
+  zoomSlider.noUiSlider.on('change', () => centerGraphInViewport());
 
   rotateSlider.noUiSlider.on('update', (values, handleIndex) => {
     if (!renderer) return;
