@@ -3,6 +3,6 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
-    "test": "node tests/layout-workers.test.js && node tests/service-worker-notifications.test.js && node tests/technical-panel.test.js && node tests/date-filter.test.js && node tests/camera-keyboard.test.js && node tests/chronological-details.test.js && node tests/node-details-filter.test.js && node tests/fetch-date-range.test.js"
+    "test": "node tests/layout-workers.test.js && node tests/service-worker-notifications.test.js && node tests/technical-panel.test.js && node tests/date-filter.test.js && node tests/camera-keyboard.test.js && node tests/chronological-details.test.js && node tests/node-details-filter.test.js && node tests/fetch-date-range.test.js && node tests/playwright-bridge.test.js"
   }
 }

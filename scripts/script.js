@@ -97,6 +97,24 @@ let layoutWorker;
 let currentLayout = null;  // the one currently running
 let previousLayout = null;
 const LAYOUT_STORAGE_KEY = "layoutSettings";
+
+// Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
+// Playwright cannot locate them through the DOM. Getters are used because both
+// objects can be replaced when the graph is reloaded.
+if (new URLSearchParams(window.location.search).get("e2e") === "1") {
+  Object.defineProperty(window, "__MINAGRAPH_TEST__", {
+    configurable: true,
+    value: Object.freeze({
+      get graph() {
+        return graph;
+      },
+      get renderer() {
+        return renderer;
+      },
+    }),
+  });
+}
+
 const commandTypeAliases = {
   payment: ["payment", "transfer"],
   zkapp: ["zkapp", "contract_call","contract_creation"],
