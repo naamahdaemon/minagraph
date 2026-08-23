@@ -15,6 +15,9 @@ assert.match(script, /centerGraphInViewport\(\)/);
 assert.match(script, /function calculateNormalizedCenter\(allPositions, visiblePositions\)/);
 assert.match(script, /sidePanel\?\.classList\.contains\("open"\)/);
 assert.match(script, /recenterAfterLayout/);
+assert.match(script, /function getSidePanelCoveredWidth\(panelWidth, viewportWidth, compactViewport\)/);
+assert.match(script, /zoomSlider\.noUiSlider\.on\('slide', \(\) => centerGraphInViewport\(\)\)/);
+assert.match(script, /zoomSlider\.noUiSlider\.on\('change', \(\) => centerGraphInViewport\(\)\)/);
 assert.match(script, /ArrowLeft/);
 assert.match(script, /ArrowRight/);
 assert.match(script, /ArrowUp/);
@@ -68,5 +71,13 @@ const completeCenter = centerContext.result(
 );
 assert.ok(Math.abs(completeCenter.x - 0.5) < 1e-12);
 assert.ok(Math.abs(completeCenter.y - 0.5) < 1e-12);
+
+const panelHelperMatch = script.match(/function getSidePanelCoveredWidth\(panelWidth, viewportWidth, compactViewport\) \{[\s\S]*?\n\}/);
+assert.ok(panelHelperMatch, 'Side panel viewport helper should exist');
+const panelContext = {};
+require('node:vm').runInNewContext(`${panelHelperMatch[0]}; result = getSidePanelCoveredWidth;`, panelContext);
+assert.equal(panelContext.result(490, 1200, false), 490);
+assert.equal(panelContext.result(490, 600, true), 0);
+assert.equal(panelContext.result(490, 600, false), 0);
 
 console.log('Camera keyboard tests passed');
