@@ -576,22 +576,33 @@
       "      -->
         <!--<strong style="display: block; margin-bottom: 8px;">Filter by Transaction Date</strong>-->
         
-        <div id="slicer-container" style="width: 100%; height: 140px;">
-          <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>    
-        </div>
+        <details id="date-filter-panel" open>
+          <summary id="date-filter-summary">
+            <span>Transaction date</span>
+            <span id="date-window-shift-step">—</span>
+          </summary>
+          <div id="date-filter-content">
+            <div id="slicer-container" style="width: 100%; height: 140px;">
+              <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>
+            </div>
 
-        <div id="slicer-range" style="margin-top: 12px;"></div>
+            <div id="slicer-range" aria-label="Select transaction date range"></div>
 
-        <div id="date-window-shift-container">
-          <label id="date-window-shift-label" for="date-window-shift">Move selected period</label>
-          <input id="date-window-shift" type="range" min="0" max="0" step="1" value="0" disabled>
-          <span id="date-window-shift-value">Select a shorter period to move it</span>
-        </div>
+            <div id="date-window-shift-heading">Move selected period</div>
+            <div id="date-window-shift-container">
+              <button id="date-window-shift-previous" type="button" title="Previous period" aria-label="Previous period">‹</button>
+              <input id="date-window-shift" type="range" min="0" max="0" step="1" value="0" disabled
+                aria-label="Move selected date period">
+              <button id="date-window-shift-next" type="button" title="Next period" aria-label="Next period">›</button>
+              <span id="date-window-shift-value">Select a shorter period to move it</span>
+            </div>
 
-        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px;">
-          <span id="slicer-start-label">From: --</span>
-          <span id="slicer-end-label">To: --</span>
-        </div>
+            <div id="date-filter-labels">
+              <span id="slicer-start-label">From: --</span>
+              <span id="slicer-end-label">To: --</span>
+            </div>
+          </div>
+        </details>
       </div>
   </div>    
   
