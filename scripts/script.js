@@ -177,6 +177,7 @@ const ERC20_ABI = [
 let allTimestamps = [];  // 🔁 collected from edges
 let currentRange = [0, 0];
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const DATE_WINDOW_PANEL_STORAGE_KEY = "minagraph-date-window-panel-open";
 let dateWindowShiftState = null;
 let updatingRangeFromWindowShift = false;
 let histogramChart;
@@ -747,6 +748,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function applyTheme(theme) {
     currentTheme = theme;
     const isLight = theme === "light";
+    document.body.dataset.theme = theme;
 
     // Update button text
     const iconContainer = document.getElementById("theme-icon");
@@ -819,6 +821,7 @@ document.addEventListener("DOMContentLoaded", () => {
         dateSlicer.style.background = isLight ? "#fff" : "#444";
         dateSlicer.style.color = isLight ? "#111" : "#fff";      
     }
+    updateDateFilterTheme(isLight);
 
     const menuToggle = document.getElementById("menu-toggle");
     if (menuToggle) {
@@ -3900,7 +3903,13 @@ function getChainIcon(chain) {
 function isTimestampInCurrentRange(timestamp) {
   const value = Number(timestamp);
   const [min, max] = currentRange;
-  return Number.isFinite(value) && value >= min && value <= max;
+  const lowerBound = new Date(min);
+  const upperBound = new Date(max);
+  lowerBound.setHours(0, 0, 0, 0);
+  upperBound.setHours(24, 0, 0, 0);
+  // The labels expose calendar days, so both selected days are inclusive even
+  // when the underlying slider handles retain a transaction's time of day.
+  return Number.isFinite(value) && value >= lowerBound.getTime() && value < upperBound.getTime();
 }
 
 function setNodeTransactionsChronological(enabled) {
@@ -5458,6 +5467,19 @@ function loadStartKeyForBlockchain(blockchain) {
   }
 }
 
+function updateDateFilterTheme(isLight = currentTheme === "light") {
+  if (!histogramChart) return;
+  const textColor = isLight ? "#263238" : "#f1f5f7";
+  const gridColor = isLight ? "rgba(38, 50, 56, 0.18)" : "rgba(255, 255, 255, 0.18)";
+  [histogramChart.options.scales.x, histogramChart.options.scales.y].forEach(scale => {
+    scale.ticks = { ...scale.ticks, color: textColor };
+    scale.grid = { ...scale.grid, color: gridColor };
+    scale.border = { ...scale.border, color: gridColor };
+    scale.title = { ...scale.title, color: textColor };
+  });
+  histogramChart.update("none");
+}
+
 function updateSlicerView() {
   const slicerContainer = document.getElementById("date-slicer-container");
   const slicerInner = document.getElementById("slicer-container");
@@ -5873,6 +5895,7 @@ function setupDateSlicer() {
       }
     }
   });
+  updateDateFilterTheme();
 
   // Create noUiSlider range control
   const slider = document.getElementById("slicer-range");
@@ -5970,9 +5993,27 @@ function getDateWindowShiftConfig(globalMin, globalMax, rangeStart, rangeEnd) {
 function configureDateWindowShiftControl(range = currentRange) {
   const control = document.getElementById("date-window-shift");
   const valueLabel = document.getElementById("date-window-shift-value");
+  const stepLabel = document.getElementById("date-window-shift-step");
+  const previousButton = document.getElementById("date-window-shift-previous");
+  const nextButton = document.getElementById("date-window-shift-next");
+  const panel = document.getElementById("date-filter-panel");
   if (!control || !valueLabel || !allTimestamps.length) return;
   if (control.dataset.shiftListenerBound !== "true") {
-    control.addEventListener("input", event => shiftSelectedDateWindow(event.target.value));
+    control.addEventListener("input", event => {
+      shiftSelectedDateWindow(event.target.value);
+      updateDateWindowShiftButtons(event.target);
+    });
+    previousButton?.addEventListener("click", () => moveDateWindowByOnePeriod(-1));
+    nextButton?.addEventListener("click", () => moveDateWindowByOnePeriod(1));
+    if (panel) {
+      const savedPanelState = localStorage.getItem(DATE_WINDOW_PANEL_STORAGE_KEY);
+      panel.open = savedPanelState === null
+        ? !window.matchMedia("(max-width: 768px)").matches
+        : savedPanelState === "true";
+      panel.addEventListener("toggle", () => {
+        localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(panel.open));
+      });
+    }
     control.dataset.shiftListenerBound = "true";
   }
 
@@ -5986,9 +6027,34 @@ function configureDateWindowShiftControl(range = currentRange) {
   control.max = String(Math.max(0, config.maxPage));
   control.value = "0";
   control.disabled = config.minPage === 0 && config.maxPage === 0;
+  if (stepLabel) stepLabel.textContent = `${config.stepDays} day${config.stepDays > 1 ? "s" : ""}`;
   valueLabel.textContent = control.disabled
     ? `Selected period: ${config.stepDays} day${config.stepDays > 1 ? "s" : ""} (no complete adjacent period)`
     : `Move by ${config.stepDays}-day periods`;
+  updateDateWindowShiftButtons(control);
+}
+
+function updateDateWindowShiftButtons(control = document.getElementById("date-window-shift")) {
+  if (!control) return;
+  const value = Number(control.value);
+  const previousButton = document.getElementById("date-window-shift-previous");
+  const nextButton = document.getElementById("date-window-shift-next");
+  if (previousButton) previousButton.disabled = control.disabled || value <= Number(control.min);
+  if (nextButton) nextButton.disabled = control.disabled || value >= Number(control.max);
+}
+
+function moveDateWindowByOnePeriod(direction) {
+  const control = document.getElementById("date-window-shift");
+  if (!control || control.disabled) return;
+  const nextValue = Math.max(Number(control.min), Math.min(Number(control.max), Number(control.value) + direction));
+  control.value = String(nextValue);
+  shiftSelectedDateWindow(nextValue);
+  updateDateWindowShiftButtons(control);
+}
+
+function getShiftedDateRange(rangeStart, rangeEnd, stepMilliseconds, pageIndex) {
+  const delta = Number(pageIndex) * stepMilliseconds;
+  return [rangeStart + delta, rangeEnd + delta];
 }
 
 function shiftSelectedDateWindow(pageIndex) {
@@ -5998,12 +6064,11 @@ function shiftSelectedDateWindow(pageIndex) {
 
   const index = Number(pageIndex);
   const { rangeStart, rangeEnd, stepMilliseconds, stepDays } = dateWindowShiftState;
-  const shiftedRange = [
-    rangeStart + index * stepMilliseconds,
-    rangeEnd + index * stepMilliseconds
-  ];
+  const shiftedRange = getShiftedDateRange(rangeStart, rangeEnd, stepMilliseconds, index);
   updatingRangeFromWindowShift = true;
-  slider.noUiSlider.set(shiftedRange);
+  // exactInput=true prevents each handle from being rounded independently to
+  // noUiSlider's step grid, which would progressively change the window span.
+  slider.noUiSlider.set(shiftedRange, true, true);
   updatingRangeFromWindowShift = false;
   if (valueLabel) {
     const formatter = timestamp => new Date(timestamp).toLocaleDateString();
