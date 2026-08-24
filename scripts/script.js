@@ -1504,6 +1504,10 @@ class LayoutController {
   run({ iterationsOverride = null, origin = "manual" } = {}) {
     this.stop({ message: "0%" });
 
+    // A custom bounding box is useful only while a node is actively dragged.
+    // Never let a stale drag normalization constrain a new layout.
+    renderer?.setCustomBBox(null);
+
     if (window.location.protocol === "file:") {
       const message = "Layouts require the local server: run `npm run dev`, then open http://127.0.0.1:8765";
       setLayoutUiState("error", message);
@@ -4700,6 +4704,7 @@ function setupInteractions() {
   let draggedNode   = null;
   let isDragging = false;  
   let hasMoved = false;
+  let dragOwnsCustomBBox = false;
   let dragStartPos = { x: 0, y: 0 };
   
   // Hover in/out to show tooltip & halo
@@ -4746,7 +4751,6 @@ function setupInteractions() {
       dragStartPos = { x: event.x, y: event.y };
 
     graph.setNodeAttribute(node, "highlighted", true);
-      if (!renderer.getCustomBBox()) renderer.setCustomBBox(renderer.getBBox());
     });
 
   // During drag, move the node and detect “real” drag vs click
@@ -4756,8 +4760,12 @@ function setupInteractions() {
     const dx = event.x - dragStartPos.x,
           dy = event.y - dragStartPos.y;
     if (!hasMoved && Math.hypot(dx, dy) > 4) {
-          hasMoved = true;
-        }
+      hasMoved = true;
+      if (!renderer.getCustomBBox()) {
+        renderer.setCustomBBox(renderer.getBBox());
+        dragOwnsCustomBBox = true;
+      }
+    }
 
       const pos = renderer.viewportToGraph(event);
       graph.setNodeAttribute(draggedNode, "x", pos.x);
@@ -4775,6 +4783,13 @@ function setupInteractions() {
       if (draggedNode) {
         graph.removeNodeAttribute(draggedNode, "highlighted");
       }
+
+    // Release Sigma's frozen normalization before opening details or starting
+    // another layout. Only clear a BBox installed by this drag interaction.
+    if (dragOwnsCustomBBox) {
+      renderer.setCustomBBox(null);
+      dragOwnsCustomBBox = false;
+    }
 
     if (!hasMoved && node) {
       // treat as a “clickNode”
