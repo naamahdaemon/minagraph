@@ -176,6 +176,9 @@ const ERC20_ABI = [
 */
 let allTimestamps = [];  // 🔁 collected from edges
 let currentRange = [0, 0];
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+let dateWindowShiftState = null;
+let updatingRangeFromWindowShift = false;
 let histogramChart;
 let isFullscreen = false;
 let sidebar;
@@ -5542,6 +5545,12 @@ function updateSlicerView() {
             currentRange = values.map(v => parseInt(v));
             applyDateFilter();
           });
+          slider.noUiSlider.on("end", function (values) {
+            if (!updatingRangeFromWindowShift) {
+              configureDateWindowShiftControl(values.map(v => parseInt(v)));
+            }
+          });
+          configureDateWindowShiftControl(values.map(v => parseInt(v)));
 
           applyDateFilter();
         }, 50);
@@ -5930,6 +5939,9 @@ function setupDateSlicer() {
       const tooltip = handle.querySelector('.tooltip');
       if (tooltip) tooltip.remove();
     });
+    if (!updatingRangeFromWindowShift) {
+      configureDateWindowShiftControl(slider.noUiSlider.get().map(v => parseInt(v)));
+    }
   });
 
   // Update range filter
@@ -5939,7 +5951,64 @@ function setupDateSlicer() {
   });
 
 
+  configureDateWindowShiftControl(currentRange);
   applyDateFilter(); // Initial filtering
+}
+
+function getDateWindowShiftConfig(globalMin, globalMax, rangeStart, rangeEnd) {
+  const selectedSpan = Math.max(0, rangeEnd - rangeStart);
+  const stepDays = Math.max(1, Math.floor(selectedSpan / DAY_IN_MILLISECONDS) + 1);
+  const stepMilliseconds = stepDays * DAY_IN_MILLISECONDS;
+  return {
+    stepDays,
+    stepMilliseconds,
+    minPage: Math.ceil((globalMin - rangeStart) / stepMilliseconds),
+    maxPage: Math.floor((globalMax - rangeEnd) / stepMilliseconds)
+  };
+}
+
+function configureDateWindowShiftControl(range = currentRange) {
+  const control = document.getElementById("date-window-shift");
+  const valueLabel = document.getElementById("date-window-shift-value");
+  if (!control || !valueLabel || !allTimestamps.length) return;
+  if (control.dataset.shiftListenerBound !== "true") {
+    control.addEventListener("input", event => shiftSelectedDateWindow(event.target.value));
+    control.dataset.shiftListenerBound = "true";
+  }
+
+  const [rangeStart, rangeEnd] = range.map(Number);
+  const globalMin = allTimestamps[0];
+  const globalMax = allTimestamps[allTimestamps.length - 1];
+  const config = getDateWindowShiftConfig(globalMin, globalMax, rangeStart, rangeEnd);
+  dateWindowShiftState = { ...config, rangeStart, rangeEnd };
+
+  control.min = String(Math.min(0, config.minPage));
+  control.max = String(Math.max(0, config.maxPage));
+  control.value = "0";
+  control.disabled = config.minPage === 0 && config.maxPage === 0;
+  valueLabel.textContent = control.disabled
+    ? `Selected period: ${config.stepDays} day${config.stepDays > 1 ? "s" : ""} (no complete adjacent period)`
+    : `Move by ${config.stepDays}-day periods`;
+}
+
+function shiftSelectedDateWindow(pageIndex) {
+  const slider = document.getElementById("slicer-range");
+  const valueLabel = document.getElementById("date-window-shift-value");
+  if (!slider?.noUiSlider || !dateWindowShiftState) return;
+
+  const index = Number(pageIndex);
+  const { rangeStart, rangeEnd, stepMilliseconds, stepDays } = dateWindowShiftState;
+  const shiftedRange = [
+    rangeStart + index * stepMilliseconds,
+    rangeEnd + index * stepMilliseconds
+  ];
+  updatingRangeFromWindowShift = true;
+  slider.noUiSlider.set(shiftedRange);
+  updatingRangeFromWindowShift = false;
+  if (valueLabel) {
+    const formatter = timestamp => new Date(timestamp).toLocaleDateString();
+    valueLabel.textContent = `${formatter(shiftedRange[0])} – ${formatter(shiftedRange[1])} (${stepDays}-day period)`;
+  }
 }
 
 
