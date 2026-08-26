@@ -21,7 +21,7 @@ assert.match(script, /zoomSlider\.noUiSlider\.on\('change', \(\) => centerGraphI
 assert.match(script, /run\(\{ iterationsOverride = null, origin = "manual" \} = \{\}\) \{[\s\S]*?renderer\?\.setCustomBBox\(null\)/);
 assert.match(script, /let dragOwnsCustomBBox = false/);
 assert.doesNotMatch(script, /graph\.setNodeAttribute\(node, "highlighted", true\);\s*if \(!renderer\.getCustomBBox\(\)\)/);
-assert.match(script, /Math\.hypot\(dx, dy\) > 4[\s\S]*?renderer\.setCustomBBox\(renderer\.getBBox\(\)\)[\s\S]*?dragOwnsCustomBBox = true/);
+assert.match(script, /Math\.hypot\(dx, dy\) > 5[\s\S]*?renderer\.setCustomBBox\(renderer\.getBBox\(\)\)[\s\S]*?dragOwnsCustomBBox = true/);
 assert.match(script, /if \(dragOwnsCustomBBox\) \{\s*renderer\.setCustomBBox\(null\);\s*dragOwnsCustomBBox = false;/);
 assert.match(script, /ArrowLeft/);
 assert.match(script, /ArrowRight/);

@@ -80,32 +80,57 @@
   gtag('config', 'G-VR50WVP209'); 
 </script>  
 <script>
-  function toggleFoldableSection(header) {
+  function setFoldableSectionState(header, open, persist = true) {
     const content = header.nextElementSibling;
     const arrow = header.querySelector('.arrow');
-    const isOpen = content.classList.contains('open');
-    content.classList.toggle('open');
-    arrow.textContent = isOpen ? '▼' : '▲';
+    content.classList.toggle('open', open);
+    header.setAttribute('aria-expanded', String(open));
+    arrow.textContent = open ? '▲' : '▼';
+    if (persist) {
+      const key = header.dataset.storageKey;
+      if (key) localStorage.setItem(key, String(open));
+    }
+  }
+
+  function toggleFoldableSection(header) {
+    setFoldableSectionState(header, !header.nextElementSibling.classList.contains('open'));
   }
 
   window.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.foldable-header').forEach(header => {
+    document.querySelectorAll('.foldable-header').forEach((header, index) => {
+      const content = header.nextElementSibling;
+      const sectionName = header.textContent.trim().replace(/\s+/g, '-').toLowerCase();
+      const storageKey = `minagraph-sidebar-section-${sectionName}`;
+      const contentId = content.id || `sidebar-section-${index}`;
+      content.id = contentId;
+      header.dataset.storageKey = storageKey;
+      header.setAttribute('role', 'button');
+      header.setAttribute('tabindex', '0');
+      header.setAttribute('aria-controls', contentId);
+      const savedState = localStorage.getItem(storageKey);
+      setFoldableSectionState(header, savedState === null ? content.classList.contains('open') : savedState === 'true', false);
       header.addEventListener('click', () => toggleFoldableSection(header));
+      header.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleFoldableSection(header);
+        }
+      });
     });
   });
 </script>
 <body>
-  <button id="menu-toggle" title="Toggle Sidebar (S)">☰</button>
+  <div id="sidebar-backdrop" hidden></div>
+  <button id="menu-toggle" type="button" title="Open settings (S)" aria-label="Open settings" aria-controls="left-sidebar" aria-expanded="false">☰</button>
   <div id="app-container">
-    <div id="left-sidebar" style="
-      width: 280px;
-      background: #1e1e1e;
-      color: white;
-      padding: 25px 20px 20px 20px;
-      overflow-y: auto;
-      font-family: sans-serif;
-      border-right: 1px solid #444;
-    "><br/>
+    <aside id="left-sidebar" aria-label="Graph settings" aria-hidden="true">
+      <div class="sidebar-heading">
+        <div>
+          <span class="sidebar-eyebrow">Minagraph</span>
+          <strong>Graph settings</strong>
+        </div>
+        <button id="sidebar-close" type="button" aria-label="Close settings" title="Close settings">×</button>
+      </div>
       <!-- BLOCKCHAIN SECTION -->
       <div class="foldable-section">
         <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 2px 2px 2px 2px;">Blockchain</h2></span><span class="arrow">▲</span></div>
@@ -351,7 +376,7 @@
           </div>
         </div>
       </div>
-    </div> <!--END LEFT SIDEBAR -->
+    </aside> <!--END LEFT SIDEBAR -->
 
     <!-- Watched Addresses Modal -->
     <div id="watched-modal" style="
@@ -606,10 +631,17 @@
       </div>
   </div>    
   
-    <div id="side-panel">
-      <button id="close-panel-btn" onclick="hideNodePanel()">✖</button>
+    <aside id="side-panel" role="dialog" aria-label="Node details" aria-hidden="true">
+      <div id="node-panel-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize node details panel" tabindex="0"></div>
+      <div class="node-panel-heading">
+        <div>
+          <span class="node-panel-eyebrow">Graph explorer</span>
+          <strong>Node details</strong>
+        </div>
+        <button id="close-panel-btn" type="button" aria-label="Close node details" title="Close node details">×</button>
+      </div>
       <div id="node-details"></div>
-    </div>
+    </aside>
     
     <div id="tooltip"></div>
    
@@ -812,7 +844,7 @@
     ⛶ Exit Fullscreen
   </button>  
   
-<div id="legend" class="legend-box" style="left: 330px; cursor: move; user-select: none; touch-action: none;">
+<div id="legend" class="legend-box" style="left: 350px; cursor: move; user-select: none; touch-action: none;">
   <!-- Command Types (Foldable) -->
   <div class="legend-section">
     <div class="legend-toggle" data-target="#command-types" style="cursor:pointer;"><em>▶ Command Types</em></div>
@@ -899,33 +931,17 @@
       cursor: pointer;
     ">Stop</button>    
   </div>
- <div id="error-popup" style="
-  display: none;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #1e1e1e;
-  color: white;
-  padding: 30px 40px;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.6);
-  z-index: 10001;
-  font-family: 'Coda', sans-serif;
-  text-align: center;
-  max-width: 80%;
-">
-  <p id="error-message" style="margin-bottom: 20px; font-size: 16px;">Something went wrong with the API.</p>
-  <button onclick="document.getElementById('error-popup').style.display='none'" style="
-    background: #f44336;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 4px;
-  ">Close</button>
-</div>  
+<div id="error-popup" class="error-modal" role="alertdialog" aria-modal="true" aria-labelledby="error-title" aria-describedby="error-message" hidden>
+  <div class="error-modal-card">
+    <div class="error-modal-icon" aria-hidden="true">!</div>
+    <div class="error-modal-content">
+      <h2 id="error-title">API request failed</h2>
+      <p id="error-message">Something went wrong with the API.</p>
+      <p id="error-advice" hidden></p>
+    </div>
+    <button id="error-popup-close" type="button">Close</button>
+  </div>
+</div>
 
 <div id="splash-screen">
   <div class="splash-content">
