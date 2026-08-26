@@ -199,6 +199,123 @@ let ordSettings;
 let themeToggleBtn;
 let appContainer;
 let inputs;
+const SIDEBAR_STATE_STORAGE_KEY = "minagraph-left-sidebar-open";
+
+function setLeftSidebarOpen(open, { persist = false, restoreFocus = false } = {}) {
+  const sidebarElement = sidebar || document.getElementById("left-sidebar");
+  const appElement = appContainer || document.getElementById("app-container");
+  const menuButton = document.getElementById("menu-toggle");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (!sidebarElement || !appElement) return;
+
+  const isOpen = Boolean(open);
+  const isDesktop = window.innerWidth >= 769;
+  sidebarElement.classList.toggle("open", isOpen);
+  sidebarElement.setAttribute("aria-hidden", String(!isOpen));
+  appElement.classList.toggle("sidebar-open", isOpen && isDesktop);
+  document.body.classList.toggle("left-sidebar-open", isOpen);
+  menuButton?.setAttribute("aria-expanded", String(isOpen));
+  menuButton?.setAttribute("aria-label", isOpen ? "Close settings" : "Open settings");
+  menuButton?.setAttribute("title", isOpen ? "Close settings (S)" : "Open settings (S)");
+  if (backdrop) {
+    backdrop.hidden = !isOpen || isDesktop;
+    backdrop.classList.toggle("visible", isOpen && !isDesktop);
+  }
+  if (persist && isDesktop) localStorage.setItem(SIDEBAR_STATE_STORAGE_KEY, String(isOpen));
+  if (restoreFocus && !isOpen) menuButton?.focus({ preventScroll: true });
+  updateLegendOffset();
+}
+
+function toggleLeftSidebar() {
+  const sidebarElement = sidebar || document.getElementById("left-sidebar");
+  setLeftSidebarOpen(!sidebarElement?.classList.contains("open"), { persist: true });
+}
+
+function setNodePanelOpen(open, { restoreFocus = false } = {}) {
+  const nodePanel = document.getElementById("side-panel");
+  const dateSlicer = document.getElementById("date-slicer-container");
+  if (!nodePanel) return;
+  const isOpen = Boolean(open);
+  const isDesktop = window.innerWidth >= 769;
+  nodePanel.style.removeProperty("display");
+  nodePanel.classList.toggle("open", isOpen);
+  nodePanel.setAttribute("aria-hidden", String(!isOpen));
+  document.body.classList.toggle("node-panel-open", isOpen);
+  dateSlicer?.classList.toggle("on-left", isOpen && isDesktop);
+  if (restoreFocus && !isOpen) {
+    document.getElementById("sigma-container")?.focus({ preventScroll: true });
+  }
+}
+
+function initializeNodePanelResize() {
+  const nodePanel = document.getElementById("side-panel");
+  const resizeHandle = document.getElementById("node-panel-resize-handle");
+  if (!nodePanel || !resizeHandle) return;
+
+  const clampWidth = width => Math.min(Math.max(width, 360), Math.max(360, window.innerWidth - 240));
+  const applyWidth = width => {
+    if (window.innerWidth <= 768) {
+      nodePanel.style.removeProperty("width");
+      return;
+    }
+    nodePanel.style.width = `${clampWidth(width)}px`;
+  };
+
+  resizeHandle.addEventListener("pointerdown", event => {
+    if (window.innerWidth <= 768) return;
+    event.preventDefault();
+    resizeHandle.setPointerCapture(event.pointerId);
+    document.body.classList.add("node-panel-resizing");
+  });
+
+  resizeHandle.addEventListener("pointermove", event => {
+    if (!resizeHandle.hasPointerCapture(event.pointerId)) return;
+    applyWidth(window.innerWidth - event.clientX);
+  });
+
+  const finishResize = event => {
+    if (resizeHandle.hasPointerCapture(event.pointerId)) resizeHandle.releasePointerCapture(event.pointerId);
+    document.body.classList.remove("node-panel-resizing");
+  };
+  resizeHandle.addEventListener("pointerup", finishResize);
+  resizeHandle.addEventListener("pointercancel", finishResize);
+  resizeHandle.addEventListener("dblclick", () => nodePanel.style.removeProperty("width"));
+  window.addEventListener("resize", () => {
+    if (window.innerWidth <= 768) nodePanel.style.removeProperty("width");
+    else if (nodePanel.style.width) applyWidth(nodePanel.getBoundingClientRect().width);
+  });
+}
+
+async function copyNodeKey(key, button) {
+  try {
+    await navigator.clipboard.writeText(key);
+  } catch (_error) {
+    const input = document.createElement("textarea");
+    input.value = key;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    input.remove();
+  }
+
+  if (!button) return;
+  const originalLabel = button.getAttribute("aria-label") || "Copy address";
+  button.classList.add("copied");
+  button.setAttribute("aria-label", "Address copied");
+  button.setAttribute("title", "Address copied");
+  const status = button.querySelector("span");
+  if (status) status.textContent = "Copied";
+  setTimeout(() => {
+    if (!button.isConnected) return;
+    button.classList.remove("copied");
+    button.setAttribute("aria-label", originalLabel);
+    button.setAttribute("title", originalLabel);
+    if (status) status.textContent = "Copy";
+  }, 1600);
+}
 let layoutBtn;
 let toggleTokenBtn;
 let arrow;
@@ -442,6 +559,7 @@ document.addEventListener("DOMContentLoaded", () => {
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
   details = document.getElementById("node-details");
+  initializeNodePanelResize();
   apiTokenInput = document.getElementById("param-api-token");
   blockchainSelect = document.getElementById("blockchain-select");    
   tokenInput = document.getElementById("param-api-token");
@@ -479,6 +597,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('technical-copy-button')?.addEventListener('click', copyTechnicalDiagnostics);
   technicalModal?.addEventListener('click', event => {
     if (event.target === technicalModal) technicalModal.hidden = true;
+  });
+  const errorPopup = document.getElementById("error-popup");
+  document.getElementById("error-popup-close")?.addEventListener("click", closeErrorPopup);
+  errorPopup?.addEventListener("click", event => {
+    if (event.target === errorPopup) closeErrorPopup();
   });
 
   const params = new URLSearchParams(window.location.search);
@@ -550,10 +673,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 👉 Hide the sidebar after launching
     const sidebar = document.getElementById("left-sidebar");
     const appContainer = document.getElementById("app-container");
-    sidebar.classList.remove("open");
-    appContainer.classList.remove("sidebar-open");      
-    // 👇 Reposition legend
-    updateLegendOffset();      
+    setLeftSidebarOpen(false);
   });  
 
   document.getElementById("clear-token-button").addEventListener("click", () => {
@@ -846,10 +966,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.querySelectorAll('.foldable-header').forEach(header => {
-      header.style.background = isLight
-        ? 'rgba(255,255,255,0.9)'               // very light grey for light mode
-        : 'rgba(255,255,255,0.1)'; // your existing dark-mode translucent white
-      header.style.borderRadius = '6px';
+      header.style.removeProperty('background');
+      header.style.removeProperty('border-radius');
     });
     // Apply to Sigma renderer
     if (typeof renderer !== "undefined") {
@@ -892,21 +1010,12 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTheme("dark"); // init
 
 
-  if (window.innerWidth >= 769) {
-    sidebar.classList.add("open"); // 👈 Ajoute cette ligne !
-    appContainer.classList.add("sidebar-open");
-  }
-
-  if (window.innerWidth >= 769 && sidebar.classList.contains("open")) {
-    appContainer.classList.add("sidebar-open");
-  } else {
-    appContainer.classList.remove("sidebar-open");
-  }
+  const savedSidebarState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
+  setLeftSidebarOpen(window.innerWidth >= 769 && savedSidebarState !== "false");
   
   inputs.forEach(input => {
     input.addEventListener("focus", () => {
-      sidebar.classList.add("open");
-      appContainer.classList.add("sidebar-open"); // ✅ Keep it for all screen sizes
+      setLeftSidebarOpen(true);
     });
   });
   
@@ -923,10 +1032,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }     
   });*/
 
-  document.getElementById("close-panel-btn").addEventListener("click", () => {
-    document.getElementById("side-panel").classList.remove("open");
-  });
-  
   updateSlicerView(); // ⬅️ initial call
 
   window.addEventListener("resize", updateSlicerView);
@@ -991,9 +1096,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });*/
 
   document.getElementById("menu-toggle").addEventListener("click", () => {
-    sidebar.classList.toggle("open");
-    appContainer.classList.toggle("sidebar-open");
-    updateLegendOffset();
+    toggleLeftSidebar();
     
     // Give layout time to settle before resizing Sigma
     setTimeout(() => {
@@ -1003,10 +1106,23 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 150);        
   });
+  document.getElementById("sidebar-close")?.addEventListener("click", () => {
+    setLeftSidebarOpen(false, { persist: true, restoreFocus: true });
+  });
+  document.getElementById("sidebar-backdrop")?.addEventListener("click", () => {
+    setLeftSidebarOpen(false, { restoreFocus: true });
+  });
+  window.matchMedia("(min-width: 769px)").addEventListener("change", event => {
+    const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
+    setLeftSidebarOpen(event.matches ? savedState !== "false" : false);
+  });
 
   // Close side panel (right panel)
   document.getElementById("close-panel-btn").addEventListener("click", () => {
-    document.getElementById("side-panel").classList.remove("open");
+    hideNodePanel({ restoreFocus: true });
+  });
+  window.matchMedia("(min-width: 769px)").addEventListener("change", () => {
+    if (document.getElementById("side-panel")?.classList.contains("open")) setNodePanelOpen(true);
   });
   
   donateBtn.addEventListener("click", () => sendDonation());
@@ -1300,7 +1416,8 @@ function updateLegendOffset() {
   const fullscreen = document.body.classList.contains("fullscreen-mode");
 
   if (isWideScreen && sidebarOpen && !fullscreen) {
-    legend.style.left = "330px"; // Sidebar visible
+    const sidebarWidth = document.getElementById("left-sidebar")?.getBoundingClientRect().width || 300;
+    legend.style.left = `${sidebarWidth + 50}px`; // Sidebar visible
   } else {
     legend.style.left = "50px";  // Sidebar hidden or fullscreen
   }
@@ -1685,7 +1802,6 @@ function getRecenteringNodePositions() {
     });
     if (matchesLegend) visiblePositions.push(position);
   });
-
   return { allPositions, visiblePositions: visiblePositions.length > 0 ? visiblePositions : allPositions };
 }
 
@@ -1842,11 +1958,81 @@ function updateProgress() {
   bar.value = currentStep;
 }
 
-function showErrorPopup(message) {
+let lastApiErrorPopup = { signature: "", timestamp: 0 };
+
+function closeErrorPopup() {
   const popup = document.getElementById("error-popup");
+  if (!popup) return;
+  popup.hidden = true;
+}
+
+function showErrorPopup(message, { title = "Request failed", advice = "" } = {}) {
+  const popup = document.getElementById("error-popup");
+  const titleBox = document.getElementById("error-title");
   const msgBox = document.getElementById("error-message");
+  const adviceBox = document.getElementById("error-advice");
+  if (!popup || !msgBox) return;
+  if (titleBox) titleBox.textContent = title;
   msgBox.textContent = message;
-  popup.style.display = "block";
+  if (adviceBox) {
+    adviceBox.textContent = advice;
+    adviceBox.hidden = !advice;
+  }
+  popup.hidden = false;
+  document.getElementById("error-popup-close")?.focus({ preventScroll: true });
+}
+
+function getApiErrorStatus(error) {
+  const directStatus = Number(error?.status);
+  if (Number.isInteger(directStatus) && directStatus >= 400 && directStatus <= 599) return directStatus;
+  const match = String(error?.message || error || "").match(/\b(4\d\d|5\d\d)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function showApiError(error, provider = "API") {
+  const status = getApiErrorStatus(error);
+  const rawMessage = String(error?.message || error || "Unknown API error");
+  const isRateLimited = status === 429;
+  const title = isRateLimited ? "API rate limit reached" : `${provider} request failed`;
+  const message = isRateLimited
+    ? `${provider} returned HTTP 429 (too many requests).`
+    : rawMessage;
+  const advice = isRateLimited
+    ? "Reduce the number of nodes or transactions requested, wait a few minutes, then try again."
+    : "Check your connection and request parameters, then try again.";
+  const signature = `${status || "unknown"}:${provider}:${message}`;
+  const now = Date.now();
+  if (now - lastApiErrorPopup.timestamp < 3000 ||
+      (lastApiErrorPopup.signature === signature && now - lastApiErrorPopup.timestamp < 8000)) return;
+  lastApiErrorPopup = { signature, timestamp: now };
+  showErrorPopup(message, { title, advice });
+}
+
+async function createApiHttpError(response, provider = "API") {
+  let responseMessage = "";
+  try {
+    const body = await response.text();
+    if (body) {
+      try {
+        const json = JSON.parse(body);
+        responseMessage = json?.error?.message || json?.message || json?.result || "";
+      } catch {
+        responseMessage = body.slice(0, 300);
+      }
+    }
+  } catch {
+    // The HTTP status is sufficient when the body cannot be read.
+  }
+  const suffix = responseMessage ? ` — ${responseMessage}` : "";
+  const error = new Error(`${provider} error: ${response.status} ${response.statusText || ""}${suffix}`.trim());
+  error.status = response.status;
+  error.provider = provider;
+  return error;
+}
+
+async function assertApiResponse(response, provider = "API") {
+  if (!response.ok) throw await createApiHttpError(response, provider);
+  return response;
 }
 
 async function log_api_call (bc) {
@@ -2014,7 +2200,13 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
       headers,
       body: JSON.stringify(signaturesPayload)
     });
+    await assertApiResponse(signaturesRes, "Solana API");
     const signaturesJson = await signaturesRes.json();
+    if (signaturesJson?.error) {
+      const error = new Error(signaturesJson.error.message || "Solana API request failed");
+      error.status = Number(signaturesJson.error.code) === 429 ? 429 : undefined;
+      throw error;
+    }
     if (!Array.isArray(signaturesJson?.result)) throw new Error("Invalid Solana signature response");
     const page = signaturesJson.result;
     signatures.push(...(hasDateRange ? page.filter(sig => isTransactionInFetchDateRange(sig)) : page));
@@ -2043,10 +2235,17 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
     let tx = null;
     try {
     const txRes = await fetch(baseUrl, { method: "POST", headers, body: JSON.stringify(txPayload) });
+    await assertApiResponse(txRes, "Solana API");
     const txJson = await txRes.json();
+      if (txJson?.error) {
+        const error = new Error(txJson.error.message || "Solana transaction request failed");
+        error.status = Number(txJson.error.code) === 429 ? 429 : undefined;
+        throw error;
+      }
       tx = txJson?.result;
       if (!tx) throw new Error("No tx result");
     } catch (err) {
+      if (getApiErrorStatus(err) === 429) throw err;
       console.warn(`⚠️ Failed to fetch Solana tx ${sig.signature}: ${err.message}`);
       continue; // skip this tx and continue with others
     }
@@ -2284,7 +2483,7 @@ async function getCronosBlockRange(baseTargetUrl, headers) {
     });
     const target = encodeURIComponent(`${baseTargetUrl}?${params}`);
     const res = await fetch(`https://www.akirion.com:4664/proxy?url=${target}`, { headers });
-    if (!res.ok) throw new Error(`Cronos block lookup error: ${res.status}`);
+    await assertApiResponse(res, "Cronos block lookup API");
     const json = await res.json();
     if (json.status === "0") throw new Error(json.message || "Cronos block lookup failed");
     const value = typeof json.result === "object" ? json.result.blockNumber : json.result;
@@ -2332,9 +2531,7 @@ async function fetchCronosTransactions(normalizedKey, limit = 10000, baseUrl) {
 
   const res = await fetch(finalUrl, { headers });
 
-  if (!res.ok) {
-    throw new Error(`Cronos proxy error: ${res.status} ${res.statusText}`);
-  }
+  await assertApiResponse(res, "Cronos API");
 
   const json = await res.json();
   if (!json || !json.result) throw new Error("Unexpected response format from Cronos");
@@ -2445,6 +2642,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     "sort.desc": "id"
   }));
   const txRes = await fetch(`${baseUrl}/operations/transactions?${transactionParams}`, { headers });
+  await assertApiResponse(txRes, "TzKT transactions API");
   const txs = await txRes.json();
   operations.push(...txs);
 
@@ -2455,6 +2653,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     "sort.desc": "id"
   }));
   const delRes = await fetch(`${baseUrl}/operations/delegations?${delegationParams}`, { headers });
+  await assertApiResponse(delRes, "TzKT delegations API");
   const dels = await delRes.json();
   operations.push(...dels);
 
@@ -2574,6 +2773,7 @@ async function fetchTezosTransactions(tezosAddress, limit = 100) {
     "sort.desc": "timestamp"
   }));
   const tokenRes = await fetch(`${baseUrl}/tokens/transfers?${tokenTransferParams}`, { headers });
+  await assertApiResponse(tokenRes, "TzKT token transfers API");
   const tokenTransfers = await tokenRes.json();
 
   // Optional: push tokenTransfers into a second loop or convert to the same structure
@@ -2640,9 +2840,13 @@ async function callAlchemyRpc(url, headers, method, params = []) {
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
   });
-  if (!res.ok) throw new Error(`Alchemy RPC ${method} error: ${res.status}`);
+  await assertApiResponse(res, `Alchemy RPC ${method}`);
   const json = await res.json();
-  if (json.error) throw new Error(json.error.message || `Alchemy RPC ${method} failed`);
+  if (json.error) {
+    const error = new Error(json.error.message || `Alchemy RPC ${method} failed`);
+    error.status = Number(json.error.code) === 429 ? 429 : undefined;
+    throw error;
+  }
   return json.result;
 }
 
@@ -2782,7 +2986,18 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     })
   ]);
 
+  await Promise.all([
+    assertApiResponse(toRes, `Alchemy ${blockchain} transfers`),
+    assertApiResponse(fromRes, `Alchemy ${blockchain} transfers`)
+  ]);
+
   const [toJson, fromJson] = await Promise.all([toRes.json(), fromRes.json()]);
+  const rpcError = toJson?.error || fromJson?.error;
+  if (rpcError) {
+    const error = new Error(rpcError.message || `Alchemy ${blockchain} transfer request failed`);
+    error.status = Number(rpcError.code) === 429 ? 429 : undefined;
+    throw error;
+  }
   const transfers = [...(toJson?.result?.transfers || []), ...(fromJson?.result?.transfers || [])];
 
   // Deduplicate by tx.hash
@@ -2813,6 +3028,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       const receiptJson = await receiptRes.json();
       receiptData = receiptJson?.result;
     } catch (err) {
+      if (getApiErrorStatus(err) === 429) throw err;
       console.warn(`Receipt fetch failed for tx ${tx.hash}`, err.message);
     }
 
@@ -2940,7 +3156,7 @@ async function fetchMinaTransactions(publicKey, limit) {
       body: JSON.stringify({ publicKey, limit: pageSize, offset })
     });
 
-    if (!res.ok) throw new Error(`Minataur API error: ${res.status} ${res.statusText}`);
+    await assertApiResponse(res, "Minataur API");
     const json = await res.json();
     const page = json?.payload?.transactions;
     if (!Array.isArray(page)) throw new Error("Unexpected response format from Minataur API");
@@ -3310,9 +3526,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
             body: JSON.stringify(signaturesPayload)
           });
 
-          if (!signaturesRes.ok) {
-            throw new Error(`Helius API error: ${signaturesRes.status} ${signaturesRes.statusText}`);
-          }
+          await assertApiResponse(signaturesRes, "Helius API");
 
           const signaturesJson = await signaturesRes.json();
 
@@ -3349,11 +3563,10 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
               body: JSON.stringify(txPayload)
             });
 
-            if (txRes.ok) {
-              const txJson = await txRes.json();
-              if (txJson && txJson.result) {
-                txDetails.push(txJson.result);
-              }
+            await assertApiResponse(txRes, "Helius API");
+            const txJson = await txRes.json();
+            if (txJson && txJson.result) {
+              txDetails.push(txJson.result);
             }
 
             await sleep(delay);
@@ -3453,7 +3666,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
         console.error("Error occurred:", error);
         cancelRequested = true;
         hideLoader();
-        showErrorPopup(error.message || "An unknown error occurred");
+        showApiError(error, capitalize(blockchain));
         return transactions || [];
     }
 }
@@ -3537,6 +3750,12 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     
     // Optionnel : log visible pour debugging si debugLevel >= 2
     console.warn(`⚠️ Error fetching tx for ${normalizedKey}: ${error.message}`);
+    visitedForChain.delete(normalizedKey);
+    if (getApiErrorStatus(error) === 429) {
+      cancelRequested = true;
+      hideLoader();
+    }
+    showApiError(error, capitalize(blockchain));
 
     // On continue le processus même en cas d'échec
     return typeof transactions !== "undefined" ? transactions : [];
@@ -3793,7 +4012,7 @@ function deleteSelectedNode(nodeId) {
     if (graph.hasNode(n)) graph.dropNode(n);
   });
 
-  panel.style.display = "none";
+  setNodePanelOpen(false);
   renderer.refresh();
 }
 
@@ -4117,6 +4336,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
 function showNodePanel(node, refreshExternalStatus = true) {
   //rebuildTransactionsByNeighbor();
   const panel = document.getElementById("side-panel");
+  const previouslySelectedNode = selectedNode;
   const currentWatchIcon = document.querySelector("#watch-status > span");
   const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
@@ -4133,7 +4353,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   const isFav = isFavorite(node, selectedBlockchain);
   let favName;
   
-  document.getElementById("side-panel").classList.add("open");
+  setNodePanelOpen(true);
   
   selectedNode = node;
 
@@ -4199,39 +4419,34 @@ function showNodePanel(node, refreshExternalStatus = true) {
   //});
   
   const html = `
-    <h3 style="display: flex; align-items: center; gap: 10px;">
+    <h3 class="node-title">
       <a href="${getExplorerURL('account', node, selectedBlockchain)}" target="_blank" style="color:#4fc3f7">
         ${data.label}
       </a>
       <span id="favorite-status"></span>
       <span id="watch-status"></span>
     </h3>      
-    <button onclick="deleteSelectedNode('${node}')" title="Delete node (Del)" style="
-      margin: 5px 0;
-      max-width: 100%;
-      background: #e53935;
-      color: white;
-      border: none;
-      padding: 4px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      line-height: 1.4;
-      white-space: nowrap;
-    ">🗑️ Delete Node from Graph</button>
-    <p style="margin-bottom: 0px;"><strong>Key:</strong> <span style="font-size: 10px;">${node}</span></p>
+    <button class="node-delete-button" onclick="deleteSelectedNode('${node}')" title="Delete node (Del)">🗑️ Delete Node from Graph</button>
+    <div class="node-key-row">
+      <code class="node-key-value" title="${node}">${node}</code>
+      <button class="node-key-copy" type="button" aria-label="Copy address" title="Copy address">
+        <span>Copy</span>
+      </button>
+    </div>
     ${fetchButtonsHTML}
-    <p><strong>Degree (selected period):</strong> ${neighbors.length}</p>
-    <p><strong>#Transactions:</strong> ${tx}</p>
-    <p><strong>#Delegations:</strong> ${del}</p>
-    <p><strong>#Smart Contracts:</strong> ${sc}</p>
-    <p><strong>#Token Transfers:</strong> ${tt}</p>
-    <p><strong>#Failed Transactions:</strong> ${failed}</p>
-    <p style="font-size: 11px; color: #aaa;">
+    <div class="node-stats">
+      <div><span>Degree</span><strong>${neighbors.length}</strong></div>
+      <div><span>Transactions</span><strong>${tx}</strong></div>
+      <div><span>Delegations</span><strong>${del}</strong></div>
+      <div><span>Contracts</span><strong>${sc}</strong></div>
+      <div><span>Token transfers</span><strong>${tt}</strong></div>
+      <div><span>Failed</span><strong>${failed}</strong></div>
+    </div>
+    <p class="node-period">
       Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
     </p>
-    <p style="margin-bottom: 6px;"><strong>Linked Nodes & Transactions:</strong></p>
-    <label style="display:flex; align-items:center; gap:6px; margin-bottom:12px; font-size:12px; cursor:pointer;">
+    <p class="node-transactions-heading"><strong>Linked Nodes & Transactions</strong></p>
+    <label class="node-chronological-toggle">
       <input type="checkbox" id="chronological-transactions-toggle"
         ${showNodeTransactionsChronologically ? "checked" : ""}
         onchange="setNodeTransactionsChronological(this.checked)">
@@ -4407,6 +4622,8 @@ function showNodePanel(node, refreshExternalStatus = true) {
     </div>`;
     
   details.innerHTML = html;
+  details.querySelector(".node-key-copy")?.addEventListener("click", event => copyNodeKey(node, event.currentTarget));
+  if (previouslySelectedNode !== node) details.scrollTop = 0;
   
   if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos" || selectedBlockchain==="mina" || selectedBlockchain==="solana") {
     const watchSpan = document.getElementById("watch-status");
@@ -4425,9 +4642,6 @@ function showNodePanel(node, refreshExternalStatus = true) {
   renderFavIcon(favSpan, isFav, node, selectedBlockchain);
 
   
-  panel.style.display = "flex";
-  document.getElementById("date-slicer-container").classList.add("on-left");
-
   renderer.refresh(); // ✅ ensures selection is visible immediately
 }
 
@@ -4717,6 +4931,8 @@ function setupInteractions() {
   let isDragging = false;  
   let hasMoved = false;
   let dragOwnsCustomBBox = false;
+  let suppressNodeClick = false;
+  let ignoreStageClickUntil = 0;
   let dragStartPos = { x: 0, y: 0 };
   
   // Hover in/out to show tooltip & halo
@@ -4746,7 +4962,20 @@ function setupInteractions() {
 
   // Click on the background to hide the panel
   renderer.on("clickStage", () => {
+    if (Date.now() <= ignoreStageClickUntil) {
+      return;
+    }
     hideNodePanel();
+  });
+
+  // Sigma's dedicated click event is reliable even when pointer-up lands a
+  // few pixels outside the node. Drag completion must never open the panel.
+  renderer.on("clickNode", ({ node }) => {
+    if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
+    ignoreStageClickUntil = Date.now() + 150;
+    selectedNode = node;
+    showNodePanel(node);
+    renderer.refresh();
   });
 
   // Keep tooltip following pointer
@@ -4761,8 +4990,6 @@ function setupInteractions() {
       isDragging = true;
       hasMoved = false;
       dragStartPos = { x: event.x, y: event.y };
-
-    graph.setNodeAttribute(node, "highlighted", true);
     });
 
   // During drag, move the node and detect “real” drag vs click
@@ -4771,17 +4998,20 @@ function setupInteractions() {
 
     const dx = event.x - dragStartPos.x,
           dy = event.y - dragStartPos.y;
-    if (!hasMoved && Math.hypot(dx, dy) > 4) {
+    if (!hasMoved && Math.hypot(dx, dy) > 5) {
       hasMoved = true;
+      graph.setNodeAttribute(draggedNode, "highlighted", true);
       if (!renderer.getCustomBBox()) {
         renderer.setCustomBBox(renderer.getBBox());
         dragOwnsCustomBBox = true;
       }
     }
 
-      const pos = renderer.viewportToGraph(event);
-      graph.setNodeAttribute(draggedNode, "x", pos.x);
-      graph.setNodeAttribute(draggedNode, "y", pos.y);
+      if (hasMoved) {
+        const pos = renderer.viewportToGraph(event);
+        graph.setNodeAttribute(draggedNode, "x", pos.x);
+        graph.setNodeAttribute(draggedNode, "y", pos.y);
+      }
 
     // prevent Sigma’s default camera drag
       event.preventSigmaDefault();
@@ -4803,15 +5033,12 @@ function setupInteractions() {
       dragOwnsCustomBBox = false;
     }
 
-    if (!hasMoved && node) {
-      // treat as a “clickNode”
-      selectedNode = node;
-      showNodePanel(node);
-      renderer.refresh();
-    } else if (hasMoved) {
+    if (hasMoved) {
+      suppressNodeClick = true;
       // you dragged: optionally re-layout or whatever
       animateLayout(null, "drag");
-  }
+      setTimeout(() => { suppressNodeClick = false; }, 0);
+    }
 
     // reset state
     isDragging   = false;
@@ -4837,7 +5064,7 @@ function setupSearch_old() {
 
     if (!query) {
       selectedNode = null;
-      panel.style.display = "none";
+      setNodePanelOpen(false);
       renderer.refresh();
       return;
     }
@@ -4852,7 +5079,7 @@ function setupSearch_old() {
       //showNodePanel(match);
       //panel.style.display = "flex";
     } else {
-      panel.style.display = "none";
+      setNodePanelOpen(false);
     }
 
     renderer.refresh();
@@ -4872,7 +5099,7 @@ function setupSearch_old() {
     searchInput.value = "";
     selectedNode = null;
     clearBtn.style.display = "none";
-    panel.style.display = "none";
+    setNodePanelOpen(false);
     renderer.refresh();
   });
 }
@@ -4901,7 +5128,7 @@ function setupSearch() {
     searchInput.value = "";
     selectedNode = null;
     clearBtn.style.display = "none";
-    panel.style.display = "none";
+    setNodePanelOpen(false);
     handleSearch(""); // reset filtre
   });
 }
@@ -5060,7 +5287,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   if (wipeGraph || !renderer) {
     container.innerHTML = ""; // ✅ clears canvas and attached DOM elements
     tooltip.style.display = "none";
-    panel.style.display = "none";
+    setNodePanelOpen(false);
     hoveredNode = null;
     selectedNode = null;      
 
@@ -5635,13 +5862,12 @@ function adjustSidebarState() {
     (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || activeElement.tagName === "SELECT");
 
   if (window.innerWidth >= 769 && !isFullscreen) {
-    sidebar.classList.add("open");
-    appContainer.classList.add("sidebar-open");
+    const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
+    setLeftSidebarOpen(savedState !== "false");
   } else {
     // ✅ Ne ferme pas la sidebar si un champ est actif dedans (sur mobile)
     if (!isInputFocusedInSidebar) {
-      sidebar.classList.remove("open");
-      appContainer.classList.remove("sidebar-open");
+      setLeftSidebarOpen(false);
     }
   }
 
@@ -5804,7 +6030,7 @@ function toggleFullscreen(forceExit = false) {
     // 👇 Only add sidebar-open on desktop
     if (window.innerWidth >= 769 && sidebar.classList.contains("open")) {
       appContainer.classList.add("sidebar-open");
-      legend.style.left = "330px"; // sidebar + margin
+      legend.style.left = `${sidebar.getBoundingClientRect().width + 50}px`; // sidebar + margin
     } else { 
       appContainer.classList.remove("sidebar-open");
       legend.style.left = "50px";
@@ -6108,17 +6334,10 @@ function applyDateFilter() {
   renderer.refresh();
 }
 
-function hideNodePanel() {
-  const panel = document.getElementById("side-panel");
-  const slicer = document.getElementById("date-slicer-container");
-  
-  document.getElementById("side-panel").classList.remove("open");
-
-  panel.style.display = "none";
-  slicer.classList.remove("on-left");
-
+function hideNodePanel(options = {}) {
+  setNodePanelOpen(false, options);
   selectedNode = null;
-  renderer.refresh();
+  renderer?.refresh();
 }
 
 function rebuildTransactionsByNeighbor() {
@@ -6163,6 +6382,11 @@ document.addEventListener("keydown", function (event) {
   const searchDiv = document.getElementById("searchdiv");
   const clearBtn = document.getElementById("clear-search");
 
+  if (event.key === "Escape" && !document.getElementById("error-popup")?.hidden) {
+    closeErrorPopup();
+    return;
+  }
+
   // ESC clears search only if focused
   if (event.key === "Escape" && document.activeElement === input) {
     input.value = "";
@@ -6173,13 +6397,21 @@ document.addEventListener("keydown", function (event) {
     renderer.refresh();
     return;
   } else if (event.key === "Escape") {
+    if (document.getElementById("side-panel")?.classList.contains("open")) {
+      hideNodePanel({ restoreFocus: true });
+      return;
+    }
+    if (document.getElementById("left-sidebar")?.classList.contains("open")) {
+      setLeftSidebarOpen(false, { restoreFocus: true });
+      return;
+    }
     if (isLayoutRunning) {
       layoutController.stop({ remember: true });
     }
   }
 
   // Ignore all other keys if typing in a field
-  if ((tag === "input" || tag === "textarea")) return;
+  if (tag === "input" || tag === "textarea" || tag === "select" || document.activeElement.isContentEditable) return;
 
   if (handleGraphKeyboardNavigation(event)) return;
 

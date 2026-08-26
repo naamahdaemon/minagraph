@@ -1,0 +1,52 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const script = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.resolve(__dirname, '..', 'style', 'style.css'), 'utf8');
+
+assert.match(html, /<aside id="side-panel" role="dialog"[^>]+aria-hidden="true">/);
+assert.match(html, /class="node-panel-heading"/);
+assert.match(html, /id="node-panel-resize-handle"[^>]+role="separator"/);
+assert.match(html, /id="error-popup" class="error-modal" role="alertdialog"[^>]+hidden/);
+assert.match(html, /id="error-advice" hidden/);
+
+assert.match(script, /function setNodePanelOpen\(open,/);
+assert.match(script, /dateSlicer\?\.classList\.toggle\("on-left", isOpen && isDesktop\)/);
+assert.match(script, /function hideNodePanel\(options = \{\}\)/);
+assert.match(script, /if \(previouslySelectedNode !== node\) details\.scrollTop = 0/);
+assert.match(script, /function initializeNodePanelResize\(\)/);
+assert.match(script, /applyWidth\(window\.innerWidth - event\.clientX\)/);
+assert.match(script, /function copyNodeKey\(key, button\)/);
+assert.match(script, /navigator\.clipboard\.writeText\(key\)/);
+assert.doesNotMatch(script, /<strong>Key:<\/strong>/);
+assert.match(script, /class="node-key-value"[^>]*>\$\{node\}<\/code>/);
+assert.match(script, /class="node-key-copy"/);
+assert.match(css, /@media screen and \(max-width: 768px\)[\s\S]*?#side-panel\s*\{\s*width: 100vw;/);
+assert.match(css, /@media screen and \(min-width: 769px\)[\s\S]*?#node-panel-resize-handle/);
+assert.match(css, /\.node-key-value\s*\{[\s\S]*?white-space: nowrap;/);
+assert.match(css, /#node-details \.mono\s*\{[\s\S]*?overflow-x: auto;/);
+assert.match(css, /\.transaction-sort-button\s*\{[\s\S]*?background: var\(--node-panel-surface\) !important;[\s\S]*?color: var\(--node-panel-text\) !important;/);
+assert.match(css, /th\[aria-sort="ascending"\] \.transaction-sort-button/);
+
+const statusHelper = script.match(/function getApiErrorStatus\(error\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(statusHelper, 'API status helper should exist');
+const context = {};
+vm.runInNewContext(`${statusHelper}; result = getApiErrorStatus;`, context);
+assert.equal(context.result({ status: 429 }), 429);
+assert.equal(context.result(new Error('Alchemy API error: 429 Too Many Requests')), 429);
+assert.equal(context.result(new Error('Network failure')), null);
+
+assert.match(script, /Reduce the number of nodes or transactions requested, wait a few minutes, then try again\./);
+assert.match(script, /await assertApiResponse\(res, "Minataur API"\)/);
+assert.match(script, /assertApiResponse\(toRes, `Alchemy \$\{blockchain\} transfers`\)/);
+assert.match(script, /await assertApiResponse\(txRes, "TzKT transactions API"\)/);
+assert.match(script, /await assertApiResponse\(res, "Cronos API"\)/);
+assert.match(script, /await assertApiResponse\(signaturesRes, "Helius API"\)/);
+assert.match(script, /showApiError\(error, capitalize\(blockchain\)\)/);
+assert.match(script, /visitedForChain\.delete\(normalizedKey\)/);
+assert.match(script, /if \(getApiErrorStatus\(error\) === 429\) \{\s*cancelRequested = true;/);
+
+console.log('Node panel and API error tests passed');
