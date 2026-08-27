@@ -3025,7 +3025,13 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
         headers: { ...apiKeyHeader, "Content-Type": "application/json" },
         body: JSON.stringify(receiptBody)
       });
+      await assertApiResponse(receiptRes, `Alchemy ${blockchain} transaction receipt`);
       const receiptJson = await receiptRes.json();
+      if (receiptJson?.error) {
+        const error = new Error(receiptJson.error.message || `Alchemy ${blockchain} transaction receipt failed`);
+        error.status = Number(receiptJson.error.code) === 429 ? 429 : undefined;
+        throw error;
+      }
       receiptData = receiptJson?.result;
     } catch (err) {
       if (getApiErrorStatus(err) === 429) throw err;
@@ -3095,9 +3101,11 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     const feeFloat = Number(fee) / 10 ** decimals;
     const formattedFee = feeFloat.toFixed(2);
 
-    if (receiptData.from == null || receiptData.to == null || true) {
-      console.warn("tx data : ",tx);
-      console.warn("receiptdata : ",receiptData);
+    if (!receiptData || receiptData.from == null || receiptData.to == null) {
+      console.warn("Incomplete transaction receipt; keeping transfer without receipt details", {
+        transaction: tx,
+        receipt: receiptData
+      });
     }
 
     return {
