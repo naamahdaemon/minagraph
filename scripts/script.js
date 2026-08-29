@@ -346,6 +346,8 @@ let sigmaRecoveryIncidentActive = false;
 let sigmaRecoverySnapshot = null;
 let sigmaRecoveryLastError = 'None';
 const sigmaLostCanvases = new Set();
+let sigmaMultiTouchGestureActive = false;
+let sigmaIgnoreNodeClickUntil = 0;
 
 function rebuildSigmaRendererAfterContextLoss() {
   sigmaRecoveryTimer = null;
@@ -5130,6 +5132,31 @@ function setupInteractions() {
   let suppressNodeClick = false;
   let ignoreStageClickUntil = 0;
   let dragStartPos = { x: 0, y: 0 };
+  const interactionContainer = renderer.getContainer();
+
+  // Sigma can emit a synthetic clickNode after the fingers of a pinch gesture
+  // are released. Track multi-touch at the DOM level so selection remains a
+  // one-finger tap action while Sigma's native two-finger zoom stays intact.
+  if (interactionContainer.dataset.minagraphMultiTouchGuard !== "true") {
+    interactionContainer.dataset.minagraphMultiTouchGuard = "true";
+    const markMultiTouch = event => {
+      if (event.touches.length < 2) return;
+      sigmaMultiTouchGestureActive = true;
+      sigmaIgnoreNodeClickUntil = Number.POSITIVE_INFINITY;
+    };
+    const finishMultiTouch = event => {
+      if (!sigmaMultiTouchGestureActive || event.touches.length > 0) return;
+      sigmaMultiTouchGestureActive = false;
+      sigmaIgnoreNodeClickUntil = Date.now() + 500;
+    };
+    interactionContainer.addEventListener("touchstart", markMultiTouch, { passive: true, capture: true });
+    interactionContainer.addEventListener("touchmove", markMultiTouch, { passive: true, capture: true });
+    interactionContainer.addEventListener("touchend", finishMultiTouch, { passive: true, capture: true });
+    interactionContainer.addEventListener("touchcancel", () => {
+      sigmaMultiTouchGestureActive = false;
+      sigmaIgnoreNodeClickUntil = Date.now() + 500;
+    }, { passive: true, capture: true });
+  }
   
   // Hover in/out to show tooltip & halo
   renderer.on("enterNode", ({ node }) => {
@@ -5167,7 +5194,13 @@ function setupInteractions() {
   // Sigma's dedicated click event is reliable even when pointer-up lands a
   // few pixels outside the node. Drag completion must never open the panel.
   renderer.on("clickNode", ({ node }) => {
-    if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
+    if (
+      hasMoved ||
+      suppressNodeClick ||
+      sigmaMultiTouchGestureActive ||
+      Date.now() <= sigmaIgnoreNodeClickUntil ||
+      !graph.hasNode(node)
+    ) return;
     ignoreStageClickUntil = Date.now() + 150;
     selectedNode = node;
     showNodePanel(node);
@@ -5176,7 +5209,6 @@ function setupInteractions() {
 
   // Keep tooltip following pointer. The container survives WebGL renderer
   // rebuilds, so this DOM listener must only be installed once.
-  const interactionContainer = renderer.getContainer();
   if (interactionContainer.dataset.minagraphTooltipTracking !== "true") {
     interactionContainer.dataset.minagraphTooltipTracking = "true";
     interactionContainer.addEventListener("mousemove", e => {
@@ -5234,7 +5266,7 @@ function setupInteractions() {
       dragOwnsCustomBBox = false;
     }
 
-    if (hasMoved) {
+    if (hasMoved && !sigmaMultiTouchGestureActive && Date.now() > sigmaIgnoreNodeClickUntil) {
       suppressNodeClick = true;
       // you dragged: optionally re-layout or whatever
       animateLayout(null, "drag");

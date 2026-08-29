@@ -9,7 +9,12 @@ assert.ok(start >= 0 && end > start, 'Interaction setup should exist');
 const interactions = source.slice(start, end);
 
 assert.match(interactions, /renderer\.on\("clickNode", \(\{ node \}\) => \{/);
-assert.match(interactions, /if \(hasMoved \|\| suppressNodeClick \|\| !graph\.hasNode\(node\)\) return;/);
+assert.match(interactions, /sigmaMultiTouchGestureActive \|\|\s*Date\.now\(\) <= sigmaIgnoreNodeClickUntil/);
+assert.match(interactions, /event\.touches\.length < 2/);
+assert.match(interactions, /sigmaIgnoreNodeClickUntil = Date\.now\(\) \+ 500/);
+assert.match(interactions, /addEventListener\("touchstart", markMultiTouch/);
+assert.match(interactions, /addEventListener\("touchmove", markMultiTouch/);
+assert.match(interactions, /addEventListener\("touchend", finishMultiTouch/);
 assert.match(interactions, /ignoreStageClickUntil = Date\.now\(\) \+ 150;/);
 assert.match(interactions, /renderer\.on\("clickStage", \(\) => \{\s*if \(Date\.now\(\) <= ignoreStageClickUntil\)/);
 assert.match(interactions, /selectedNode = node;\s*showNodePanel\(node\);/);
@@ -21,7 +26,7 @@ const endDragStart = interactions.indexOf('const endDrag =');
 const endDragEnd = interactions.indexOf('renderer.on("upNode"', endDragStart);
 const endDrag = interactions.slice(endDragStart, endDragEnd);
 assert.doesNotMatch(endDrag, /showNodePanel\(/, 'Drag completion must not open node details');
-assert.match(endDrag, /if \(hasMoved\) \{\s*suppressNodeClick = true;/);
+assert.match(endDrag, /if \(hasMoved && !sigmaMultiTouchGestureActive && Date\.now\(\) > sigmaIgnoreNodeClickUntil\) \{\s*suppressNodeClick = true;/);
 assert.match(interactions, /if \(hasMoved\) \{\s*const pos = renderer\.viewportToGraph\(event\);/);
 
 console.log('Node interaction tests passed');
