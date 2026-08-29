@@ -236,7 +236,9 @@
       gap: 7px;
       border: 1px solid rgba(127, 127, 127, 0.48) !important;
       border-radius: 8px !important;
-      background: transparent;
+      background: transparent !important;
+      color: inherit !important;
+      font-weight: 400 !important;
     }
 
     #controls > button:hover,
@@ -265,10 +267,21 @@
     }
 
     @media screen and (max-width: 768px) {
-      #controls > #favorites-btn,
       #controls > #watched-btn,
       #controls > #reset-db-btn {
         display: none !important;
+      }
+
+      #controls {
+        gap: 3px;
+        padding-inline: 6px;
+      }
+
+      #controls > button {
+        flex-basis: 34px;
+        width: 34px !important;
+        min-width: 34px;
+        padding-inline: 5px !important;
       }
     }
 
@@ -2256,7 +2269,8 @@
   #left-sidebar .foldable-content > button,
   #left-sidebar .foldable-content > div > button,
   #left-sidebar #start-graph-btn,
-  #left-sidebar #layout-toggle-btn {
+  #left-sidebar #layout-toggle-btn,
+  #left-sidebar #layout-sidebar-toggle-btn {
     min-height: 40px;
     border-radius: 9px !important;
     transition: filter 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
