@@ -3954,9 +3954,17 @@
         var gl = this.webGLContexts[id];
         var frameBuffer = this.frameBuffers[id];
         var currentTexture = this.textures[id];
-        if (currentTexture) gl.deleteTexture(currentTexture);
-        var pickingTexture = gl.createTexture();
         gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+        if (currentTexture) {
+          // Reuse the picking attachment between frames. Reallocating it on
+          // every render makes some Android Mali drivers retain each retired
+          // texture until the queued GPU work completes, causing a large
+          // transient memory spike and ultimately a WebGL context loss.
+          gl.clearColor(0, 0, 0, 0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          return this;
+        }
+        var pickingTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, pickingTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickingTexture, 0);
@@ -5707,7 +5715,10 @@
           // Clear picking texture if needed
           if (this.pickingLayers.has(_id2)) {
             var currentTexture = this.textures[_id2];
-            if (currentTexture) gl.deleteTexture(currentTexture);
+            if (currentTexture) {
+              gl.deleteTexture(currentTexture);
+              this.textures[_id2] = null;
+            }
           }
         }
         this.emit("resize");
