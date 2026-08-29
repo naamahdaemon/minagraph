@@ -19,6 +19,9 @@ assert.match(script, /function getSidePanelCoveredWidth\(panelWidth, viewportWid
 assert.match(script, /zoomSlider\.noUiSlider\.on\('slide', \(\) => centerGraphInViewport\(\)\)/);
 assert.match(script, /zoomSlider\.noUiSlider\.on\('change', \(\) => centerGraphInViewport\(\)\)/);
 assert.match(script, /run\(\{ iterationsOverride = null, origin = "manual" \} = \{\}\) \{[\s\S]*?renderer\?\.setCustomBBox\(null\)/);
+assert.match(script, /const iterations = requestedIterations;/);
+assert.doesNotMatch(script, /safeLimit/);
+assert.match(script, /profile === "initial" \? null : getAutomaticLayoutIterations\(profile\)/);
 assert.match(script, /let dragOwnsCustomBBox = false/);
 assert.doesNotMatch(script, /graph\.setNodeAttribute\(node, "highlighted", true\);\s*if \(!renderer\.getCustomBBox\(\)\)/);
 assert.match(script, /Math\.hypot\(dx, dy\) > 5[\s\S]*?renderer\.setCustomBBox\(renderer\.getBBox\(\)\)[\s\S]*?dragOwnsCustomBBox = true/);

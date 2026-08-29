@@ -337,7 +337,6 @@ const NODE_TRANSACTION_SORT_STORAGE_KEY = "minagraph-node-transaction-sort";
 let nodeTransactionSort = loadNodeTransactionSort();
 let lastTechnicalDiagnostics = null;
 let reloadAfterServiceWorkerActivation = false;
-let sigmaViewportSyncFrame = null;
 let sigmaWebGlContextLosses = 0;
 let sigmaWebGlLossIncidents = 0;
 let sigmaWebGlRecoveries = 0;
@@ -347,35 +346,6 @@ let sigmaRecoveryIncidentActive = false;
 let sigmaRecoverySnapshot = null;
 let sigmaRecoveryLastError = 'None';
 const sigmaLostCanvases = new Set();
-
-function scheduleSigmaViewportSync() {
-  if (sigmaViewportSyncFrame !== null) return;
-  sigmaViewportSyncFrame = requestAnimationFrame(() => {
-    sigmaViewportSyncFrame = null;
-    if (!renderer) return;
-    try {
-      // Chromium can change the visual viewport or device pixel ratio without
-      // changing the graph container's CSS dimensions. Force Sigma to keep all
-      // 2D and WebGL drawing buffers aligned with the current pixel ratio.
-      renderer.resize(true);
-      renderer.refresh();
-    } catch (error) {
-      console.warn('[Sigma] Unable to synchronize rendering buffers:', error);
-    }
-  });
-}
-
-function reduceSigmaPixelRatioAfterContextLoss() {
-  const currentRatio = Number(window.__MINAGRAPH_SIGMA_PIXEL_RATIO__)
-    || renderer?.pixelRatio
-    || window.devicePixelRatio
-    || 1;
-  const nextRatio = currentRatio > 2.5
-    ? 2.5
-    : Math.max(1.5, currentRatio - 0.5);
-  window.__MINAGRAPH_SIGMA_PIXEL_RATIO__ = nextRatio;
-  console.warn(`[Sigma] Rendering density adjusted from ${currentRatio} to ${nextRatio} after WebGL context loss.`);
-}
 
 function rebuildSigmaRendererAfterContextLoss() {
   sigmaRecoveryTimer = null;
@@ -473,7 +443,6 @@ function bindSigmaRenderingRecovery() {
       if (!sigmaRecoveryIncidentActive) {
         sigmaRecoveryIncidentActive = true;
         sigmaWebGlLossIncidents += 1;
-        reduceSigmaPixelRatioAfterContextLoss();
       }
       console.warn('[Sigma] WebGL context lost; waiting for all contexts to be restored.');
       waitForSigmaWebGlRestoration();
@@ -516,7 +485,9 @@ function collectSigmaRenderingDiagnostics() {
       ? `${container.clientWidth}x${container.clientHeight} CSS px`
       : 'Unavailable',
     sigmaPixelRatio: renderer?.pixelRatio ?? 'Renderer not initialized',
-    sigmaPixelRatioLimit: window.__MINAGRAPH_SIGMA_PIXEL_RATIO__ || 'Native device ratio',
+    sigmaPixelRatioLimit: /Android/i.test(navigator.userAgent) && /Chrome\/|Chromium\/|EdgA\//i.test(navigator.userAgent)
+      ? '2 (Android Chromium compatibility)'
+      : 'Native device ratio',
     sigmaCanvasBuffers: canvasBuffers.join(' | ') || 'Renderer not initialized',
     webGlApi,
     webGlRenderer,
@@ -530,10 +501,6 @@ function collectSigmaRenderingDiagnostics() {
     webGlRecoveryError: sigmaRecoveryLastError
   };
 }
-
-window.visualViewport?.addEventListener('resize', scheduleSigmaViewportSync);
-window.visualViewport?.addEventListener('scroll', scheduleSigmaViewportSync);
-window.addEventListener('orientationchange', scheduleSigmaViewportSync);
 
 navigator.serviceWorker?.addEventListener('controllerchange', () => {
   if (!reloadAfterServiceWorkerActivation) return;
@@ -1858,8 +1825,7 @@ class LayoutController {
     const height = Math.max(1, parseInt(document.getElementById("layout-height").value, 10) || 2000);
     const algorithm = document.getElementById("layout-algorithm").value;
     const nodeCount = graph.order;
-    const safeLimit = nodeCount > 2000 ? 250 : nodeCount > 500 ? 750 : requestedIterations;
-    const iterations = Math.min(requestedIterations, safeLimit);
+    const iterations = requestedIterations;
     const runId = ++this.runId;
 
     let workerFile = "fruchtermanReingold.js";
@@ -1897,9 +1863,7 @@ class LayoutController {
     setLayoutUiState("running", "0%");
 
     const layoutLabel = origin === "manual" ? "Manual" : "Automatic";
-    document.getElementById("layout-info").textContent = iterations !== requestedIterations
-      ? `${layoutLabel} layout limited to ${iterations} iterations for ${nodeCount} nodes`
-      : `${layoutLabel} layout: ${iterations} iterations`;
+    document.getElementById("layout-info").textContent = `${layoutLabel} layout: ${iterations} iterations`;
 
     const nodes = graph.nodes().map(id => ({
       id,
@@ -4195,7 +4159,7 @@ function getAutomaticLayoutIterations(profile = "initial") {
 
 function animateLayout(iterations = null, profile = "initial") {
   layoutController.run({
-    iterationsOverride: iterations ?? getAutomaticLayoutIterations(profile),
+    iterationsOverride: iterations ?? (profile === "initial" ? null : getAutomaticLayoutIterations(profile)),
     origin: "automatic"
   });
 }
