@@ -3805,9 +3805,11 @@
       _this.container = container;
 
       // Initializing contexts
-      _this.createWebGLContext("edges", {
-        picking: settings.enableEdgeEvents
-      });
+      if (!useMobileChromiumWebGLCompatibility()) {
+        _this.createWebGLContext("edges", {
+          picking: settings.enableEdgeEvents
+        });
+      }
       _this.createCanvasContext("edgeLabels");
       _this.createWebGLContext("nodes", {
         picking: true
@@ -3898,7 +3900,10 @@
       key: "registerEdgeProgram",
       value: function registerEdgeProgram(key, EdgeProgramClass) {
         if (this.edgePrograms[key]) this.edgePrograms[key].kill();
-        this.edgePrograms[key] = new EdgeProgramClass(this.webGLContexts.edges, this.frameBuffers.edges, this);
+        var compatibilityMode = useMobileChromiumWebGLCompatibility();
+        var edgeContext = compatibilityMode ? this.webGLContexts.nodes : this.webGLContexts.edges;
+        var edgeFrameBuffer = compatibilityMode && this.settings.enableEdgeEvents ? this.frameBuffers.nodes : this.frameBuffers.edges;
+        this.edgePrograms[key] = new EdgeProgramClass(edgeContext, edgeFrameBuffer, this);
         return this;
       }
 
@@ -4966,6 +4971,14 @@
 
         var params = this.getRenderParams();
 
+        // With a shared context, edges must be drawn first so nodes retain the
+        // same visual stacking they have with Sigma's separate canvas layers.
+        if (useMobileChromiumWebGLCompatibility() && (!this.settings.hideEdgesOnMove || !moving)) {
+          for (var edgeType in this.edgePrograms) {
+            this.edgePrograms[edgeType].render(params);
+          }
+        }
+
         // Drawing nodes
         for (var type in this.nodePrograms) {
           var program = this.nodePrograms[type];
@@ -4973,7 +4986,7 @@
         }
 
         // Drawing edges
-        if (!this.settings.hideEdgesOnMove || !moving) {
+        if (!useMobileChromiumWebGLCompatibility() && (!this.settings.hideEdgesOnMove || !moving)) {
           for (var _type7 in this.edgePrograms) {
             var _program2 = this.edgePrograms[_type7];
             _program2.render(params);
@@ -5744,8 +5757,10 @@
         this.emit("beforeClear");
         this.webGLContexts.nodes.bindFramebuffer(WebGLRenderingContext.FRAMEBUFFER, null);
         this.webGLContexts.nodes.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
-        this.webGLContexts.edges.bindFramebuffer(WebGLRenderingContext.FRAMEBUFFER, null);
-        this.webGLContexts.edges.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
+        if (this.webGLContexts.edges) {
+          this.webGLContexts.edges.bindFramebuffer(WebGLRenderingContext.FRAMEBUFFER, null);
+          this.webGLContexts.edges.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
+        }
         if (this.webGLContexts.hoverNodes) this.webGLContexts.hoverNodes.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
         this.canvasContexts.labels.clearRect(0, 0, this.width, this.height);
         this.canvasContexts.hovers.clearRect(0, 0, this.width, this.height);
