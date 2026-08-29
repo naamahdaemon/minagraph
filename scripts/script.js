@@ -1913,7 +1913,19 @@ class LayoutController {
     }));
     let lastRenderTime = 0;
 
-    const applyPositions = positions => {
+    const applyPositions = (positions, packed = false) => {
+      if (packed) {
+        const positionCount = Math.min(nodes.length, Math.floor(positions.length / 2));
+        for (let index = 0; index < positionCount; index++) {
+          const id = nodes[index].id;
+          const x = positions[index * 2];
+          const y = positions[index * 2 + 1];
+          if (!graph.hasNode(id) || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+          graph.setNodeAttribute(id, "x", x);
+          graph.setNodeAttribute(id, "y", y);
+        }
+        return;
+      }
       for (const id in positions) {
         if (!graph.hasNode(id)) continue;
         const { x, y } = positions[id];
@@ -1925,19 +1937,19 @@ class LayoutController {
 
     worker.onmessage = event => {
       if (runId !== this.runId || worker !== this.worker) return;
-      const { type, progress, positions } = event.data;
+      const { type, progress, positions, packed = false } = event.data;
       if (type === "progress") {
         const percent = Math.min(99, Math.round(progress * 100));
         document.getElementById("layout-progress").value = percent;
         setLayoutUiState("running", `${percent}%`);
         const now = performance.now();
         if (now - lastRenderTime > 300) {
-          applyPositions(positions);
+          applyPositions(positions, packed);
           renderer.refresh();
           lastRenderTime = now;
         }
       } else if (type === "done") {
-        applyPositions(positions);
+        applyPositions(positions, packed);
         renderer.refresh();
         document.getElementById("layout-progress").value = 100;
         previousLayout = algorithm;

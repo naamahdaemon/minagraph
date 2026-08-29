@@ -19,6 +19,10 @@ function runWorker(filename, data) {
 }
 
 function assertFinitePositions(positions) {
+  if (ArrayBuffer.isView(positions)) {
+    for (const coordinate of positions) assert.equal(Number.isFinite(coordinate), true);
+    return;
+  }
   for (const position of Object.values(positions)) {
     assert.equal(Number.isFinite(position.x), true);
     assert.equal(Number.isFinite(position.y), true);
@@ -32,7 +36,12 @@ const coincidentGraph = {
 };
 const frResult = runWorker("fruchtermanReingold.js", coincidentGraph);
 assertFinitePositions(frResult.positions);
-assert.notDeepEqual(frResult.positions.a, frResult.positions.b, "FR should separate coincident nodes");
+assert.equal(frResult.packed, true, "FR should return compact packed positions");
+assert.notDeepEqual(
+  Array.from(frResult.positions.slice(0, 2)),
+  Array.from(frResult.positions.slice(2, 4)),
+  "FR should separate coincident nodes"
+);
 
 function runForceAtlas(strongGravityMode) {
   return runWorker("forceAtlas.js", {
