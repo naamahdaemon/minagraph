@@ -749,6 +749,9 @@ document.addEventListener("DOMContentLoaded", () => {
   toggleBtn = document.getElementById("search-icon");
   searchDiv = document.getElementById("searchdiv");
   searchInput = document.getElementById("search-input");
+  // The command bar must remain interactive even while Sigma is still loading
+  // or recovering its renderer.
+  setupSearch();
   algorithmSelect = document.getElementById("layout-algorithm");
   faSettings = document.getElementById("forceatlas-settings");
   ordSettings = document.getElementById("openord-settings");
@@ -1016,20 +1019,6 @@ document.addEventListener("DOMContentLoaded", () => {
     appendLoaderLog("⚠️ Loading cancelled by user.");
   });
   
-
- 
-  toggleBtn.addEventListener("click", (e) => {
-    e.stopPropagation(); // prevent bubbling to the outside click
-    const isVisible = searchDiv.style.display === "block";
-
-    if (isVisible) {
-      searchDiv.style.display = "none";
-    } else {
-      searchDiv.style.display = "block";
-      searchInput.style.display = "block"; // optional safeguard
-      searchInput.focus();
-    }
-  });
 
   // Hide on outside click
   document.addEventListener("click", (e) => {
@@ -5414,7 +5403,7 @@ function setupSearch() {
   searchInput.addEventListener("input", e => {
     const query = e.target.value;
     clearBtn.style.display = query ? "block" : "none";
-    handleSearch(query); // nouvelle fonction puissante
+    if (graph && renderer) handleSearch(query);
   });
 
   searchButton.addEventListener("click", () => {
@@ -5432,7 +5421,7 @@ function setupSearch() {
     selectedNode = null;
     clearBtn.style.display = "none";
     setNodePanelOpen(false);
-    handleSearch(""); // reset filtre
+    if (graph && renderer) handleSearch("");
   });
 }
 
