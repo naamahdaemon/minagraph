@@ -339,6 +339,10 @@ let lastTechnicalDiagnostics = null;
 let reloadAfterServiceWorkerActivation = false;
 let sigmaViewportSyncFrame = null;
 let sigmaWebGlContextLosses = 0;
+let sigmaWebGlLossIncidents = 0;
+let sigmaWebGlRecoveries = 0;
+let sigmaRecoveryTimer = null;
+let sigmaRecoveryInProgress = false;
 
 function scheduleSigmaViewportSync() {
   if (sigmaViewportSyncFrame !== null) return;
@@ -357,19 +361,81 @@ function scheduleSigmaViewportSync() {
   });
 }
 
+function reduceSigmaPixelRatioAfterContextLoss() {
+  const currentRatio = Number(window.__MINAGRAPH_SIGMA_PIXEL_RATIO__)
+    || renderer?.pixelRatio
+    || window.devicePixelRatio
+    || 1;
+  const nextRatio = currentRatio > 2.5
+    ? 2.5
+    : Math.max(1.5, currentRatio - 0.5);
+  window.__MINAGRAPH_SIGMA_PIXEL_RATIO__ = nextRatio;
+  console.warn(`[Sigma] Rendering density adjusted from ${currentRatio} to ${nextRatio} after WebGL context loss.`);
+}
+
+function rebuildSigmaRendererAfterContextLoss() {
+  sigmaRecoveryTimer = null;
+  if (sigmaRecoveryInProgress || !renderer || !graph) return;
+  sigmaRecoveryInProgress = true;
+
+  const failedRenderer = renderer;
+  const container = failedRenderer.getContainer();
+  const settings = failedRenderer.getSettings();
+  const cameraState = failedRenderer.getCamera().getState();
+  const customBBox = failedRenderer.getCustomBBox();
+
+  try {
+    failedRenderer.kill();
+  } catch (error) {
+    console.warn('[Sigma] Failed renderer could not be fully released:', error);
+  }
+  renderer = null;
+
+  try {
+    container.replaceChildren();
+    renderer = new Sigma(graph, container, settings);
+    if (customBBox) renderer.setCustomBBox(customBBox);
+    renderer.getCamera().setState(cameraState);
+    bindSigmaRenderingRecovery();
+    setupInteractions();
+    syncCameraControlsToRenderer();
+    renderer.getCamera().setState(cameraState);
+    renderer.refresh();
+    sigmaWebGlRecoveries += 1;
+    console.info('[Sigma] Renderer and WebGL resources rebuilt successfully.');
+  } catch (error) {
+    console.error('[Sigma] Unable to rebuild renderer after WebGL context loss:', error);
+  } finally {
+    sigmaRecoveryInProgress = false;
+  }
+}
+
+function scheduleSigmaRendererRecovery(delay = 350) {
+  if (sigmaRecoveryInProgress) return;
+  clearTimeout(sigmaRecoveryTimer);
+  sigmaRecoveryTimer = setTimeout(rebuildSigmaRendererAfterContextLoss, delay);
+}
+
 function bindSigmaRenderingRecovery() {
   if (!renderer?.getCanvases) return;
   Object.values(renderer.getCanvases()).forEach(canvas => {
     if (canvas.dataset.minagraphWebglRecoveryBound === 'true') return;
     canvas.dataset.minagraphWebglRecoveryBound = 'true';
     canvas.addEventListener('webglcontextlost', event => {
+      if (sigmaRecoveryInProgress) return;
       event.preventDefault();
       sigmaWebGlContextLosses += 1;
-      console.warn('[Sigma] WebGL context lost; waiting for browser restoration.');
+      if (sigmaRecoveryTimer === null) {
+        sigmaWebGlLossIncidents += 1;
+        reduceSigmaPixelRatioAfterContextLoss();
+      }
+      console.warn('[Sigma] WebGL context lost; scheduling a complete renderer rebuild.');
+      scheduleSigmaRendererRecovery();
     });
     canvas.addEventListener('webglcontextrestored', () => {
-      console.info('[Sigma] WebGL context restored; rebuilding rendering buffers.');
-      scheduleSigmaViewportSync();
+      if (sigmaRecoveryInProgress) return;
+      console.info('[Sigma] Browser restored a WebGL context; rebuilding Sigma resources.');
+      scheduleSigmaRendererRecovery(50);
     });
   });
 }
@@ -380,12 +446,12 @@ function collectSigmaRenderingDiagnostics() {
   const canvasBuffers = Object.entries(canvases).map(([name, canvas]) =>
     `${name}: ${canvas.width}x${canvas.height} px / ${canvas.clientWidth}x${canvas.clientHeight} CSS`
   );
-  const webGlCanvas = Object.values(canvases).find(canvas =>
-    canvas.getContext('webgl2') || canvas.getContext('webgl')
-  );
-  const gl = webGlCanvas?.getContext('webgl2') || webGlCanvas?.getContext('webgl') || null;
+  const gl = Object.values(renderer?.webGLContexts || {})[0] || null;
+  const contextLost = gl?.isContextLost?.() === true;
   const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
-  const webGlRenderer = debugInfo
+  const webGlRenderer = contextLost
+    ? 'Context lost'
+    : debugInfo
     ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
     : gl ? 'Available (renderer hidden)' : 'Unavailable';
 
@@ -398,12 +464,15 @@ function collectSigmaRenderingDiagnostics() {
       ? `${container.clientWidth}x${container.clientHeight} CSS px`
       : 'Unavailable',
     sigmaPixelRatio: renderer?.pixelRatio ?? 'Renderer not initialized',
+    sigmaPixelRatioLimit: window.__MINAGRAPH_SIGMA_PIXEL_RATIO__ || 'Native device ratio',
     sigmaCanvasBuffers: canvasBuffers.join(' | ') || 'Renderer not initialized',
     webGlRenderer,
-    webGlLimits: gl
+    webGlLimits: gl && !contextLost
       ? `texture ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}, renderbuffer ${gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)}`
-      : 'Unavailable',
-    webGlContextLosses: sigmaWebGlContextLosses
+      : contextLost ? 'Context lost' : 'Unavailable',
+    webGlContextLosses: sigmaWebGlContextLosses,
+    webGlLossIncidents: sigmaWebGlLossIncidents,
+    webGlRecoveries: sigmaWebGlRecoveries
   };
 }
 
@@ -507,10 +576,13 @@ function renderTechnicalDiagnostics(diagnostics) {
     ['Visual viewport', diagnostics.visualViewport],
     ['Sigma container', diagnostics.sigmaContainer],
     ['Sigma pixel ratio', diagnostics.sigmaPixelRatio],
+    ['Sigma pixel ratio limit', diagnostics.sigmaPixelRatioLimit],
     ['Sigma canvas buffers', diagnostics.sigmaCanvasBuffers],
     ['WebGL renderer', diagnostics.webGlRenderer],
     ['WebGL limits', diagnostics.webGlLimits],
     ['WebGL context losses', diagnostics.webGlContextLosses],
+    ['WebGL loss incidents', diagnostics.webGlLossIncidents],
+    ['WebGL renderer recoveries', diagnostics.webGlRecoveries],
     ['Checked at', diagnostics.checkedAt],
     ['Browser', diagnostics.userAgent]
   ];
@@ -5070,11 +5142,16 @@ function setupInteractions() {
     renderer.refresh();
   });
 
-  // Keep tooltip following pointer
-    renderer.getContainer().addEventListener("mousemove", e => {
+  // Keep tooltip following pointer. The container survives WebGL renderer
+  // rebuilds, so this DOM listener must only be installed once.
+  const interactionContainer = renderer.getContainer();
+  if (interactionContainer.dataset.minagraphTooltipTracking !== "true") {
+    interactionContainer.dataset.minagraphTooltipTracking = "true";
+    interactionContainer.addEventListener("mousemove", e => {
       tooltip.style.left = e.pageX + 10 + "px";
       tooltip.style.top = e.pageY + 10 + "px";
     });
+  }
   
   // Start drag on downNode (mouse or touch)
     renderer.on("downNode", ({ node, event }) => {
