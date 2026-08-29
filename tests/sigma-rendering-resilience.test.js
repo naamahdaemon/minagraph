@@ -21,6 +21,10 @@ assert.match(script, /failedRenderer\.getCamera\(\)\.getState\(\)/);
 assert.match(script, /reduceSigmaPixelRatioAfterContextLoss/);
 assert.match(script, /sigmaWebGlLossIncidents/);
 assert.match(script, /sigmaWebGlRecoveries/);
+assert.match(script, /waitForSigmaWebGlRestoration/);
+assert.match(script, /failedRenderer\.webGLContexts = \{\}/);
+assert.match(script, /sigmaRecoverySnapshot/);
+assert.match(script, /sigmaRecoveryLastError/);
 assert.match(script, /collectSigmaRenderingDiagnostics/);
 assert.match(worker, /'\/scripts\/sigma\.umd\.js'/);
 
