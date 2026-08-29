@@ -97,6 +97,8 @@ let layoutWorker;
 let currentLayout = null;  // the one currently running
 let previousLayout = null;
 const LAYOUT_STORAGE_KEY = "layoutSettings";
+const FILTER_PANEL_VISIBILITY_KEY = "minagraphFilterPanelVisible";
+let isFilterPanelVisible = true;
 
 // Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
 // Playwright cannot locate them through the DOM. Getters are used because both
@@ -769,6 +771,15 @@ document.addEventListener("DOMContentLoaded", () => {
   slicer = document.getElementById("date-slicer-container");
 
   const technicalModal = document.getElementById('technical-info-modal');
+  try {
+    isFilterPanelVisible = localStorage.getItem(FILTER_PANEL_VISIBILITY_KEY) !== "false";
+  } catch (error) {
+    console.warn("Could not restore filter visibility:", error);
+  }
+  setFilterPanelVisible(isFilterPanelVisible, { persist: false });
+  document.getElementById('filter-toggle-btn')?.addEventListener('click', () => {
+    setFilterPanelVisible(!isFilterPanelVisible);
+  });
   document.getElementById('technical-info-button')?.addEventListener('click', openTechnicalInfoPanel);
   document.getElementById('technical-info-close')?.addEventListener('click', () => { technicalModal.hidden = true; });
   document.getElementById('technical-refresh-button')?.addEventListener('click', refreshTechnicalDiagnostics);
@@ -4171,6 +4182,29 @@ function animateLayout(iterations = null, profile = "initial") {
   });
 }
 
+function setFilterPanelVisible(visible, { persist = true } = {}) {
+  isFilterPanelVisible = Boolean(visible);
+  const legend = document.getElementById("legend");
+  const button = document.getElementById("filter-toggle-btn");
+
+  if (legend) legend.style.display = isFilterPanelVisible && !isFullscreen ? "block" : "none";
+  if (button) {
+    const label = isFilterPanelVisible ? "Hide filters" : "Show filters";
+    button.classList.toggle("is-active", isFilterPanelVisible);
+    button.setAttribute("aria-pressed", String(isFilterPanelVisible));
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  }
+
+  if (persist) {
+    try {
+      localStorage.setItem(FILTER_PANEL_VISIBILITY_KEY, String(isFilterPanelVisible));
+    } catch (error) {
+      console.warn("Could not save filter visibility:", error);
+    }
+  }
+}
+
 function deleteSelectedNode(nodeId) {
   const panel = document.getElementById("side-panel");
   
@@ -4304,7 +4338,10 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   //hideLoader();
   hideOverlaySpinner();       // ⬅️ Hide spinner overlay
   showNodePanel(key); // 🔁 Refresh node panel after fetch
-  animateLayout(null, "incremental");
+  // A cross-chain expansion is an explicit user action: honor every current
+  // layout setting, including the iterations field, instead of using the
+  // automatic incremental profile.
+  animateLayout(null, "initial");
 
   BASE_KEY = previousInitialKey;
   //FIRST_ITERATION_LIMIT = initialFirstLimit;
@@ -5360,7 +5397,12 @@ function setupSearch_old() {
 function setupSearch() {
   const searchInput = document.getElementById("search-input");
   const clearBtn = document.getElementById("clear-search");
-  const panel = document.getElementById("side-panel");
+  const searchButton = document.getElementById("search-icon");
+
+  // Renderer recovery can call setupSearch again. Keep a single set of DOM
+  // listeners so one tap always produces exactly one visibility transition.
+  if (!searchInput || !clearBtn || !searchButton || searchButton.dataset.searchInitialized === "true") return;
+  searchButton.dataset.searchInitialized = "true";
 
   searchInput.addEventListener("input", e => {
     const query = e.target.value;
@@ -5368,13 +5410,14 @@ function setupSearch() {
     handleSearch(query); // nouvelle fonction puissante
   });
 
-  document.getElementById("search-icon").addEventListener("click", () => {
+  searchButton.addEventListener("click", () => {
     const searchDiv = document.getElementById("searchdiv");
     const input = document.getElementById("search-input");
-    const searchVisible = searchDiv.style.display === "block" ? false : true;
-    searchDiv.style.display = searchVisible ? "none" : "block";
-    input.style.display = searchVisible ? "none" : "block";
-    if (searchVisible) input.focus();
+    const shouldShow = searchDiv.style.display !== "block";
+    searchDiv.style.display = shouldShow ? "block" : "none";
+    input.style.display = shouldShow ? "block" : "none";
+    searchButton.setAttribute("aria-expanded", String(shouldShow));
+    if (shouldShow) input.focus();
   });
 
   clearBtn.addEventListener("click", () => {
@@ -6296,7 +6339,8 @@ function setFullscreenMode(active) {
     if (footer) footer.style.display = "none";
     appContainer.classList.remove("sidebar-open"); // 👈 remove margin
     //sidebar.classList.remove("open"); // 👈 remove margin
-    fullscreenBtn.textContent = "Exit Fullscreen";
+    fullscreenBtn.title = "Exit Full Screen (F)";
+    fullscreenBtn.setAttribute("aria-label", "Exit Full Screen");
     exitFullscreenBtn.style.background = exitfillColor;
     exitFullscreenBtn.style.color = fillColor;
     exitFullscreenBtn.style.display = "block";
@@ -6308,8 +6352,8 @@ function setFullscreenMode(active) {
     sidebar.style.display = "block";
     controls.style.display = "flex";
     slicer.style.display = "block";
-    legend.style.display="block";
-    legend.style.top = "20px";
+    setFilterPanelVisible(isFilterPanelVisible, { persist: false });
+    legend.style.top = "70px";
     if (footer) footer.style.display = "block";
     menu.style.display="block"
 
@@ -6322,12 +6366,8 @@ function setFullscreenMode(active) {
       legend.style.left = "50px";
     }
 
-    const enterFullscreenIcon = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="${fillColor}">
-      <path d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zm6 12v6h-6v-2h4v-4h2zm-12 6H3v-6h2v4h4v2z" fill="${fillColor}"/>
-    </svg>`;
-
-    fullscreenBtn.innerHTML = enterFullscreenIcon;
+    fullscreenBtn.title = "Full Screen (F)";
+    fullscreenBtn.setAttribute("aria-label", "Full Screen");
     exitFullscreenBtn.style.display = "none";
     document.body.classList.remove("fullscreen-mode");
     updateLegendOffset(); // 👈 and here too
