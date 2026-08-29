@@ -24,6 +24,10 @@ assert.match(sigma, /compatibilityMode \? this\.webGLContexts\.nodes : this\.web
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\) && \(!this\.settings\.hideEdgesOnMove \|\| !moving\)\)/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) return this;/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*drawDiscNodeLabel\(context, data, settings\);\s*return;/);
+assert.match(sigma, /_defineProperty\(_this, "hadMultiTouch", false\)/);
+assert.match(sigma, /if \(touches\.length > 1\) this\.hadMultiTouch = true/);
+assert.match(sigma, /if \(!e\.touches\.length && !this\.hadMultiTouch\)/);
+assert.match(sigma, /if \(!e\.touches\.length\) this\.hadMultiTouch = false/);
 assert.doesNotMatch(script, /scheduleSigmaViewportSync/);
 assert.doesNotMatch(script, /reduceSigmaPixelRatioAfterContextLoss/);
 assert.match(script, /webglcontextlost/);

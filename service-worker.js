@@ -1,6 +1,6 @@
-const CACHE_NAME = 'mina-graph-explorer-v22';
+const CACHE_NAME = 'mina-graph-explorer-v23';
 const APP_BUILD_DATE = '2026-08-29';
-const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v21';
+const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v22';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
 // notification click handling and can otherwise replace the application's one.
