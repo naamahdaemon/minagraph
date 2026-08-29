@@ -344,7 +344,7 @@ let sigmaWebGlLossIncidents = 0;
 let sigmaWebGlRecoveries = 0;
 let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
-let rotatePositionTimers = [];
+let rotatePositionRun = 0;
 
 function positionRotateSlider() {
   if (!rotateSlider || !sigmaContainer) return;
@@ -391,13 +391,44 @@ function positionRotateSlider() {
 }
 
 function scheduleRotateSliderPosition() {
-  rotatePositionTimers.forEach(clearTimeout);
-  rotatePositionTimers = [];
+  const currentRun = ++rotatePositionRun;
+  const startedAt = performance.now();
+  let previousGeometry = "";
+  let stableFrames = 0;
 
-  requestAnimationFrame(() => requestAnimationFrame(positionRotateSlider));
-  [120, 350, 700].forEach(delay => {
-    rotatePositionTimers.push(setTimeout(positionRotateSlider, delay));
-  });
+  const settlePosition = () => {
+    if (currentRun !== rotatePositionRun) return;
+
+    positionRotateSlider();
+
+    const graphBounds = sigmaContainer?.getBoundingClientRect();
+    const slicerBounds = document.getElementById("date-slicer-container")?.getBoundingClientRect();
+    const geometry = [
+      window.innerWidth,
+      window.innerHeight,
+      window.visualViewport?.width,
+      window.visualViewport?.height,
+      document.body.classList.contains("mobile-mode"),
+      graphBounds?.left,
+      graphBounds?.top,
+      graphBounds?.right,
+      graphBounds?.bottom,
+      slicerBounds?.left,
+      slicerBounds?.top,
+      slicerBounds?.right,
+      slicerBounds?.bottom
+    ].map(value => typeof value === "number" ? Math.round(value) : value).join("|");
+
+    stableFrames = geometry === previousGeometry ? stableFrames + 1 : 0;
+    previousGeometry = geometry;
+
+    const elapsed = performance.now() - startedAt;
+    if (elapsed < 900 || stableFrames < 4) {
+      requestAnimationFrame(settlePosition);
+    }
+  };
+
+  requestAnimationFrame(settlePosition);
 }
 let sigmaRecoveryIncidentActive = false;
 let sigmaRecoverySnapshot = null;
