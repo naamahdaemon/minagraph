@@ -343,6 +343,10 @@ let sigmaWebGlLossIncidents = 0;
 let sigmaWebGlRecoveries = 0;
 let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
+let sigmaRecoveryIncidentActive = false;
+let sigmaRecoverySnapshot = null;
+let sigmaRecoveryLastError = 'None';
+const sigmaLostCanvases = new Set();
 
 function scheduleSigmaViewportSync() {
   if (sigmaViewportSyncFrame !== null) return;
@@ -375,21 +379,39 @@ function reduceSigmaPixelRatioAfterContextLoss() {
 
 function rebuildSigmaRendererAfterContextLoss() {
   sigmaRecoveryTimer = null;
-  if (sigmaRecoveryInProgress || !renderer || !graph) return;
+  if (sigmaRecoveryInProgress || (!renderer && !sigmaRecoverySnapshot) || !graph) return;
+
+  if (renderer) {
+    const contexts = Object.values(renderer.webGLContexts || {});
+    if (contexts.some(context => context?.isContextLost?.())) {
+      waitForSigmaWebGlRestoration();
+      return;
+    }
+  }
   sigmaRecoveryInProgress = true;
 
-  const failedRenderer = renderer;
-  const container = failedRenderer.getContainer();
-  const settings = failedRenderer.getSettings();
-  const cameraState = failedRenderer.getCamera().getState();
-  const customBBox = failedRenderer.getCustomBBox();
+  if (renderer) {
+    const failedRenderer = renderer;
+    sigmaRecoverySnapshot = {
+      container: failedRenderer.getContainer(),
+      settings: failedRenderer.getSettings(),
+      cameraState: failedRenderer.getCamera().getState(),
+      customBBox: failedRenderer.getCustomBBox()
+    };
 
-  try {
-    failedRenderer.kill();
-  } catch (error) {
-    console.warn('[Sigma] Failed renderer could not be fully released:', error);
+    try {
+      // Sigma 2.4 explicitly invokes WEBGL_lose_context from killLayer. During
+      // recovery that would reset the GPU again just before creating the new
+      // renderer. The restored contexts can be released normally instead.
+      failedRenderer.webGLContexts = {};
+      failedRenderer.kill();
+    } catch (error) {
+      console.warn('[Sigma] Failed renderer could not be fully released:', error);
+    }
+    renderer = null;
   }
-  renderer = null;
+
+  const { container, settings, cameraState, customBBox } = sigmaRecoverySnapshot;
 
   try {
     container.replaceChildren();
@@ -402,18 +424,40 @@ function rebuildSigmaRendererAfterContextLoss() {
     renderer.getCamera().setState(cameraState);
     renderer.refresh();
     sigmaWebGlRecoveries += 1;
+    sigmaRecoveryIncidentActive = false;
+    sigmaRecoverySnapshot = null;
+    sigmaRecoveryLastError = 'None';
+    sigmaLostCanvases.clear();
     console.info('[Sigma] Renderer and WebGL resources rebuilt successfully.');
   } catch (error) {
+    renderer = null;
+    sigmaRecoveryLastError = error?.stack || error?.message || String(error);
     console.error('[Sigma] Unable to rebuild renderer after WebGL context loss:', error);
+    clearTimeout(sigmaRecoveryTimer);
+    sigmaRecoveryTimer = setTimeout(rebuildSigmaRendererAfterContextLoss, 1500);
   } finally {
     sigmaRecoveryInProgress = false;
   }
 }
 
-function scheduleSigmaRendererRecovery(delay = 350) {
+function scheduleSigmaRendererRecovery(delay = 100) {
   if (sigmaRecoveryInProgress) return;
   clearTimeout(sigmaRecoveryTimer);
   sigmaRecoveryTimer = setTimeout(rebuildSigmaRendererAfterContextLoss, delay);
+}
+
+function waitForSigmaWebGlRestoration() {
+  if (sigmaRecoveryInProgress) return;
+  clearTimeout(sigmaRecoveryTimer);
+  sigmaRecoveryTimer = setTimeout(() => {
+    sigmaRecoveryTimer = null;
+    const contexts = Object.values(renderer?.webGLContexts || {});
+    if (contexts.length && contexts.every(context => !context?.isContextLost?.())) {
+      scheduleSigmaRendererRecovery();
+    } else {
+      waitForSigmaWebGlRestoration();
+    }
+  }, 500);
 }
 
 function bindSigmaRenderingRecovery() {
@@ -425,17 +469,20 @@ function bindSigmaRenderingRecovery() {
       if (sigmaRecoveryInProgress) return;
       event.preventDefault();
       sigmaWebGlContextLosses += 1;
-      if (sigmaRecoveryTimer === null) {
+      sigmaLostCanvases.add(canvas);
+      if (!sigmaRecoveryIncidentActive) {
+        sigmaRecoveryIncidentActive = true;
         sigmaWebGlLossIncidents += 1;
         reduceSigmaPixelRatioAfterContextLoss();
       }
-      console.warn('[Sigma] WebGL context lost; scheduling a complete renderer rebuild.');
-      scheduleSigmaRendererRecovery();
+      console.warn('[Sigma] WebGL context lost; waiting for all contexts to be restored.');
+      waitForSigmaWebGlRestoration();
     });
     canvas.addEventListener('webglcontextrestored', () => {
       if (sigmaRecoveryInProgress) return;
-      console.info('[Sigma] Browser restored a WebGL context; rebuilding Sigma resources.');
-      scheduleSigmaRendererRecovery(50);
+      sigmaLostCanvases.delete(canvas);
+      console.info(`[Sigma] Browser restored a WebGL context; ${sigmaLostCanvases.size} still lost.`);
+      if (sigmaLostCanvases.size === 0) scheduleSigmaRendererRecovery();
     });
   });
 }
@@ -472,7 +519,9 @@ function collectSigmaRenderingDiagnostics() {
       : contextLost ? 'Context lost' : 'Unavailable',
     webGlContextLosses: sigmaWebGlContextLosses,
     webGlLossIncidents: sigmaWebGlLossIncidents,
-    webGlRecoveries: sigmaWebGlRecoveries
+    webGlRecoveries: sigmaWebGlRecoveries,
+    webGlContextsAwaitingRestore: sigmaLostCanvases.size,
+    webGlRecoveryError: sigmaRecoveryLastError
   };
 }
 
@@ -583,6 +632,8 @@ function renderTechnicalDiagnostics(diagnostics) {
     ['WebGL context losses', diagnostics.webGlContextLosses],
     ['WebGL loss incidents', diagnostics.webGlLossIncidents],
     ['WebGL renderer recoveries', diagnostics.webGlRecoveries],
+    ['WebGL contexts awaiting restore', diagnostics.webGlContextsAwaitingRestore],
+    ['WebGL recovery error', diagnostics.webGlRecoveryError],
     ['Checked at', diagnostics.checkedAt],
     ['Browser', diagnostics.userAgent]
   ];
