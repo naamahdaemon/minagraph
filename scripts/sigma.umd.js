@@ -3252,6 +3252,7 @@
       _defineProperty(_this, "startTouchesPositions", []);
       _defineProperty(_this, "lastTouches", []);
       _defineProperty(_this, "lastTap", null);
+      _defineProperty(_this, "hadMultiTouch", false);
       _defineProperty(_this, "settings", DEFAULT_TOUCH_SETTINGS);
       _this.handleStart = _this.handleStart.bind(_this);
       _this.handleLeave = _this.handleLeave.bind(_this);
@@ -3300,6 +3301,7 @@
         e.preventDefault();
         var touches = getTouchesArray(e.touches);
         this.touchMode = touches.length;
+        if (touches.length > 1) this.hadMultiTouch = true;
         this.startCameraState = this.renderer.getCamera().getState();
         this.startTouchesPositions = touches.map(function (touch) {
           return getPosition(touch, _this2.container);
@@ -3364,7 +3366,7 @@
         this.emit("touchup", getTouchCoords(e, this.lastTouches, this.container));
 
         // When the last touch ends and there hasn't been too much movement, trigger a "tap" or "doubletap" event:
-        if (!e.touches.length) {
+        if (!e.touches.length && !this.hadMultiTouch) {
           var position = getPosition(this.lastTouches[0], this.container);
           var downPosition = this.startTouchesPositions[0];
           var dSquare = Math.pow(position.x - downPosition.x, 2) + Math.pow(position.y - downPosition.y, 2);
@@ -3394,6 +3396,7 @@
             }
           }
         }
+        if (!e.touches.length) this.hadMultiTouch = false;
         this.lastTouches = getTouchesArray(e.touches);
         this.startTouchesPositions = [];
       }
