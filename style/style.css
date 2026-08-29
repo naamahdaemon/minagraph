@@ -218,13 +218,58 @@
       display: flex;
       align-items: center;
       gap: 4px;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
+      overflow: visible;
     }
 
     .command-bar-spacer {
       flex: 1 1 auto;
       min-width: 4px;
+    }
+
+    #controls > button {
+      flex: 0 0 38px;
+      width: 38px !important;
+      height: 38px !important;
+      min-width: 38px;
+      margin: 0 !important;
+      padding: 0 7px !important;
+      gap: 7px;
+      border: 1px solid rgba(127, 127, 127, 0.48) !important;
+      border-radius: 8px !important;
+      background: transparent;
+    }
+
+    #controls > button:hover,
+    #controls > button:focus-visible {
+      border-color: #4fc3f7 !important;
+      background: rgba(79, 195, 247, 0.14) !important;
+      outline: none;
+    }
+
+    .command-label {
+      display: none;
+      white-space: nowrap;
+      font-family: 'Coda', sans-serif;
+      font-size: 12px;
+    }
+
+    @media screen and (min-width: 1180px) {
+      #controls > .command-button {
+        flex-basis: 118px;
+        width: 118px !important;
+      }
+
+      .command-button .command-label {
+        display: inline;
+      }
+    }
+
+    @media screen and (max-width: 768px) {
+      #controls > #favorites-btn,
+      #controls > #watched-btn,
+      #controls > #reset-db-btn {
+        display: none !important;
+      }
     }
 
     body.fullscreen-mode #main-content {
@@ -1053,6 +1098,12 @@
       border: 1px solid rgba(79, 195, 247, 0.55);
     }
 
+    .layout-run-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+
     .layout-toggle-button:hover,
     .layout-toggle-button:focus-visible {
       background: rgba(79, 195, 247, 0.16);
@@ -1135,7 +1186,7 @@
     /* Base legend style */
     #legend.legend-box {
       position: fixed;
-      top: 20px;
+      top: 70px;
       left: 50px;
       background: #222;
       color: white;
@@ -1329,8 +1380,8 @@
     }
     #searchdiv {
       position: absolute;
-      top: 100%;
-      right: 0;
+      top: calc(100% + 6px);
+      right: 10px;
       background: #222;
       border: 1px solid #444;
       border-radius: 6px;
@@ -1338,10 +1389,12 @@
       display: none;
       z-index: 1000;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      margin-top: 6px;
+      width: min(330px, calc(100vw - 20px));
+      margin-top: 0;
     }
 
     #searchdiv input {
+      width: 100%;
       padding: 6px 10px;
       font-size: 14px;
       border: none;
@@ -1472,6 +1525,13 @@
   @media screen and (max-width: 768px) {
     body.node-panel-open {
       overflow: hidden;
+    }
+
+    #notification-list {
+      top: calc(100% + 6px) !important;
+      right: 10px !important;
+      width: min(330px, calc(100vw - 20px));
+      min-width: min(330px, calc(100vw - 20px)) !important;
     }
 
     #side-panel {

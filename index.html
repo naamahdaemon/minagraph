@@ -444,15 +444,23 @@
       <div id="controls">
         <button id="menu-toggle" type="button" title="Open settings (S)" aria-label="Open settings" aria-controls="left-sidebar" aria-expanded="false">☰</button>
 
-        <button id="layout-toggle-btn" class="control-button layout-toggle-button" type="button" title="Apply current layout (L)" aria-label="Apply current layout">
+        <div class="command-bar-spacer" aria-hidden="true"></div>
+
+        <button id="layout-toggle-btn" class="control-button command-button layout-toggle-button" type="button" title="Apply current layout (L)" aria-label="Apply current layout">
           <span class="layout-run-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24">
               <path d="M8 5v14l11-7z"/>
             </svg>
           </span>
+          <span class="command-label">Apply Layout</span>
         </button>
 
-        <div class="command-bar-spacer" aria-hidden="true"></div>
+        <button id="filter-toggle-btn" class="control-button command-button" type="button" title="Show filters" aria-label="Show filters" aria-controls="legend" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <path d="M3 5h18l-7 8v5l-4 2v-7L3 5z"/>
+          </svg>
+          <span class="command-label">Filter</span>
+        </button>
 
         <div style="min-width: 200px;display: none;">
           <label style="color:#aaa;">Layout info</label><br />
@@ -475,7 +483,7 @@
           <button id="clear-search">×</button>
         </div>
 
-        <button id="search-icon" class="control-button" title="Search" style="background: none; border: none; cursor: pointer;">
+        <button id="search-icon" class="control-button command-button" title="Search" aria-label="Search" style="background: none; border: none; cursor: pointer;">
           <svg id="search-icon-svg" viewBox="0 0 24 24" width="24" height="24">
             <path d="M15.5,14h-0.79l-0.28-0.27c1.01-1.18,1.63-2.71,1.63-4.38
               C16.06,6.47,13.59,4,10.53,4S5,6.47,5,9.53S7.47,15.06,10.53,15.06
@@ -484,6 +492,7 @@
               M10.53,13.06c-1.95,0-3.53-1.58-3.53-3.53s1.58-3.53,3.53-3.53
               s3.53,1.58,3.53,3.53S12.48,13.06,10.53,13.06z"/>
           </svg>
+          <span class="command-label">Search</span>
         </button>
 
 
@@ -493,10 +502,11 @@
         </div>
 
         <!-- 🔔 Notification icon with badge -->
-        <button id="notification-button" class="control-button" title="Notifications" style="background: none; border: none; position: relative; cursor: pointer; margin-right: 0px;">
+        <button id="notification-button" class="control-button command-button" title="Notifications" aria-label="Notifications" style="background: none; border: none; position: relative; cursor: pointer; margin-right: 0px;">
           <svg viewBox="0 0 24 24" width="24" height="24">
             <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2zm6-6V9a6 6 0 10-12 0v7l-2 2v1h16v-1l-2-2z" fill="white"/>
           </svg>
+          <span class="command-label">Notifications</span>
           <span id="notification-badge" style="
             position: absolute;
             top: -4px;
@@ -508,12 +518,6 @@
             font-size: 10px;
             display: none;
           ">0</span>
-        </button>
-
-        <button id="technical-info-button" class="control-button" title="Technical information" aria-label="Technical information">
-          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-            <path d="M11 17h2v-6h-2v6zm1-15a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2V7h-2v2z"/>
-          </svg>
         </button>
 
         <div id="notification-list" style="
@@ -536,31 +540,17 @@
         "></div>
 
 
-          <button id="theme-toggle-btn" class="control-button" title="Toggle theme" >
+          <button id="theme-toggle-btn" class="control-button command-button" title="Theme" aria-label="Theme">
             <span id="theme-icon">
               <!-- SVG moon (default dark theme) -->
               <svg viewBox="0 0 24 24" width="24" height="24" style="fill:white;">
                 <path fill="white" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/>
               </svg>
             </span>
+            <span class="command-label">Theme</span>
           </button>
 
-          <!-- ⭐ Favorites icon -->
-          <button id="favorites-btn" class="control-button" title="Show Favorites" style="background: none; border: none; cursor: pointer;">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-            </svg>
-          </button>
-
-          <!-- 👓 Watched Addresses icon -->
-          <button id="watched-btn" class="control-button" title="Show Watched Addresses" style="background: none; border: none; cursor: pointer;display: none;">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 13c-3.03 0-5.5-2.47-5.5-5.5S8.97 6.5 12 6.5s5.5 2.47 5.5 5.5-2.47 5.5-5.5 5.5zm0-9A3.5 3.5 0 0012 15a3.5 3.5 0 000-7z"/>
-            </svg>
-          </button>
-
-
-          <button id="fullscreen-toggle" class="control-button" title="Toggle Fullscreen (F)" style="
+          <button id="fullscreen-toggle" class="control-button command-button" title="Full Screen (F)" aria-label="Full Screen" style="
             padding: 6px 12px;
             color: white;
             border: none;
@@ -571,6 +561,26 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="34" fill="white">
               <!-- four outward-pointing corners -->
               <path d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zm6 12v6h-6v-2h4v-4h2zm-12 6H3v-6h2v4h4v2z"/>
+            </svg>
+            <span class="command-label">Full Screen</span>
+          </button>
+
+          <button id="technical-info-button" class="control-button command-button" title="About" aria-label="About">
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+              <path d="M11 17h2v-6h-2v6zm1-15a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2V7h-2v2z"/>
+            </svg>
+            <span class="command-label">About</span>
+          </button>
+
+          <button id="favorites-btn" class="control-button" title="Show Favorites" aria-label="Show Favorites" style="background: none; border: none; cursor: pointer;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+          </button>
+
+          <button id="watched-btn" class="control-button" title="Show Watched Addresses" aria-label="Show Watched Addresses" style="background: none; border: none; cursor: pointer;display: none;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 13c-3.03 0-5.5-2.47-5.5-5.5S8.97 6.5 12 6.5s5.5 2.47 5.5 5.5-2.47 5.5-5.5 5.5zm0-9A3.5 3.5 0 0012 15a3.5 3.5 0 000-7z"/>
             </svg>
           </button>
           
