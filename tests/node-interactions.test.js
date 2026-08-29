@@ -8,11 +8,15 @@ const end = source.indexOf('function setupSearch_old()', start);
 assert.ok(start >= 0 && end > start, 'Interaction setup should exist');
 const interactions = source.slice(start, end);
 
-assert.match(interactions, /renderer\.on\("clickNode", \(\{ node \}\) => \{/);
+assert.match(interactions, /const isTouchInteraction = event => event\?\.original\?\.type\?\.startsWith\("touch"\) === true;/);
+assert.match(interactions, /renderer\.on\("enterNode", \(\{ node, event \}\) => \{\s*\/\/[\s\S]*?if \(isTouchInteraction\(event\)\) return;/);
+assert.match(interactions, /renderer\.on\("clickNode", \(\{ node, event \}\) => \{/);
 assert.match(interactions, /if \(hasMoved \|\| suppressNodeClick \|\| !graph\.hasNode\(node\)\) return;/);
 assert.match(interactions, /ignoreStageClickUntil = Date\.now\(\) \+ 150;/);
 assert.match(interactions, /renderer\.on\("clickStage", \(\) => \{\s*if \(Date\.now\(\) <= ignoreStageClickUntil\)/);
 assert.match(interactions, /selectedNode = node;\s*showNodePanel\(node\);/);
+assert.match(interactions, /if \(isTouchInteraction\(event\)\) \{\s*if \(selectedNode === node\) \{\s*showNodePanel\(node\);\s*\} else \{\s*setNodePanelOpen\(false\);\s*selectedNode = node;/);
+assert.match(interactions, /if \(getTouchCount\(event\) > 1\) \{\s*cancelDrag\(\);\s*return;\s*\}\s*if \(!isDragging/);
 assert.doesNotMatch(interactions, /renderer\.on\("downNode"[\s\S]*?dragStartPos = \{ x: event\.x, y: event\.y \};\s*graph\.setNodeAttribute\(node, "highlighted", true\)/);
 assert.match(interactions, /Math\.hypot\(dx, dy\) > 5[\s\S]*?graph\.setNodeAttribute\(draggedNode, "highlighted", true\)/);
 assert.match(interactions, /renderer\.on\("upNode", endDrag\);\s*renderer\.on\("upStage", endDrag\);/);
