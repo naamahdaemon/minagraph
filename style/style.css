@@ -289,6 +289,19 @@
       padding-top: 0;
     }
 
+    body.fullscreen-mode #app-container,
+    body.fullscreen-mode #main-content {
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100dvh;
+    }
+
+    body.mobile-mode.fullscreen-mode #sigma-container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      min-height: 100dvh !important;
+    }
+
     #sigma-container {
       flex: 1;
       position: relative;
