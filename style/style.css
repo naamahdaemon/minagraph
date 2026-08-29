@@ -200,7 +200,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
-      padding-top: calc(54px + env(safe-area-inset-top, 0px));
+      padding-top: 54px;
     }
 
     #controls {
@@ -209,10 +209,10 @@
       left: 0;
       right: 0;
       width: 100%;
-      min-height: calc(54px + env(safe-area-inset-top, 0px));
+      min-height: 54px;
       background: #222;
       z-index: 1001;
-      padding: calc(5px + env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) 5px max(10px, env(safe-area-inset-left, 0px));
+      padding: 5px 10px;
       border-bottom: 1px solid rgba(127, 127, 127, 0.38);
       border-radius: 0;
       display: flex;
@@ -274,8 +274,7 @@
 
       #controls {
         gap: 3px;
-        padding-right: max(6px, env(safe-area-inset-right, 0px));
-        padding-left: max(6px, env(safe-area-inset-left, 0px));
+        padding-inline: 6px;
       }
 
       #controls > button {
@@ -288,11 +287,6 @@
 
     body.fullscreen-mode #main-content {
       padding-top: 0;
-    }
-
-    #exit-fullscreen-btn {
-      top: max(20px, env(safe-area-inset-top, 0px)) !important;
-      right: max(30px, env(safe-area-inset-right, 0px)) !important;
     }
 
     body.fullscreen-mode #app-container,
