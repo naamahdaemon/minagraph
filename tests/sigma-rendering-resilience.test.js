@@ -23,6 +23,7 @@ assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this\
 assert.match(sigma, /compatibilityMode \? this\.webGLContexts\.nodes : this\.webGLContexts\.edges/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\) && \(!this\.settings\.hideEdgesOnMove \|\| !moving\)\)/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) return this;/);
+assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*drawDiscNodeLabel\(context, data, settings\);\s*return;/);
 assert.doesNotMatch(script, /scheduleSigmaViewportSync/);
 assert.doesNotMatch(script, /reduceSigmaPixelRatioAfterContextLoss/);
 assert.match(script, /webglcontextlost/);
