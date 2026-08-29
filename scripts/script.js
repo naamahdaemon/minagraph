@@ -1538,17 +1538,15 @@ document.addEventListener("DOMContentLoaded", () => {
 init();
 
 function handleNotificationActions(notif) {
-  if (!notif || !notif.action_primary) return;
+  if (!notif?.chain || !notif?.address) return;
 
-  if (notif.action_primary === 'show_graph' && notif.chain && notif.address) {
-    console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
-    try {
-      BASE_KEY = notif.address;
-      main(2, true, notif.chain); 
-    } catch (e) {
-      console.error('Error triggering graph from notification:', e);
-    }
-  }
+  console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
+  BASE_KEY = notif.address;
+  document.getElementById("blockchain-select").value = notif.chain;
+  document.getElementById("param-base-key").value = notif.address;
+  main(2, true, notif.chain).catch(error => {
+    console.error('Error triggering graph from notification:', error);
+  });
 }
 
 
