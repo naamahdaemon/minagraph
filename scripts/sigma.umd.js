@@ -5654,7 +5654,8 @@
       key: "resize",
       value: function resize(force) {
         var previousWidth = this.width,
-          previousHeight = this.height;
+          previousHeight = this.height,
+          previousPixelRatio = this.pixelRatio;
         this.width = this.container.offsetWidth;
         this.height = this.container.offsetHeight;
         this.pixelRatio = getPixelRatio();
@@ -5666,7 +5667,7 @@
         }
 
         // If nothing has changed, we can stop right here
-        if (!force && previousWidth === this.width && previousHeight === this.height) return this;
+        if (!force && previousWidth === this.width && previousHeight === this.height && previousPixelRatio === this.pixelRatio) return this;
 
         // Sizing dom elements
         for (var id in this.elements) {
@@ -5677,15 +5678,15 @@
 
         // Sizing canvas contexts
         for (var _id in this.canvasContexts) {
-          this.elements[_id].setAttribute("width", this.width * this.pixelRatio + "px");
-          this.elements[_id].setAttribute("height", this.height * this.pixelRatio + "px");
+          this.elements[_id].setAttribute("width", this.width * this.pixelRatio);
+          this.elements[_id].setAttribute("height", this.height * this.pixelRatio);
           if (this.pixelRatio !== 1) this.canvasContexts[_id].scale(this.pixelRatio, this.pixelRatio);
         }
 
         // Sizing WebGL contexts
         for (var _id2 in this.webGLContexts) {
-          this.elements[_id2].setAttribute("width", this.width * this.pixelRatio + "px");
-          this.elements[_id2].setAttribute("height", this.height * this.pixelRatio + "px");
+          this.elements[_id2].setAttribute("width", this.width * this.pixelRatio);
+          this.elements[_id2].setAttribute("height", this.height * this.pixelRatio);
           var gl = this.webGLContexts[_id2];
           gl.viewport(0, 0, this.width * this.pixelRatio, this.height * this.pixelRatio);
 

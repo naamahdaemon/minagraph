@@ -337,6 +337,79 @@ const NODE_TRANSACTION_SORT_STORAGE_KEY = "minagraph-node-transaction-sort";
 let nodeTransactionSort = loadNodeTransactionSort();
 let lastTechnicalDiagnostics = null;
 let reloadAfterServiceWorkerActivation = false;
+let sigmaViewportSyncFrame = null;
+let sigmaWebGlContextLosses = 0;
+
+function scheduleSigmaViewportSync() {
+  if (sigmaViewportSyncFrame !== null) return;
+  sigmaViewportSyncFrame = requestAnimationFrame(() => {
+    sigmaViewportSyncFrame = null;
+    if (!renderer) return;
+    try {
+      // Chromium can change the visual viewport or device pixel ratio without
+      // changing the graph container's CSS dimensions. Force Sigma to keep all
+      // 2D and WebGL drawing buffers aligned with the current pixel ratio.
+      renderer.resize(true);
+      renderer.refresh();
+    } catch (error) {
+      console.warn('[Sigma] Unable to synchronize rendering buffers:', error);
+    }
+  });
+}
+
+function bindSigmaRenderingRecovery() {
+  if (!renderer?.getCanvases) return;
+  Object.values(renderer.getCanvases()).forEach(canvas => {
+    if (canvas.dataset.minagraphWebglRecoveryBound === 'true') return;
+    canvas.dataset.minagraphWebglRecoveryBound = 'true';
+    canvas.addEventListener('webglcontextlost', event => {
+      event.preventDefault();
+      sigmaWebGlContextLosses += 1;
+      console.warn('[Sigma] WebGL context lost; waiting for browser restoration.');
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      console.info('[Sigma] WebGL context restored; rebuilding rendering buffers.');
+      scheduleSigmaViewportSync();
+    });
+  });
+}
+
+function collectSigmaRenderingDiagnostics() {
+  const container = renderer?.getContainer?.() || document.getElementById('sigma-container');
+  const canvases = renderer?.getCanvases?.() || {};
+  const canvasBuffers = Object.entries(canvases).map(([name, canvas]) =>
+    `${name}: ${canvas.width}x${canvas.height} px / ${canvas.clientWidth}x${canvas.clientHeight} CSS`
+  );
+  const webGlCanvas = Object.values(canvases).find(canvas =>
+    canvas.getContext('webgl2') || canvas.getContext('webgl')
+  );
+  const gl = webGlCanvas?.getContext('webgl2') || webGlCanvas?.getContext('webgl') || null;
+  const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
+  const webGlRenderer = debugInfo
+    ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+    : gl ? 'Available (renderer hidden)' : 'Unavailable';
+
+  return {
+    devicePixelRatio: window.devicePixelRatio || 1,
+    visualViewport: window.visualViewport
+      ? `${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)}, scale ${window.visualViewport.scale}`
+      : 'Unavailable',
+    sigmaContainer: container
+      ? `${container.clientWidth}x${container.clientHeight} CSS px`
+      : 'Unavailable',
+    sigmaPixelRatio: renderer?.pixelRatio ?? 'Renderer not initialized',
+    sigmaCanvasBuffers: canvasBuffers.join(' | ') || 'Renderer not initialized',
+    webGlRenderer,
+    webGlLimits: gl
+      ? `texture ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}, renderbuffer ${gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)}`
+      : 'Unavailable',
+    webGlContextLosses: sigmaWebGlContextLosses
+  };
+}
+
+window.visualViewport?.addEventListener('resize', scheduleSigmaViewportSync);
+window.visualViewport?.addEventListener('scroll', scheduleSigmaViewportSync);
+window.addEventListener('orientationchange', scheduleSigmaViewportSync);
 
 navigator.serviceWorker?.addEventListener('controllerchange', () => {
   if (!reloadAfterServiceWorkerActivation) return;
@@ -375,6 +448,7 @@ async function collectTechnicalDiagnostics() {
     : null;
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
+  const sigmaDiagnostics = collectSigmaRenderingDiagnostics();
 
   return {
     appVersion: workerInfo?.cacheName || 'Unavailable',
@@ -405,6 +479,7 @@ async function collectTechnicalDiagnostics() {
         : 'Not supported (maximum 0)',
     displayMode: standalone ? 'Installed PWA' : 'Browser tab',
     network: navigator.onLine ? 'Online' : 'Offline',
+    ...sigmaDiagnostics,
     checkedAt: new Date().toLocaleString(),
     userAgent: navigator.userAgent,
     updateReady: Boolean(registration?.waiting)
@@ -428,6 +503,14 @@ function renderTechnicalDiagnostics(diagnostics) {
     ['Notification buttons', diagnostics.notificationButtons],
     ['Display mode', diagnostics.displayMode],
     ['Network', diagnostics.network],
+    ['Device pixel ratio', diagnostics.devicePixelRatio],
+    ['Visual viewport', diagnostics.visualViewport],
+    ['Sigma container', diagnostics.sigmaContainer],
+    ['Sigma pixel ratio', diagnostics.sigmaPixelRatio],
+    ['Sigma canvas buffers', diagnostics.sigmaCanvasBuffers],
+    ['WebGL renderer', diagnostics.webGlRenderer],
+    ['WebGL limits', diagnostics.webGlLimits],
+    ['WebGL context losses', diagnostics.webGlContextLosses],
     ['Checked at', diagnostics.checkedAt],
     ['Browser', diagnostics.userAgent]
   ];
@@ -4677,6 +4760,7 @@ function initRenderer() {
   //renderer = new Sigma(graph, container);
 
   renderer = new Sigma(graph,container,param);
+  bindSigmaRenderingRecovery();
   renderer.setSetting("defaultNodeBorderColor", "#fff");
   renderer.setSetting("defaultNodeBorderSize", 40);
   syncCameraControlsToRenderer();
@@ -5312,6 +5396,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     //renderer = new Sigma(graph, container);
 
     renderer = new Sigma(graph,container,param);
+    bindSigmaRenderingRecovery();
     renderer.setSetting("defaultNodeBorderColor", "#fff");
     renderer.setSetting("defaultNodeBorderSize", 40);
     syncCameraControlsToRenderer();
