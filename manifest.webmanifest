@@ -4,7 +4,7 @@
   "description": "Visualisez les connexions de nœuds et de transactions sur Mina et d'autres blockchains",
   "start_url": "/index.html",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait",
