@@ -1,71 +1,87 @@
 // fruchtermanReingold.js
 self.onmessage = function (e) {
   const { nodes, edges, settings } = e.data;
-  const positions = {};
+  const nodeCount = nodes.length;
+  const nodeIndexes = new Map(nodes.map((node, index) => [node.id, index]));
+  const x = new Float64Array(nodeCount);
+  const y = new Float64Array(nodeCount);
+  const dx = new Float64Array(nodeCount);
+  const dy = new Float64Array(nodeCount);
 
-  for (const node of nodes) {
-    positions[node.id] = {
-      x: node.x ?? Math.random() * settings.width,
-      y: node.y ?? Math.random() * settings.height
-    };
+  for (let index = 0; index < nodeCount; index++) {
+    x[index] = nodes[index].x ?? Math.random() * settings.width;
+    y[index] = nodes[index].y ?? Math.random() * settings.height;
   }
+
+  const indexedEdges = [];
+  for (const edge of edges) {
+    const source = nodeIndexes.get(edge.source);
+    const target = nodeIndexes.get(edge.target);
+    if (source !== undefined && target !== undefined) indexedEdges.push(source, target);
+  }
+
+  const sendPositions = (type, progress) => {
+    const positions = new Float64Array(nodeCount * 2);
+    for (let index = 0; index < nodeCount; index++) {
+      positions[index * 2] = x[index];
+      positions[index * 2 + 1] = y[index];
+    }
+    const message = { type, positions, packed: true };
+    if (progress !== undefined) message.progress = progress;
+    self.postMessage(message, [positions.buffer]);
+  };
 
   for (let iter = 0; iter < settings.iterations; iter++) {
-    const disp = {};
+    dx.fill(0);
+    dy.fill(0);
 
-    for (const v of nodes) {
-      disp[v.id] = { x: 0, y: 0 };
-      for (const u of nodes) {
-        if (v.id !== u.id) {
-          let dx = positions[v.id].x - positions[u.id].x;
-          let dy = positions[v.id].y - positions[u.id].y;
-          let dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 0.0001) {
-            const angle = Math.random() * Math.PI * 2;
-            dx = Math.cos(angle) * 0.01;
-            dy = Math.sin(angle) * 0.01;
-            dist = 0.01;
-          }
-          const repulsion = settings.scalingRatio * settings.scalingRatio / dist;
-          disp[v.id].x += dx / dist * repulsion;
-          disp[v.id].y += dy / dist * repulsion;
+    for (let v = 0; v < nodeCount; v++) {
+      for (let u = 0; u < nodeCount; u++) {
+        if (v === u) continue;
+        let deltaX = x[v] - x[u];
+        let deltaY = y[v] - y[u];
+        let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (distance < 0.0001) {
+          const angle = Math.random() * Math.PI * 2;
+          deltaX = Math.cos(angle) * 0.01;
+          deltaY = Math.sin(angle) * 0.01;
+          distance = 0.01;
         }
+        const repulsion = settings.scalingRatio * settings.scalingRatio / distance;
+        dx[v] += deltaX / distance * repulsion;
+        dy[v] += deltaY / distance * repulsion;
       }
     }
 
-    for (const edge of edges) {
-      const dx = positions[edge.source].x - positions[edge.target].x;
-      const dy = positions[edge.source].y - positions[edge.target].y;
-      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-      const attraction = dist * dist / settings.scalingRatio;
-      const dxNorm = dx / dist * attraction;
-      const dyNorm = dy / dist * attraction;
-
-      disp[edge.source].x -= dxNorm;
-      disp[edge.source].y -= dyNorm;
-      disp[edge.target].x += dxNorm;
-      disp[edge.target].y += dyNorm;
+    for (let edgeIndex = 0; edgeIndex < indexedEdges.length; edgeIndex += 2) {
+      const source = indexedEdges[edgeIndex];
+      const target = indexedEdges[edgeIndex + 1];
+      const deltaX = x[source] - x[target];
+      const deltaY = y[source] - y[target];
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) + 0.01;
+      const attraction = distance * distance / settings.scalingRatio;
+      const normalizedX = deltaX / distance * attraction;
+      const normalizedY = deltaY / distance * attraction;
+      dx[source] -= normalizedX;
+      dy[source] -= normalizedY;
+      dx[target] += normalizedX;
+      dy[target] += normalizedY;
     }
 
-    for (const v of nodes) {
-      const d = Math.sqrt(disp[v.id].x ** 2 + disp[v.id].y ** 2);
-      if (d > 0) {
-        positions[v.id].x += (disp[v.id].x / d) * Math.min(d, 10);
-        positions[v.id].y += (disp[v.id].y / d) * Math.min(d, 10);
+    for (let v = 0; v < nodeCount; v++) {
+      const displacement = Math.sqrt(dx[v] * dx[v] + dy[v] * dy[v]);
+      if (displacement > 0) {
+        x[v] += (dx[v] / displacement) * Math.min(displacement, 10);
+        y[v] += (dy[v] / displacement) * Math.min(displacement, 10);
       }
-      positions[v.id].x -= settings.gravity * (positions[v.id].x - settings.width / 2) * 0.01;
-      positions[v.id].y -= settings.gravity * (positions[v.id].y - settings.height / 2) * 0.01;
+      x[v] -= settings.gravity * (x[v] - settings.width / 2) * 0.01;
+      y[v] -= settings.gravity * (y[v] - settings.height / 2) * 0.01;
     }
 
-    // Send progress every 10 iterations
     if (iter % 10 === 0 || iter === settings.iterations - 1) {
-      self.postMessage({
-        type: "progress",
-        progress: iter / settings.iterations,
-        positions
-      });
+      sendPositions("progress", iter / settings.iterations);
     }
   }
 
-  self.postMessage({ type: "done", positions });
+  sendPositions("done");
 };
