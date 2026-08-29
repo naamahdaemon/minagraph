@@ -2276,8 +2276,10 @@
    * Function returning the browser's pixel ratio.
    */
   function getPixelRatio() {
-    if (typeof window.devicePixelRatio !== "undefined") return window.devicePixelRatio;
-    return 1;
+    var devicePixelRatio = typeof window.devicePixelRatio !== "undefined" ? window.devicePixelRatio : 1;
+    var applicationLimit = Number(window.__MINAGRAPH_SIGMA_PIXEL_RATIO__);
+    if (Number.isFinite(applicationLimit) && applicationLimit > 0) return Math.min(devicePixelRatio, applicationLimit);
+    return devicePixelRatio;
   }
 
   /**
