@@ -31,10 +31,13 @@ const context = {
 context.clients = context.self.clients;
 
 const source = fs.readFileSync(path.resolve(__dirname, "..", "service-worker.js"), "utf8");
+const uiSource = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "script.js"), "utf8");
 assert.ok(
   source.indexOf("addEventListener('notificationclick'") < source.indexOf('importScripts("https://www.gstatic.com/firebasejs/'),
   "The custom notification click handler must be registered before Firebase Messaging loads"
 );
+assert.match(uiSource, /function handleNotificationActions\(notif\) \{\s*if \(!notif\?\.chain \|\| !notif\?\.address\) return;/);
+assert.doesNotMatch(uiSource, /function handleNotificationActions\(notif\)[\s\S]*?notif\.action_primary/);
 vm.runInNewContext(source, context);
 
 const actions = context.buildNotificationActions({
@@ -117,8 +120,7 @@ async function dispatchNotificationClick(data, action = "") {
     message_id: "mina-notification",
     chain: "mina",
     sender: "mina-sender",
-    receiver: "mina-receiver",
-    action_primary: "show_graph"
+    receiver: "mina-receiver"
   };
   assert.equal(await dispatchNotificationClick(minaData, "show_sender"), true);
   await dispatchNotificationClick(minaData, "show_receiver");
