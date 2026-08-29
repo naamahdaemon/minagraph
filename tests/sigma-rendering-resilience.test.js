@@ -20,6 +20,9 @@ assert.match(sigma, /gl\.deleteTexture\(currentTexture\);\s*this\.textures\[_id2
 assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) _this\.createWebGLContext\("hoverNodes"\)/);
 assert.match(sigma, /useMobileChromiumWebGLCompatibility\(\) \? this\.webGLContexts\.nodes : this\.webGLContexts\.hoverNodes/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this8\.render\(\)/);
+assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this\.createWebGLContext\("edges"/);
+assert.match(sigma, /compatibilityMode \? this\.webGLContexts\.nodes : this\.webGLContexts\.edges/);
+assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\) && \(!this\.settings\.hideEdgesOnMove \|\| !moving\)\)/);
 assert.match(script, /visualViewport\?\.addEventListener\('resize', scheduleSigmaViewportSync\)/);
 assert.match(script, /renderer\.resize\(true\)/);
 assert.match(script, /webglcontextlost/);
