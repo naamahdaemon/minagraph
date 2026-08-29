@@ -361,10 +361,30 @@ function positionRotateSlider() {
   if (!visibleWidth || !visibleHeight) return;
 
   const edgeOffset = Math.min(40, Math.max(18, visibleHeight * 0.045));
-  const bottom = Math.max(12, viewportHeight - visibleBottom + edgeOffset);
   const width = Math.min(240, Math.max(140, visibleWidth * 0.42));
+  const sliderCenterX = visibleLeft + visibleWidth / 2;
+  let sliderCenterY = visibleBottom - edgeOffset;
+  const dateSlicer = document.getElementById("date-slicer-container");
 
-  rotateSlider.style.left = `${visibleLeft + visibleWidth / 2}px`;
+  if (dateSlicer && getComputedStyle(dateSlicer).display !== "none") {
+    const slicerBounds = dateSlicer.getBoundingClientRect();
+    const overlapsHorizontally =
+      sliderCenterX + width / 2 > slicerBounds.left &&
+      sliderCenterX - width / 2 < slicerBounds.right;
+
+    if (overlapsHorizontally && slicerBounds.bottom < visibleBottom) {
+      const sliderHandleRadius = 9;
+      const slicerGap = 14;
+      sliderCenterY = Math.max(
+        sliderCenterY,
+        Math.min(visibleBottom - sliderHandleRadius, slicerBounds.bottom + slicerGap + sliderHandleRadius)
+      );
+    }
+  }
+
+  const bottom = Math.max(0, viewportHeight - sliderCenterY);
+
+  rotateSlider.style.left = `${sliderCenterX}px`;
   rotateSlider.style.bottom = `${bottom}px`;
   rotateSlider.style.width = `${width}px`;
 }
