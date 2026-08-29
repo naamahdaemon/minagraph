@@ -984,6 +984,13 @@
    * - else node with shadow and the label box
    */
   function drawDiscNodeHover(context, data, settings) {
+    // The focused node and its border are already rendered by the normal node
+    // pass in the single-context Android path. Keep only the hover label here:
+    // Sigma's default white label background also covers the whole node disc.
+    if (useMobileChromiumWebGLCompatibility()) {
+      drawDiscNodeLabel(context, data, settings);
+      return;
+    }
     var size = settings.labelSize,
       font = settings.labelFont,
       weight = settings.labelWeight;
