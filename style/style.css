@@ -289,6 +289,19 @@
       padding-top: 0;
     }
 
+    body.fullscreen-mode #app-container,
+    body.fullscreen-mode #main-content {
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100dvh;
+    }
+
+    body.mobile-mode.fullscreen-mode #sigma-container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      min-height: 100dvh !important;
+    }
+
     #sigma-container {
       flex: 1;
       position: relative;
@@ -846,6 +859,24 @@
       cursor: pointer;
       font-size: 27px;
       line-height: 1;
+    }
+
+    .chain-fetch-link {
+      display: inline-flex;
+      margin-right: 4px;
+      color: white;
+      text-decoration: none;
+      vertical-align: middle;
+    }
+
+    .chain-fetch-icon {
+      width: 32px;
+      height: 32px;
+      padding: 2px;
+      border-radius: 5px;
+      background: #050505;
+      object-fit: contain;
+      vertical-align: middle;
     }
 
     #close-panel-btn:hover,

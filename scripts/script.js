@@ -4632,12 +4632,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
     fetchButtonsHTML = `<p style="font-size: 12px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
   } else {
     const links = chainsToFetch.map(chain => `
-      <a style="color: white; text-decoration: none;" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
-         title="Fetch from ${capitalize(chain)}"
-         style="margin-right: 4px; vertical-align: middle;">
-        <img src="img/${chain}.png" 
-          alt="${chain} icon"
-          style="width: 32px; height: 32px; margin-right: 4px; vertical-align: middle;" />
+      <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
+         title="Fetch from ${capitalize(chain)}">
+        <img class="chain-fetch-icon" src="img/${chain}.png" alt="${chain} icon" />
       </a>`).join("");
 
     fetchButtonsHTML = `
@@ -5169,6 +5166,7 @@ function setupInteractions() {
   let dragOwnsCustomBBox = false;
   let suppressNodeClick = false;
   let ignoreStageClickUntil = 0;
+  let lastTouchNodeClick = { node: null, time: 0 };
   let dragStartPos = { x: 0, y: 0 };
   const interactionContainer = renderer.getContainer();
 
@@ -5229,12 +5227,24 @@ function setupInteractions() {
   // few pixels outside the node. Drag completion must never open the panel.
   renderer.on("clickNode", ({ node, event }) => {
     if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
+    const touchInteraction = isTouchInteraction(event);
+
+    // Chromium can emit a compatibility mouse click immediately after Sigma's
+    // touch tap. It is the same physical tap, not a request to open details.
+    if (
+      !touchInteraction &&
+      lastTouchNodeClick.node === node &&
+      Date.now() - lastTouchNodeClick.time < 800
+    ) {
+      return;
+    }
     ignoreStageClickUntil = Date.now() + 150;
 
     // On touch, the first tap mirrors desktop hover/selection. A deliberate
     // second tap on the same node opens its details. Mouse clicks keep their
     // existing one-step behaviour.
-    if (isTouchInteraction(event)) {
+    if (touchInteraction) {
+      lastTouchNodeClick = { node, time: Date.now() };
       if (selectedNode === node) {
         showNodePanel(node);
       } else {
