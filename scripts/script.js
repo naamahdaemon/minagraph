@@ -495,6 +495,11 @@ function collectSigmaRenderingDiagnostics() {
   );
   const gl = Object.values(renderer?.webGLContexts || {})[0] || null;
   const contextLost = gl?.isContextLost?.() === true;
+  const webGlApi = gl
+    ? typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
+      ? 'WebGL2'
+      : 'WebGL1 compatibility'
+    : 'Unavailable';
   const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
   const webGlRenderer = contextLost
     ? 'Context lost'
@@ -513,6 +518,7 @@ function collectSigmaRenderingDiagnostics() {
     sigmaPixelRatio: renderer?.pixelRatio ?? 'Renderer not initialized',
     sigmaPixelRatioLimit: window.__MINAGRAPH_SIGMA_PIXEL_RATIO__ || 'Native device ratio',
     sigmaCanvasBuffers: canvasBuffers.join(' | ') || 'Renderer not initialized',
+    webGlApi,
     webGlRenderer,
     webGlLimits: gl && !contextLost
       ? `texture ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}, renderbuffer ${gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)}`
@@ -627,6 +633,7 @@ function renderTechnicalDiagnostics(diagnostics) {
     ['Sigma pixel ratio', diagnostics.sigmaPixelRatio],
     ['Sigma pixel ratio limit', diagnostics.sigmaPixelRatioLimit],
     ['Sigma canvas buffers', diagnostics.sigmaCanvasBuffers],
+    ['WebGL API', diagnostics.webGlApi],
     ['WebGL renderer', diagnostics.webGlRenderer],
     ['WebGL limits', diagnostics.webGlLimits],
     ['WebGL context losses', diagnostics.webGlContextLosses],

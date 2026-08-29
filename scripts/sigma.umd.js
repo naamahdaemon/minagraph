@@ -2275,8 +2275,18 @@
   /**
    * Function returning the browser's pixel ratio.
    */
+  function useMobileChromiumWebGLCompatibility() {
+    if (window.__MINAGRAPH_SIGMA_FORCE_WEBGL1__ === true) return true;
+    if (typeof navigator === "undefined") return false;
+    var userAgent = navigator.userAgent || "";
+    var isAndroid = /Android/i.test(userAgent);
+    var isChromium = /Chrome\//i.test(userAgent) || /Chromium\//i.test(userAgent) || /EdgA\//i.test(userAgent);
+    return isAndroid && isChromium && (window.devicePixelRatio || 1) >= 3;
+  }
+
   function getPixelRatio() {
     var devicePixelRatio = typeof window.devicePixelRatio !== "undefined" ? window.devicePixelRatio : 1;
+    if (useMobileChromiumWebGLCompatibility()) devicePixelRatio = Math.min(devicePixelRatio, 2);
     var applicationLimit = Number(window.__MINAGRAPH_SIGMA_PIXEL_RATIO__);
     if (Number.isFinite(applicationLimit) && applicationLimit > 0) return Math.min(devicePixelRatio, applicationLimit);
     return devicePixelRatio;
@@ -5342,8 +5352,10 @@
         }, options);
         var context;
 
-        // First we try webgl2 for an easy performance boost
-        context = canvas.getContext("webgl2", contextOptions);
+        // Chromium's WebGL2 path can repeatedly lose all contexts on some
+        // high-density Android ARM/Mali devices. WebGL1 retains the complete
+        // Sigma feature set and is used as a targeted compatibility backend.
+        if (!useMobileChromiumWebGLCompatibility()) context = canvas.getContext("webgl2", contextOptions);
 
         // Else we fall back to webgl
         if (!context) context = canvas.getContext("webgl", contextOptions);
