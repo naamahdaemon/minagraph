@@ -16,6 +16,8 @@ assert.match(html, /id="error-advice" hidden/);
 assert.match(script, /function setNodePanelOpen\(open,/);
 assert.match(script, /dateSlicer\?\.classList\.toggle\("on-left", isOpen && isDesktop\)/);
 assert.match(script, /function hideNodePanel\(options = \{\}\)/);
+assert.match(script, /class="chain-fetch-icon" src="img\/\$\{chain\}\.png"/);
+assert.match(css, /\.chain-fetch-icon\s*\{[\s\S]*?background: #050505;/);
 assert.match(script, /if \(previouslySelectedNode !== node\) details\.scrollTop = 0/);
 assert.match(script, /function initializeNodePanelResize\(\)/);
 assert.match(script, /applyWidth\(window\.innerWidth - event\.clientX\)/);
