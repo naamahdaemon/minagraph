@@ -17,6 +17,9 @@ assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) context = c
 assert.doesNotMatch(sigma, /this\.width \* this\.pixelRatio \+ "px"/);
 assert.match(sigma, /if \(currentTexture\) \{[\s\S]*?gl\.clear\(gl\.COLOR_BUFFER_BIT\);[\s\S]*?return this;/);
 assert.match(sigma, /gl\.deleteTexture\(currentTexture\);\s*this\.textures\[_id2\] = null;/);
+assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) _this\.createWebGLContext\("hoverNodes"\)/);
+assert.match(sigma, /useMobileChromiumWebGLCompatibility\(\) \? this\.webGLContexts\.nodes : this\.webGLContexts\.hoverNodes/);
+assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this8\.render\(\)/);
 assert.match(script, /visualViewport\?\.addEventListener\('resize', scheduleSigmaViewportSync\)/);
 assert.match(script, /renderer\.resize\(true\)/);
 assert.match(script, /webglcontextlost/);
