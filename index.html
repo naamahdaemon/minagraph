@@ -296,6 +296,10 @@
           <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
           <input type="checkbox" id="toggle-labels" checked style="vertical-align: middle;">
           <label for="toggle-labels" style="color:#aaa; display: inline-block; margin-left: 5px; vertical-align: middle;">SHOW LABELS</label><br/><br/>
+          <button id="layout-sidebar-toggle-btn" type="button"
+            style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
+            Apply Layout (L)
+          </button>
           <div id="layout-progress-wrapper" style="margin-top: 20px;">
             <label style="color:#aaa;">Layout progress</label>
             <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
@@ -550,6 +554,13 @@
             <span class="command-label">Theme</span>
           </button>
 
+          <button id="favorites-btn" class="control-button command-button" title="Favorites" aria-label="Favorites" style="background: none; border: none; cursor: pointer;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+            <span class="command-label">Favorites</span>
+          </button>
+
           <button id="fullscreen-toggle" class="control-button command-button" title="Full Screen (F)" aria-label="Full Screen" style="
             padding: 6px 12px;
             color: white;
@@ -570,12 +581,6 @@
               <path d="M11 17h2v-6h-2v6zm1-15a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2V7h-2v2z"/>
             </svg>
             <span class="command-label">About</span>
-          </button>
-
-          <button id="favorites-btn" class="control-button" title="Show Favorites" aria-label="Show Favorites" style="background: none; border: none; cursor: pointer;">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-            </svg>
           </button>
 
           <button id="watched-btn" class="control-button" title="Show Watched Addresses" aria-label="Show Watched Addresses" style="background: none; border: none; cursor: pointer;display: none;">

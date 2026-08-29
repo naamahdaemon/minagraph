@@ -1103,7 +1103,7 @@ document.addEventListener("DOMContentLoaded", () => {
       searchDiv.style.color = isLight ? "#111" : "#fff";
     }
 
-    document.querySelectorAll("#layout-toggle-btn, #start-graph-btn, #exportBtn, #importBtn, #exportPngBtn, #saveBtn, #loadBtn, #demoBtn").forEach(btn => {
+    document.querySelectorAll("#layout-toggle-btn, #layout-sidebar-toggle-btn, #start-graph-btn, #exportBtn, #importBtn, #exportPngBtn, #saveBtn, #loadBtn, #demoBtn").forEach(btn => {
       if (btn) {
         btn.style.background = isLight ? "#fff" : "#444";
         btn.style.color = isLight ? "#111" : "#fff";
@@ -1232,13 +1232,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
 
-  layoutBtn.addEventListener("click", () => {
+  const toggleCurrentLayout = () => {
     if (isLayoutRunning) {
       layoutController.stop({ remember: true });
     } else {
       runLayoutInWorker();
     }
-  });  
+  };
+  layoutBtn.addEventListener("click", toggleCurrentLayout);
+  document.getElementById("layout-sidebar-toggle-btn")?.addEventListener("click", toggleCurrentLayout);
 
   toggleTokenBtn?.addEventListener("click", () => {
     const isHidden = tokenSection.style.display === "none";
@@ -1784,6 +1786,7 @@ function updateLayoutProgressBar(percent) {
 
 function setLayoutUiState(state, message = "") {
   const button = document.getElementById("layout-toggle-btn");
+  const sidebarButton = document.getElementById("layout-sidebar-toggle-btn");
   const progress = document.getElementById("layout-progress");
   const progressText = document.getElementById("layout-progress-text");
   const info = document.getElementById("layout-info");
@@ -1794,6 +1797,10 @@ function setLayoutUiState(state, message = "") {
     button.setAttribute("aria-pressed", String(running));
     button.setAttribute("aria-label", running ? "Stop current layout" : "Apply current layout");
     button.title = running ? "Stop current layout (L)" : "Apply current layout (L)";
+  }
+  if (sidebarButton) {
+    sidebarButton.textContent = state === "running" ? "Stop Layout" : "Apply Layout (L)";
+    sidebarButton.setAttribute("aria-pressed", String(state === "running"));
   }
   if (progressText && message) progressText.textContent = message;
   if (info && state === "error") info.textContent = `Layout error: ${message}`;
