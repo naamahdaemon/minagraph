@@ -4632,12 +4632,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
     fetchButtonsHTML = `<p style="font-size: 12px; color: #aaa; margin-top: 4px;">✅ Already fetched for all chains</p>`;
   } else {
     const links = chainsToFetch.map(chain => `
-      <a style="color: white; text-decoration: none;" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
-         title="Fetch from ${capitalize(chain)}"
-         style="margin-right: 4px; vertical-align: middle;">
-        <img src="img/${chain}.png" 
-          alt="${chain} icon"
-          style="width: 32px; height: 32px; margin-right: 4px; vertical-align: middle;" />
+      <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
+         title="Fetch from ${capitalize(chain)}">
+        <img class="chain-fetch-icon" src="img/${chain}.png" alt="${chain} icon" />
       </a>`).join("");
 
     fetchButtonsHTML = `
