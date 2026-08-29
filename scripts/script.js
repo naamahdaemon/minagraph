@@ -1311,6 +1311,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   fullscreenBtn.addEventListener("click", () => toggleFullscreen());
   exitFullscreenBtn.addEventListener("click", () => toggleFullscreen(true));
+  document.addEventListener("fullscreenchange", () => {
+    setFullscreenMode(Boolean(document.fullscreenElement));
+  });
   window.dispatchEvent(new Event("resize"));  
 
   const legend = document.getElementById("legend");
@@ -6243,8 +6246,40 @@ async function sendDonation() {
   }
 }*/
 
-function toggleFullscreen(forceExit = false) {
-  isFullscreen = forceExit ? false : !isFullscreen;
+async function toggleFullscreen(forceExit = false) {
+  const nativeFullscreenActive = Boolean(document.fullscreenElement);
+  const shouldExit = forceExit || isFullscreen || nativeFullscreenActive;
+
+  if (shouldExit) {
+    if (nativeFullscreenActive && document.exitFullscreen) {
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        console.warn("Could not exit native fullscreen:", error);
+      }
+    }
+    setFullscreenMode(Boolean(document.fullscreenElement));
+    return;
+  }
+
+  if (document.documentElement.requestFullscreen) {
+    try {
+      // navigationUI is a hint to Chromium to hide its remaining browser UI.
+      await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+      setFullscreenMode(true);
+      return;
+    } catch (error) {
+      // Keep the existing in-page mode as a graceful fallback (unsupported
+      // browser, denied permission, or non-user-initiated keyboard shortcut).
+      console.warn("Native fullscreen unavailable; using in-page mode:", error);
+    }
+  }
+
+  setFullscreenMode(true);
+}
+
+function setFullscreenMode(active) {
+  isFullscreen = active;
   const legend = document.getElementById("legend");
   const menu = document.getElementById("menu-toggle");
   const fillColor = currentTheme === "dark" ? "white" : "black"  
