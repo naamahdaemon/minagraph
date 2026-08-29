@@ -1,7 +1,7 @@
 {
   "name": "Mina Graph Explorer",
   "short_name": "MinaGraph",
-  "description": "Visualisez les connexions de núuds et de transactions sur Mina et d'autres blockchains",
+  "description": "Visualisez les connexions de n≈ìuds et de transactions sur Mina et d'autres blockchains",
   "start_url": "/index.html",
   "scope": "/",
   "display": "fullscreen",

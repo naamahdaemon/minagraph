@@ -6378,6 +6378,16 @@ function setFullscreenMode(active) {
     document.body.classList.remove("fullscreen-mode");
     updateLegendOffset(); // 👈 and here too
   }
+
+  // Chromium updates the visual viewport asynchronously when Android system
+  // bars are hidden or restored. Resize Sigma after that transition so its
+  // canvases use the newly available area instead of retaining the old inset.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (renderer?.resize) renderer.resize();
+      window.dispatchEvent(new Event("resize"));
+    });
+  });
 }
 
 function setupDateSlicer() {
