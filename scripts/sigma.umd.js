@@ -3814,7 +3814,10 @@
       });
       _this.createCanvasContext("labels");
       _this.createCanvasContext("hovers");
-      _this.createWebGLContext("hoverNodes");
+      // Avoid a third full-size GPU context on affected Android/Mali devices.
+      // Hover nodes keep the same program and are composited in the nodes
+      // context, with a full repaint whenever the hover state changes.
+      if (!useMobileChromiumWebGLCompatibility()) _this.createWebGLContext("hoverNodes");
       _this.createCanvasContext("mouse", {
         style: {
           touchAction: "none",
@@ -3879,7 +3882,8 @@
         if (this.nodePrograms[key]) this.nodePrograms[key].kill();
         if (this.nodeHoverPrograms[key]) this.nodeHoverPrograms[key].kill();
         this.nodePrograms[key] = new NodeProgramClass(this.webGLContexts.nodes, this.frameBuffers.nodes, this);
-        this.nodeHoverPrograms[key] = new (NodeHoverProgram || NodeProgramClass)(this.webGLContexts.hoverNodes, null, this);
+        var hoverContext = useMobileChromiumWebGLCompatibility() ? this.webGLContexts.nodes : this.webGLContexts.hoverNodes;
+        this.nodeHoverPrograms[key] = new (NodeHoverProgram || NodeProgramClass)(hoverContext, null, this);
         return this;
       }
 
@@ -4864,7 +4868,7 @@
           _this7.nodeHoverPrograms[data.type].process(0, nodesPerPrograms[data.type]++, data);
         });
         // 4. Clear hovered nodes layer:
-        this.webGLContexts.hoverNodes.clear(this.webGLContexts.hoverNodes.COLOR_BUFFER_BIT);
+        if (!useMobileChromiumWebGLCompatibility()) this.webGLContexts.hoverNodes.clear(this.webGLContexts.hoverNodes.COLOR_BUFFER_BIT);
         // 5. Render:
         var renderParams = this.getRenderParams();
         for (var _type6 in this.nodeHoverPrograms) {
@@ -4887,8 +4891,12 @@
           _this8.renderHighlightedNodesFrame = null;
 
           // Rendering
-          _this8.renderHighlightedNodes();
-          _this8.renderEdgeLabels();
+          if (useMobileChromiumWebGLCompatibility()) {
+            _this8.render();
+          } else {
+            _this8.renderHighlightedNodes();
+            _this8.renderEdgeLabels();
+          }
         });
       }
 
@@ -5738,7 +5746,7 @@
         this.webGLContexts.nodes.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
         this.webGLContexts.edges.bindFramebuffer(WebGLRenderingContext.FRAMEBUFFER, null);
         this.webGLContexts.edges.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
-        this.webGLContexts.hoverNodes.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
+        if (this.webGLContexts.hoverNodes) this.webGLContexts.hoverNodes.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
         this.canvasContexts.labels.clearRect(0, 0, this.width, this.height);
         this.canvasContexts.hovers.clearRect(0, 0, this.width, this.height);
         this.canvasContexts.edgeLabels.clearRect(0, 0, this.width, this.height);
