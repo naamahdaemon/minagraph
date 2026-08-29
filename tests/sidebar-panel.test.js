@@ -56,7 +56,10 @@ assert.match(script, /localStorage\.setItem\(FILTER_PANEL_VISIBILITY_KEY, String
 assert.match(script, /function setFilterPanelVisible\(visible,/);
 assert.match(script, /animateLayout\(null, "initial"\);/);
 assert.match(script, /searchButton\.dataset\.searchInitialized === "true"/);
+assert.match(script, /searchInput = document\.getElementById\("search-input"\);\s*\/\/[\s\S]*?setupSearch\(\);\s*algorithmSelect/);
 assert.match(script, /const shouldShow = searchDiv\.style\.display !== "block";/);
+assert.match(script, /if \(graph && renderer\) handleSearch\(query\);/);
+assert.doesNotMatch(script, /toggleBtn\.addEventListener\("click"/, 'Search must have only one active toolbar click handler');
 assert.match(css, /#notification-list\s*\{[\s\S]*?top: calc\(100% \+ 6px\) !important;/);
 assert.match(css, /#searchdiv\s*\{[\s\S]*?top: calc\(100% \+ 6px\);/);
 
