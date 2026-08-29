@@ -344,6 +344,7 @@ let sigmaWebGlLossIncidents = 0;
 let sigmaWebGlRecoveries = 0;
 let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
+let rotatePositionTimers = [];
 
 function positionRotateSlider() {
   if (!rotateSlider || !sigmaContainer) return;
@@ -387,6 +388,16 @@ function positionRotateSlider() {
   rotateSlider.style.left = `${sliderCenterX}px`;
   rotateSlider.style.bottom = `${bottom}px`;
   rotateSlider.style.width = `${width}px`;
+}
+
+function scheduleRotateSliderPosition() {
+  rotatePositionTimers.forEach(clearTimeout);
+  rotatePositionTimers = [];
+
+  requestAnimationFrame(() => requestAnimationFrame(positionRotateSlider));
+  [120, 350, 700].forEach(delay => {
+    rotatePositionTimers.push(setTimeout(positionRotateSlider, delay));
+  });
 }
 let sigmaRecoveryIncidentActive = false;
 let sigmaRecoverySnapshot = null;
@@ -1261,7 +1272,11 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", updateSlicerView);
   window.addEventListener("DOMContentLoaded", updateSlicerView);   
   window.addEventListener("orientationchange", () => {
-    setTimeout(updateSlicerView, 300);
+    scheduleRotateSliderPosition();
+    setTimeout(() => {
+      updateSlicerView();
+      scheduleRotateSliderPosition();
+    }, 300);
   });
 
 
@@ -1290,7 +1305,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", () => {
     adjustSidebarState();
     updateLegendOffset();
-    positionRotateSlider();
+    scheduleRotateSliderPosition();
     if (renderer) {
       renderer.resize();
       renderer.refresh();
@@ -1299,7 +1314,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ✅ Resize Sigma if #sigma-container itself is resized (e.g. flexbox, sidebar toggle, etc.)
   const resizeObserver = new ResizeObserver(() => {
-    positionRotateSlider();
+    scheduleRotateSliderPosition();
     if (renderer) {
       renderer.resize();
       renderer.refresh();
@@ -1309,8 +1324,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sigmaContainer) {
     resizeObserver.observe(sigmaContainer);
   }
-  window.visualViewport?.addEventListener("resize", positionRotateSlider);
-  document.getElementById("app-container")?.addEventListener("transitionend", positionRotateSlider);
+  const rotateLayoutObserver = new ResizeObserver(scheduleRotateSliderPosition);
+  const dateSlicerContainer = document.getElementById("date-slicer-container");
+  if (dateSlicerContainer) rotateLayoutObserver.observe(dateSlicerContainer);
+  window.visualViewport?.addEventListener("resize", scheduleRotateSliderPosition);
+  document.getElementById("app-container")?.addEventListener("transitionend", scheduleRotateSliderPosition);
 
   /*document.getElementById("menu-toggle").addEventListener("click", () => {
     const sidebar = document.getElementById("left-sidebar");
@@ -1585,7 +1603,7 @@ document.addEventListener("DOMContentLoaded", () => {
     step: 1,
     connect: 'lower'
   });
-  positionRotateSlider();
+  scheduleRotateSliderPosition();
   bindCameraControls();
 });
 
