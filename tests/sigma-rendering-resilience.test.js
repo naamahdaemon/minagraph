@@ -9,11 +9,18 @@ const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
 
 assert.match(sigma, /previousPixelRatio = this\.pixelRatio/);
 assert.match(sigma, /previousPixelRatio === this\.pixelRatio/);
+assert.match(sigma, /__MINAGRAPH_SIGMA_PIXEL_RATIO__/);
 assert.doesNotMatch(sigma, /this\.width \* this\.pixelRatio \+ "px"/);
 assert.match(script, /visualViewport\?\.addEventListener\('resize', scheduleSigmaViewportSync\)/);
 assert.match(script, /renderer\.resize\(true\)/);
 assert.match(script, /webglcontextlost/);
 assert.match(script, /webglcontextrestored/);
+assert.match(script, /function rebuildSigmaRendererAfterContextLoss\(/);
+assert.match(script, /renderer = new Sigma\(graph, container, settings\)/);
+assert.match(script, /failedRenderer\.getCamera\(\)\.getState\(\)/);
+assert.match(script, /reduceSigmaPixelRatioAfterContextLoss/);
+assert.match(script, /sigmaWebGlLossIncidents/);
+assert.match(script, /sigmaWebGlRecoveries/);
 assert.match(script, /collectSigmaRenderingDiagnostics/);
 assert.match(worker, /'\/scripts\/sigma\.umd\.js'/);
 
