@@ -5131,9 +5131,28 @@ function setupInteractions() {
   let ignoreStageClickUntil = 0;
   let dragStartPos = { x: 0, y: 0 };
   const interactionContainer = renderer.getContainer();
+
+  const isTouchInteraction = event => event?.original?.type?.startsWith("touch") === true;
+  const getTouchCount = event => event?.original?.touches?.length || 0;
+
+  const cancelDrag = () => {
+    if (draggedNode && graph.hasNode(draggedNode)) {
+      graph.removeNodeAttribute(draggedNode, "highlighted");
+    }
+    if (dragOwnsCustomBBox) {
+      renderer.setCustomBBox(null);
+      dragOwnsCustomBBox = false;
+    }
+    draggedNode = null;
+    isDragging = false;
+    hasMoved = false;
+  };
   
   // Hover in/out to show tooltip & halo
-  renderer.on("enterNode", ({ node }) => {
+  renderer.on("enterNode", ({ node, event }) => {
+    // A first finger temporarily looks like a hover before the second finger
+    // lands. Never turn that transient touch state into a node selection.
+    if (isTouchInteraction(event)) return;
     hoveredNode = node;
     tooltip.style.display = "block";
     tooltip.innerText = graph.getNodeAttribute(node, "label");
@@ -5149,7 +5168,8 @@ function setupInteractions() {
     renderer.refresh();
   });
 
-  renderer.on("leaveNode", () => {
+  renderer.on("leaveNode", ({ event }) => {
+    if (isTouchInteraction(event)) return;
     hoveredNode = null;
     tooltip.style.display = "none";
     const halo = document.getElementById("node-halo");
@@ -5167,9 +5187,24 @@ function setupInteractions() {
 
   // Sigma's dedicated click event is reliable even when pointer-up lands a
   // few pixels outside the node. Drag completion must never open the panel.
-  renderer.on("clickNode", ({ node }) => {
+  renderer.on("clickNode", ({ node, event }) => {
     if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
     ignoreStageClickUntil = Date.now() + 150;
+
+    // On touch, the first tap mirrors desktop hover/selection. A deliberate
+    // second tap on the same node opens its details. Mouse clicks keep their
+    // existing one-step behaviour.
+    if (isTouchInteraction(event)) {
+      if (selectedNode === node) {
+        showNodePanel(node);
+      } else {
+        setNodePanelOpen(false);
+        selectedNode = node;
+      }
+      renderer.refresh();
+      return;
+    }
+
     selectedNode = node;
     showNodePanel(node);
     renderer.refresh();
@@ -5187,6 +5222,10 @@ function setupInteractions() {
   
   // Start drag on downNode (mouse or touch)
     renderer.on("downNode", ({ node, event }) => {
+      if (getTouchCount(event) > 1) {
+        cancelDrag();
+        return;
+      }
       draggedNode = node;
       isDragging = true;
       hasMoved = false;
@@ -5195,6 +5234,12 @@ function setupInteractions() {
 
   // During drag, move the node and detect “real” drag vs click
     renderer.on("moveBody", ({ event }) => {
+      // If a second finger joins a node drag, hand the gesture back to Sigma's
+      // camera immediately. In particular, do not prevent the pinch default.
+      if (getTouchCount(event) > 1) {
+        cancelDrag();
+        return;
+      }
       if (!isDragging || !draggedNode) return;
 
     const dx = event.x - dragStartPos.x,
