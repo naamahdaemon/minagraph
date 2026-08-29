@@ -2287,8 +2287,6 @@
   function getPixelRatio() {
     var devicePixelRatio = typeof window.devicePixelRatio !== "undefined" ? window.devicePixelRatio : 1;
     if (useMobileChromiumWebGLCompatibility()) devicePixelRatio = Math.min(devicePixelRatio, 2);
-    var applicationLimit = Number(window.__MINAGRAPH_SIGMA_PIXEL_RATIO__);
-    if (Number.isFinite(applicationLimit) && applicationLimit > 0) return Math.min(devicePixelRatio, applicationLimit);
     return devicePixelRatio;
   }
 
@@ -3884,8 +3882,9 @@
         if (this.nodePrograms[key]) this.nodePrograms[key].kill();
         if (this.nodeHoverPrograms[key]) this.nodeHoverPrograms[key].kill();
         this.nodePrograms[key] = new NodeProgramClass(this.webGLContexts.nodes, this.frameBuffers.nodes, this);
-        var hoverContext = useMobileChromiumWebGLCompatibility() ? this.webGLContexts.nodes : this.webGLContexts.hoverNodes;
-        this.nodeHoverPrograms[key] = new (NodeHoverProgram || NodeProgramClass)(hoverContext, null, this);
+        if (!useMobileChromiumWebGLCompatibility()) {
+          this.nodeHoverPrograms[key] = new (NodeHoverProgram || NodeProgramClass)(this.webGLContexts.hoverNodes, null, this);
+        }
         return this;
       }
 
@@ -4852,6 +4851,12 @@
         nodesToRender.forEach(function (node) {
           return render(node);
         });
+
+        // In compatibility mode, the regular node pass has already applied
+        // the reducer's focused size and border. Drawing the hover program a
+        // second time in that same context would cover the node with its hover
+        // fill instead of adding a separate overlay as Sigma normally does.
+        if (useMobileChromiumWebGLCompatibility()) return this;
 
         // Draw WebGL nodes on top of the labels:
         var nodesPerPrograms = {};
