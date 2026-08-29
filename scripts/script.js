@@ -344,6 +344,30 @@ let sigmaWebGlLossIncidents = 0;
 let sigmaWebGlRecoveries = 0;
 let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
+
+function positionRotateSlider() {
+  if (!rotateSlider || !sigmaContainer) return;
+
+  const graphBounds = sigmaContainer.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const visibleLeft = Math.max(0, graphBounds.left);
+  const visibleRight = Math.min(viewportWidth, graphBounds.right);
+  const visibleTop = Math.max(0, graphBounds.top);
+  const visibleBottom = Math.min(viewportHeight, graphBounds.bottom);
+  const visibleWidth = Math.max(0, visibleRight - visibleLeft);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+
+  if (!visibleWidth || !visibleHeight) return;
+
+  const edgeOffset = Math.min(40, Math.max(18, visibleHeight * 0.045));
+  const bottom = Math.max(12, viewportHeight - visibleBottom + edgeOffset);
+  const width = Math.min(240, Math.max(140, visibleWidth * 0.42));
+
+  rotateSlider.style.left = `${visibleLeft + visibleWidth / 2}px`;
+  rotateSlider.style.bottom = `${bottom}px`;
+  rotateSlider.style.width = `${width}px`;
+}
 let sigmaRecoveryIncidentActive = false;
 let sigmaRecoverySnapshot = null;
 let sigmaRecoveryLastError = 'None';
@@ -1246,6 +1270,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", () => {
     adjustSidebarState();
     updateLegendOffset();
+    positionRotateSlider();
     if (renderer) {
       renderer.resize();
       renderer.refresh();
@@ -1254,6 +1279,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ✅ Resize Sigma if #sigma-container itself is resized (e.g. flexbox, sidebar toggle, etc.)
   const resizeObserver = new ResizeObserver(() => {
+    positionRotateSlider();
     if (renderer) {
       renderer.resize();
       renderer.refresh();
@@ -1263,6 +1289,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sigmaContainer) {
     resizeObserver.observe(sigmaContainer);
   }
+  window.visualViewport?.addEventListener("resize", positionRotateSlider);
+  document.getElementById("app-container")?.addEventListener("transitionend", positionRotateSlider);
 
   /*document.getElementById("menu-toggle").addEventListener("click", () => {
     const sidebar = document.getElementById("left-sidebar");
@@ -1537,6 +1565,7 @@ document.addEventListener("DOMContentLoaded", () => {
     step: 1,
     connect: 'lower'
   });
+  positionRotateSlider();
   bindCameraControls();
 });
 

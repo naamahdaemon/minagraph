@@ -1376,10 +1376,6 @@
       display: none !important;
     }
 
-    body.mobile-mode #rotate-slider {
-      bottom: 42px !important;
-    }
-
     .noUi-handle {
       width: 12px; /* or smaller, adjust as needed */
       height: 24px;
@@ -2361,8 +2357,15 @@
 
   /* 1) Container narrow & padded so thumb stays inside */
   #rotate-slider {
-    height: 8px;        /* thin track */
-    padding: 1px 16px 0px 0px;     /* keeps thumb inside */
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    width: 200px;
+    height: 8px;
+    padding: 1px 16px 0 0;
+    transform: translateX(-50%);
+    z-index: 1000;
+    touch-action: none;
   }
 
   /* 2) Style the (invisible) rail */
