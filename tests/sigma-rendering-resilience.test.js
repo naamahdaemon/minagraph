@@ -15,6 +15,8 @@ assert.match(sigma, /EdgA\\\//);
 assert.match(sigma, /devicePixelRatio \|\| 1\) >= 3/);
 assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) context = canvas\.getContext\("webgl2"/);
 assert.doesNotMatch(sigma, /this\.width \* this\.pixelRatio \+ "px"/);
+assert.match(sigma, /if \(currentTexture\) \{[\s\S]*?gl\.clear\(gl\.COLOR_BUFFER_BIT\);[\s\S]*?return this;/);
+assert.match(sigma, /gl\.deleteTexture\(currentTexture\);\s*this\.textures\[_id2\] = null;/);
 assert.match(script, /visualViewport\?\.addEventListener\('resize', scheduleSigmaViewportSync\)/);
 assert.match(script, /renderer\.resize\(true\)/);
 assert.match(script, /webglcontextlost/);
