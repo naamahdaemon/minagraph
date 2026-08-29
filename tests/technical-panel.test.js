@@ -26,8 +26,8 @@ assert.match(worker, /event\.data\?\.type === 'activate-update'/);
 assert.match(worker, /self\.skipWaiting\(\)/);
 assert.match(worker, /cacheName: CACHE_NAME/);
 assert.match(worker, /buildDate: APP_BUILD_DATE/);
-assert.match(worker, /mina-graph-explorer-v37/);
-assert.match(worker, /FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v36'/);
+assert.match(worker, /mina-graph-explorer-v38/);
+assert.match(worker, /FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37'/);
 assert.match(worker, /url\.origin === self\.location\.origin/);
 assert.match(worker, /networkFirst\(request, request\.mode === 'navigate'\)/);
 
