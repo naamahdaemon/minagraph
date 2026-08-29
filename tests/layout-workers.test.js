@@ -43,6 +43,22 @@ assert.notDeepEqual(
   "FR should separate coincident nodes"
 );
 
+const iterationGraph = {
+  nodes: [{ id: "a", x: 10, y: 10 }, { id: "b", x: 90, y: 90 }],
+  edges: [{ source: "a", target: "b", weight: 1 }],
+  settings: { iterations: 1, gravity: 0.01, scalingRatio: 100, width: 100, height: 100 }
+};
+const oneIteration = runWorker("fruchtermanReingold.js", iterationGraph);
+const fiveIterations = runWorker("fruchtermanReingold.js", {
+  ...iterationGraph,
+  settings: { ...iterationGraph.settings, iterations: 5 }
+});
+assert.notDeepEqual(
+  Array.from(oneIteration.positions),
+  Array.from(fiveIterations.positions),
+  "FR should honor the requested iteration count"
+);
+
 function runForceAtlas(strongGravityMode) {
   return runWorker("forceAtlas.js", {
     nodes: [{ id: "a", x: 90, y: 50 }],
