@@ -20,6 +20,8 @@ assert.ok(
 
 assert.match(html, /id="sidebar-backdrop" hidden/);
 assert.match(html, /id="menu-toggle"[^>]+aria-controls="left-sidebar"[^>]+aria-expanded="false"/);
+assert.match(html, /<div id="controls">\s*<button id="menu-toggle"/);
+assert.match(html, /id="layout-toggle-btn"[^>]+layout-toggle-button/);
 assert.match(html, /<aside id="left-sidebar" aria-label="Graph settings" aria-hidden="true">/);
 assert.match(html, /id="sidebar-close"[^>]+aria-label="Close settings"/);
 assert.match(html, /header\.setAttribute\('tabindex', '0'\)/);
@@ -28,5 +30,8 @@ assert.match(html, /event\.key === 'Enter' \|\| event\.key === ' '/);
 assert.match(css, /@media screen and \(max-width: 768px\)[\s\S]*?#app-container\.sidebar-open\s*\{\s*margin-left: 0;/);
 assert.match(css, /#sidebar-backdrop\.visible/);
 assert.match(css, /\.sidebar-heading\s*\{[\s\S]*?position: sticky;/);
+assert.match(css, /#controls\s*\{[\s\S]*?top: 0;[\s\S]*?left: 0;[\s\S]*?right: 0;[\s\S]*?width: 100%;/);
+assert.match(css, /\.layout-toggle-button\.is-running \.layout-run-icon[\s\S]*?animation: layout-button-spin/);
+assert.match(script, /button\.classList\.toggle\("is-running", running\)/);
 
 console.log('Sidebar panel tests passed');

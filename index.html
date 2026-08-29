@@ -121,7 +121,6 @@
 </script>
 <body>
   <div id="sidebar-backdrop" hidden></div>
-  <button id="menu-toggle" type="button" title="Open settings (S)" aria-label="Open settings" aria-controls="left-sidebar" aria-expanded="false">☰</button>
   <div id="app-container">
     <aside id="left-sidebar" aria-label="Graph settings" aria-hidden="true">
       <div class="sidebar-heading">
@@ -297,10 +296,6 @@
           <label>SCALE<br /><input id="layout-scale" type="number" step="10" value="1000" style="width: 100%; margin-bottom: 10px;"></label>
           <input type="checkbox" id="toggle-labels" checked style="vertical-align: middle;">
           <label for="toggle-labels" style="color:#aaa; display: inline-block; margin-left: 5px; vertical-align: middle;">SHOW LABELS</label><br/><br/>
-          <button id="layout-toggle-btn"
-            style="width: 100%; margin-bottom: 20px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">
-            Apply Layout (L)
-          </button>
           <div id="layout-progress-wrapper" style="margin-top: 20px;">
             <label style="color:#aaa;">Layout progress</label>
             <progress id="layout-progress" value="0" max="100" style="width: 100%;"></progress>
@@ -447,6 +442,18 @@
     <!-- Make sure the graph container has margin-left to not overlap the sidebar -->
     <div id="main-content">
       <div id="controls">
+        <button id="menu-toggle" type="button" title="Open settings (S)" aria-label="Open settings" aria-controls="left-sidebar" aria-expanded="false">☰</button>
+
+        <button id="layout-toggle-btn" class="control-button layout-toggle-button" type="button" title="Apply current layout (L)" aria-label="Apply current layout">
+          <span class="layout-run-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </span>
+        </button>
+
+        <div class="command-bar-spacer" aria-hidden="true"></div>
+
         <div style="min-width: 200px;display: none;">
           <label style="color:#aaa;">Layout info</label><br />
           <span id="layout-info" style="display:inline-block; min-width: 180px;"></span>
