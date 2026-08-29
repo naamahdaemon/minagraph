@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.minagraph.app",
+      "sha256_cert_fingerprints": [
+        "F4:94:56:41:92:26:94:30:B1:0A:A9:EA:59:F5:A6:15:6C:CE:DA:82:F3:D1:52:36:0D:6B:60:D2:96:3C:C6:3D"
+      ]
+    }
+  }
+]
