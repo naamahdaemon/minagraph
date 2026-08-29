@@ -200,19 +200,35 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      padding-top: 54px;
     }
 
     #controls {
       position: fixed;
-      top: 20px;
-      right: 20px;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      min-height: 54px;
       background: #222;
       z-index: 1001;
-      padding: 5px;
-      border-radius: 8px;
+      padding: 5px 10px;
+      border-bottom: 1px solid rgba(127, 127, 127, 0.38);
+      border-radius: 0;
       display: flex;
-      align-items: center; /* vertical alignment */
-      gap: 2px;             /* space between buttons/items */      
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
+
+    .command-bar-spacer {
+      flex: 1 1 auto;
+      min-width: 4px;
+    }
+
+    body.fullscreen-mode #main-content {
+      padding-top: 0;
     }
 
     #sigma-container {
@@ -516,11 +532,10 @@
     #menu-toggle {
       display: grid;
       place-items: center;
-      position: fixed;
-      top: 12px;
-      left: 12px;
+      position: static;
+      flex: 0 0 auto;
       width: 44px;
-      height: 44px;
+      height: 40px;
       padding: 0;
       background: rgba(30, 30, 30, 0.82);
       border: 1px solid rgba(127, 127, 127, 0.38);
@@ -532,7 +547,6 @@
       font-size: 23px;
       line-height: 1;
       transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-      z-index: 1003;
     }
 
     #menu-toggle:hover,
@@ -1031,6 +1045,41 @@
       width: 24px;
       height: 24px;
       fill: white;
+    }
+
+    .layout-toggle-button {
+      position: relative;
+      flex: 0 0 auto;
+      border: 1px solid rgba(79, 195, 247, 0.55);
+    }
+
+    .layout-toggle-button:hover,
+    .layout-toggle-button:focus-visible {
+      background: rgba(79, 195, 247, 0.16);
+      outline: none;
+    }
+
+    .layout-toggle-button.is-running .layout-run-icon {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(79, 195, 247, 0.32);
+      border-top-color: #4fc3f7;
+      border-radius: 50%;
+      animation: layout-button-spin 0.75s linear infinite;
+    }
+
+    .layout-toggle-button.is-running .layout-run-icon svg {
+      display: none;
+    }
+
+    @keyframes layout-button-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .layout-toggle-button.is-running .layout-run-icon {
+        animation-duration: 1.5s;
+      }
     }
 
     .control-button-filled {

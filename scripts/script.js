@@ -1777,7 +1777,13 @@ function setLayoutUiState(state, message = "") {
   const progressText = document.getElementById("layout-progress-text");
   const info = document.getElementById("layout-info");
 
-  if (button) button.textContent = state === "running" ? "Stop Layout" : "Apply Layout";
+  if (button) {
+    const running = state === "running";
+    button.classList.toggle("is-running", running);
+    button.setAttribute("aria-pressed", String(running));
+    button.setAttribute("aria-label", running ? "Stop current layout" : "Apply current layout");
+    button.title = running ? "Stop current layout (L)" : "Apply current layout (L)";
+  }
   if (progressText && message) progressText.textContent = message;
   if (info && state === "error") info.textContent = `Layout error: ${message}`;
   if (progress && state === "stopped") progress.value = 0;
@@ -4174,12 +4180,10 @@ function deleteSelectedNode(nodeId) {
   if (selectedNode === nodeId) selectedNode = null;
   if (hoveredNode === nodeId) hoveredNode = null;
 
-  const layoutBtn = document.getElementById("layout-toggle-btn");
-
   if (isLayoutRunning) {
     stopLayoutInWorker();
-    layoutBtn.textContent = "Apply Layout";
     isLayoutRunning = false;
+    setLayoutUiState("stopped");
   }
 
   const neighbors = graph.neighbors(nodeId);
@@ -4293,8 +4297,8 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   setupDateSlicer(); // ✅ Update the slicer to reflect new edges
   if (isLayoutRunning) {
     stopLayoutInWorker();
-    layoutBtn.textContent = "Apply Layout";
     isLayoutRunning = false;
+    setLayoutUiState("stopped");
   }  
   renderer.refresh();
   //hideLoader();
