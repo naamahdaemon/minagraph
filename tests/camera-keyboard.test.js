@@ -19,8 +19,9 @@ assert.match(script, /function getSidePanelCoveredWidth\(panelWidth, viewportWid
 assert.match(script, /zoomSlider\.noUiSlider\.on\('slide', \(\) => centerGraphInViewport\(\)\)/);
 assert.match(script, /zoomSlider\.noUiSlider\.on\('change', \(\) => centerGraphInViewport\(\)\)/);
 assert.match(script, /function positionRotateSlider\(\)/);
-assert.match(script, /visibleLeft \+ visibleWidth \/ 2/);
-assert.match(script, /viewportHeight - visibleBottom \+ edgeOffset/);
+assert.match(script, /const sliderCenterX = visibleLeft \+ visibleWidth \/ 2/);
+assert.match(script, /slicerBounds\.bottom \+ slicerGap \+ sliderHandleRadius/);
+assert.match(script, /const slicerGap = 14/);
 assert.match(script, /run\(\{ iterationsOverride = null, origin = "manual" \} = \{\}\) \{[\s\S]*?renderer\?\.setCustomBBox\(null\)/);
 assert.match(script, /const iterations = requestedIterations;/);
 assert.doesNotMatch(script, /safeLimit/);
