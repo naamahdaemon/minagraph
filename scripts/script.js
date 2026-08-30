@@ -345,6 +345,42 @@ let sigmaWebGlRecoveries = 0;
 let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
 let rotatePositionRun = 0;
+let pinchReference = null;
+
+function bindStablePinchReference(container) {
+  if (!container || container.dataset.minagraphPinchReference === "true") return;
+  container.dataset.minagraphPinchReference = "true";
+
+  container.addEventListener("touchstart", event => {
+    if (event.touches.length < 2 || !renderer || !graph?.order) return;
+    const gestureRenderer = renderer;
+
+    // downNode is emitted during the same touchstart and may release the BBox
+    // used by node dragging. Freeze the final state just after that dispatch,
+    // before the browser can deliver the first touchmove of the pinch.
+    queueMicrotask(() => {
+      if (renderer !== gestureRenderer || pinchReference) return;
+      const previousBBox = gestureRenderer.getCustomBBox();
+      const gestureBBox = previousBBox || gestureRenderer.getBBox();
+      gestureRenderer.setCustomBBox(gestureBBox);
+      pinchReference = { renderer: gestureRenderer, previousBBox };
+    });
+  }, { passive: true, capture: true });
+
+  const releasePinchReference = event => {
+    // Sigma continues the gesture as a one-finger pan after the first finger is
+    // lifted. Retain the same reference until the complete gesture has ended.
+    if (event.touches?.length || !pinchReference) return;
+    const reference = pinchReference;
+    pinchReference = null;
+    if (renderer !== reference.renderer) return;
+    reference.renderer.setCustomBBox(reference.previousBBox || null);
+    reference.renderer.refresh();
+  };
+
+  document.addEventListener("touchend", releasePinchReference, { passive: true });
+  document.addEventListener("touchcancel", releasePinchReference, { passive: true });
+}
 
 function positionRotateSlider() {
   if (!rotateSlider || !sigmaContainer) return;
@@ -851,6 +887,7 @@ document.addEventListener("DOMContentLoaded", () => {
   arrow = document.getElementById("toggle-token-arrow");
   tokenSection = document.getElementById("minataur-token-section");
   sigmaContainer = document.getElementById("sigma-container");
+  bindStablePinchReference(sigmaContainer);
   sigmaContainer.addEventListener("pointerdown", () => sigmaContainer.focus({ preventScroll: true }));
   controls = document.getElementById("controls");
   footer = document.querySelector("footer");
