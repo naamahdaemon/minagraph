@@ -42,9 +42,15 @@ assert.equal(outgoing[0].amount, "6000");
 
 const appSource = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "script.js"), "utf8");
 assert.match(appSource, /blockchain === "bitcoin"[\s\S]*?BitcoinAdapter\.fetchAddressTransactions/);
+assert.doesNotMatch(appSource, /getApiToken\("bitcoin"\)/, "The client must not request an Alchemy Bitcoin API key");
 assert.doesNotMatch(
   appSource.slice(appSource.indexOf("async function fetchTransactionsFromAlchemy"), appSource.indexOf("async function fetchTransactionsForKey2")),
   /bitcoin/,
   "Bitcoin must not be added to the account-based Alchemy adapter"
+);
+assert.match(
+  appSource,
+  /selectedBlockchain === "base" \|\| selectedBlockchain === "bitcoin"/,
+  "Bitcoin must initialize finite degree bounds before computing node colors"
 );
 console.log("Bitcoin adapter tests passed");

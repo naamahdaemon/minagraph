@@ -967,13 +967,7 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem('selectedBlockchain', chain);
     apiTokenInput.value = getApiToken(chain);
     loadStartKeyForBlockchain(chain);
-    updateBitcoinApiSettings();
   });
-
-  const bitcoinApiKeyInput = document.getElementById("bitcoin-api-key");
-  bitcoinApiKeyInput.value = getApiToken("bitcoin");
-  bitcoinApiKeyInput.addEventListener("input", event => saveApiToken("bitcoin", event.target.value.trim()));
-  updateBitcoinApiSettings();
   
   tokenInput.addEventListener("focus", () => {
     tokenInput.type = "text";
@@ -1043,7 +1037,6 @@ document.addEventListener("DOMContentLoaded", () => {
   
   if (param_chain && param_address) {
     document.getElementById("blockchain-select").value = param_chain;
-    updateBitcoinApiSettings();
     document.getElementById("param-base-key").value = param_address;
 
     if (param_firstLimit) {
@@ -4107,9 +4100,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
         } else if (blockchain === "bitcoin") {
           if (!window.BitcoinAdapter) throw new Error("Bitcoin adapter is unavailable");
-          transactions = await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit, {
-            apiKey: getApiToken("bitcoin")
-          });
+          transactions = await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit);
         } else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
@@ -4802,7 +4793,8 @@ function showNodePanel(node, refreshExternalStatus = true) {
     const links = chainsToFetch.map(chain => `
       <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
          title="Fetch from ${capitalize(chain)}">
-        <img class="chain-fetch-icon" src="${getChainIconPath(chain)}" alt="${chain} icon" />
+        <img class="chain-fetch-icon${chain === "bitcoin" ? " chain-fetch-icon--bitcoin" : ""}"
+          src="${getChainIconPath(chain)}" alt="${chain} icon" />
       </a>`).join("");
 
     fetchButtonsHTML = `
@@ -5086,7 +5078,7 @@ function setupReducers() {
   let minDegree = Infinity;
   let maxDegree = -Infinity;
 
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos" || selectedBlockchain === "base") {
+  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos" || selectedBlockchain === "base" || selectedBlockchain === "bitcoin") {
     graph.forEachNode(node => {
       const deg = graph.degree(node);
       if (deg < minDegree) minDegree = deg;
@@ -6131,11 +6123,6 @@ function getExplorerURL(type, value, blockchain) {
 
 function getChainIconPath(chain) {
   return chain === "bitcoin" ? "img/bitcoin.svg" : `img/${chain}.png`;
-}
-
-function updateBitcoinApiSettings() {
-  const settings = document.getElementById("bitcoin-api-settings");
-  if (settings) settings.hidden = document.getElementById("blockchain-select")?.value !== "bitcoin";
 }
 
 function saveApiToken(chain, token) {
