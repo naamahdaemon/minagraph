@@ -332,8 +332,14 @@
           
           <button  id="saveBtn" onclick="saveLocalStorageToJsonFile()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">EXPORT SETTINGS</button>
           <button   id="loadBtn" onclick="document.getElementById('import-settings').click()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">IMPORT SETTINGS</button>
-          <input type="file" id="import-settings" accept=".json" style="display: none;">      
-          
+          <input type="file" id="import-settings" accept=".json" style="display: none;">
+
+          <div class="graph-share-actions">
+            <button id="shareGraphBtn" type="button">SHARE GRAPH LINK</button>
+            <button id="copyGraphLinkBtn" type="button">COPY LINK</button>
+          </div>
+          <p id="graph-share-status" class="graph-share-status" aria-live="polite"></p>
+
           <button   id="demoBtn" onclick="demo()" style="width: 100%; margin-bottom: 10px; padding: 8px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px;">DEMO MODE</button>
           <div style="margin-top: 40px; text-align: center;">
             <a href="#" onclick="document.getElementById('help-overlay').style.display='flex'" style="color: #4fc3f7; text-decoration: underline; font-size: 14px;">How does this work?</a>

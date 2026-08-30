@@ -927,6 +927,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const param_limit = params.get("iterationlimit");
   const param_startDate = params.get("startdate");
   const param_endDate = params.get("enddate");
+  const sharedLayoutParams = {
+    algorithm: params.get("layout"),
+    iterations: params.get("iterations"),
+    width: params.get("width"),
+    height: params.get("height"),
+    gravity: params.get("gravity"),
+    scale: params.get("scale"),
+    labels: params.get("labels"),
+    linlog: params.get("linlog"),
+    outbound: params.get("outbound"),
+    strongGravity: params.get("stronggravity"),
+    preventOverlap: params.get("preventoverlap"),
+    edgeWeightInfluence: params.get("ewi"),
+    cooling: params.get("cooling"),
+    attraction: params.get("attraction"),
+    repulsion: params.get("repulsion")
+  };
   
   // Load selected blockchain from localStorage
   const storedBlockchain = localStorage.getItem('selectedBlockchain');
@@ -1030,6 +1047,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (param_startDate) document.getElementById("param-start-date").value = param_startDate;
     if (param_endDate) document.getElementById("param-end-date").value = param_endDate;
+    applySharedLayoutParams(sharedLayoutParams);
     syncFetchDateRangeFromInputs();
 
     // Optionally trigger graph fetch automatically
@@ -1043,6 +1061,9 @@ document.addEventListener("DOMContentLoaded", () => {
   loadFetchParams();
   }
   setupFetchParamListeners();
+
+  document.getElementById("shareGraphBtn")?.addEventListener("click", shareGraphLink);
+  document.getElementById("copyGraphLinkBtn")?.addEventListener("click", copyGraphLink);
 
   apiTokenInput.value = getApiToken(chain);
   loadStartKeyForBlockchain(chain);  
@@ -6456,6 +6477,138 @@ async function toggleFullscreen(forceExit = false) {
   }
 
   setFullscreenMode(true);
+}
+
+function getGraphShareUrl() {
+  const url = new URL(window.location.origin + window.location.pathname);
+  const values = {
+    chain: document.getElementById("blockchain-select")?.value,
+    address: document.getElementById("param-base-key")?.value.trim(),
+    firstiterationlimit: document.getElementById("param-first-iteration")?.value,
+    iterationlimit: document.getElementById("param-limit")?.value,
+    depth: document.getElementById("param-depth")?.value,
+    startdate: document.getElementById("param-start-date")?.value,
+    enddate: document.getElementById("param-end-date")?.value,
+    layout: document.getElementById("layout-algorithm")?.value,
+    iterations: document.getElementById("layout-iterations")?.value,
+    width: document.getElementById("layout-width")?.value,
+    height: document.getElementById("layout-height")?.value,
+    gravity: document.getElementById("layout-gravity")?.value,
+    scale: document.getElementById("layout-scale")?.value,
+    labels: document.getElementById("toggle-labels")?.checked ? "1" : "0",
+    linlog: document.getElementById("layout-linlog")?.checked ? "1" : "0",
+    outbound: document.getElementById("layout-outbound")?.checked ? "1" : "0",
+    stronggravity: document.getElementById("layout-strong-gravity")?.checked ? "1" : "0",
+    preventoverlap: document.getElementById("layout-prevent-overlap")?.checked ? "1" : "0",
+    ewi: document.getElementById("layout-ewi")?.value,
+    cooling: document.getElementById("layout-cooling")?.value,
+    attraction: document.getElementById("layout-attraction")?.value,
+    repulsion: document.getElementById("layout-repulsion")?.value
+  };
+
+  Object.entries(values).forEach(([name, value]) => {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, value);
+  });
+  return url.toString();
+}
+
+function setGraphShareStatus(message, isError = false) {
+  const status = document.getElementById("graph-share-status");
+  if (!status) return;
+  status.textContent = message;
+  status.style.color = isError ? "#ff8a80" : "#70d68b";
+}
+
+async function writeGraphLinkToClipboard(url) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return;
+  }
+  const input = document.createElement("textarea");
+  input.value = url;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("Clipboard unavailable");
+}
+
+async function copyGraphLink() {
+  const url = getGraphShareUrl();
+  if (!new URL(url).searchParams.get("address")) {
+    setGraphShareStatus("Choose a start node before copying the link.", true);
+    return;
+  }
+  try {
+    await writeGraphLinkToClipboard(url);
+    setGraphShareStatus("Graph link copied.");
+  } catch (error) {
+    console.error("Could not copy graph link:", error);
+    setGraphShareStatus("Unable to copy the graph link.", true);
+  }
+}
+
+async function shareGraphLink() {
+  const url = getGraphShareUrl();
+  if (!new URL(url).searchParams.get("address")) {
+    setGraphShareStatus("Choose a start node before sharing the graph.", true);
+    return;
+  }
+
+  if (!navigator.share) {
+    await copyGraphLink();
+    return;
+  }
+
+  try {
+    await navigator.share({
+      title: "Minagraph",
+      text: "Open this blockchain graph in Minagraph.",
+      url
+    });
+    setGraphShareStatus("Graph link shared.");
+  } catch (error) {
+    if (error?.name !== "AbortError") {
+      console.error("Could not share graph link:", error);
+      setGraphShareStatus("Sharing failed. You can still copy the link.", true);
+    }
+  }
+}
+
+function applySharedLayoutParams(shared) {
+  const setValue = (id, value) => {
+    if (value === null || value === undefined || value === "") return;
+    const element = document.getElementById(id);
+    if (element) element.value = value;
+  };
+  const setChecked = (id, value) => {
+    if (value === null || value === undefined) return;
+    const element = document.getElementById(id);
+    if (element) element.checked = value === "1" || value === "true";
+  };
+
+  if (shared.algorithm && ["fr", "fa", "ord"].includes(shared.algorithm)) {
+    setValue("layout-algorithm", shared.algorithm);
+    document.getElementById("layout-algorithm")?.dispatchEvent(new Event("change"));
+  }
+  setValue("layout-iterations", shared.iterations);
+  setValue("layout-width", shared.width);
+  setValue("layout-height", shared.height);
+  setValue("layout-gravity", shared.gravity);
+  setValue("layout-scale", shared.scale);
+  setValue("layout-ewi", shared.edgeWeightInfluence);
+  setValue("layout-cooling", shared.cooling);
+  setValue("layout-attraction", shared.attraction);
+  setValue("layout-repulsion", shared.repulsion);
+  setChecked("toggle-labels", shared.labels);
+  setChecked("layout-linlog", shared.linlog);
+  setChecked("layout-outbound", shared.outbound);
+  setChecked("layout-strong-gravity", shared.strongGravity);
+  setChecked("layout-prevent-overlap", shared.preventOverlap);
+  showAllLabels = document.getElementById("toggle-labels")?.checked !== false;
 }
 
 function setFullscreenMode(active) {
