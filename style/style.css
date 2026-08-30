@@ -2237,6 +2237,41 @@
     color: #555;
   }
 
+  .graph-share-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  #left-sidebar .graph-share-actions button {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px;
+    border: 1px solid rgba(79, 195, 247, 0.55);
+    border-radius: 9px;
+    background: rgba(79, 195, 247, 0.14);
+    color: inherit;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  #left-sidebar .graph-share-actions button:hover,
+  #left-sidebar .graph-share-actions button:focus-visible {
+    border-color: #4fc3f7;
+    background: rgba(79, 195, 247, 0.25);
+    outline: none;
+  }
+
+  .graph-share-status {
+    min-height: 17px;
+    margin: 0 0 10px;
+    color: #aaa;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
   @media (max-width: 520px) {
     .technical-info-grid {
       grid-template-columns: 1fr;
