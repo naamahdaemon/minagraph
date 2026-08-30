@@ -4770,21 +4770,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
 
 
   const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
-  const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
-  const isTezosAddress = /^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(node); // include tz1-3 and KT1
-  const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
-  const isBitcoinAddress = window.BitcoinAdapter?.isBitcoinAddress(node) === true;
-  const isSolanaAddress =
-    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node) &&
-    !isTezosAddress && !isMinaAddress && !isEvmAddress; // avoid false positives
-
-  let compatibleChains = [];
-
-  if (isBitcoinAddress) compatibleChains = ["bitcoin"];
-  else if (isMinaAddress) compatibleChains = ["mina"];
-  else if (isTezosAddress) compatibleChains = ["tezos"];
-  else if (isSolanaAddress) compatibleChains = ["solana"];
-  else if (isEvmAddress) compatibleChains = evmChains;
+  const compatibleChains = getCompatibleChainsForNode(node);
 
   const chainsToFetch = compatibleChains.filter(chain => {
     const visitedSet = visitedKeysByChain.get(chain) || new Set();
@@ -5064,6 +5050,7 @@ function initRenderer() {
     nodeProgramClasses: {
       bordered: NodeBorderProgram,
     },
+    defaultDrawNodeLabel: drawNodeLabelWithFetchStatus,
   }
   //renderer = new Sigma(graph, container);
 
@@ -5113,6 +5100,7 @@ function setupReducers() {
     const chains = data.chains instanceof Set ? Array.from(data.chains) : (data.chains || []);
     const chainCount = chains.length;
     const primaryChain = chains[0] || selectedBlockchain;
+    const allNetworksFetched = areAllCompatibleNetworksFetched(node);
 
     // ★— NEW: check if this node is in favorites
     const isFav = isAddressInFavorites(node, primaryChain);
@@ -5166,6 +5154,7 @@ function setupReducers() {
           labelSize: 36,
           labelColor: {color: "#000"},
           forceLabelColor: true,
+          allNetworksFetched,
           //labelBackground: {
           //  color: currentTheme === "light" ? "#000" : "#fff",
           //  opacity: 0.6,
@@ -5193,6 +5182,7 @@ function setupReducers() {
           // 👇 Force label color
           labelColor: {color: isLightTheme() ? "#000" : "#fff"},
           forceLabelColor: true,
+          allNetworksFetched,
           labelBackground: {
             color: currentTheme === "light" ? "#000" : "#fff",
             opacity: 0.6,
@@ -5238,6 +5228,7 @@ function setupReducers() {
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
       forceLabelColor: true,
+      allNetworksFetched,
       //labelBackground: {
       //  color: currentTheme === "light" ? "#000" : "#fff",
       //  opacity: 0.6,
@@ -6129,6 +6120,70 @@ function getExplorerURL(type, value, blockchain) {
 
 function getChainIconPath(chain) {
   return chain === "bitcoin" ? "img/bitcoin.svg" : `img/${chain}.png`;
+}
+
+function getCompatibleChainsForNode(node) {
+  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
+  const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
+  const isTezosAddress = /^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(node);
+  const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
+  const isBitcoinAddress = window.BitcoinAdapter?.isBitcoinAddress(node) === true;
+  const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node) &&
+    !isTezosAddress && !isMinaAddress && !isEvmAddress && !isBitcoinAddress;
+
+  if (isBitcoinAddress) return ["bitcoin"];
+  if (isMinaAddress) return ["mina"];
+  if (isTezosAddress) return ["tezos"];
+  if (isSolanaAddress) return ["solana"];
+  if (isEvmAddress) return evmChains;
+  return [];
+}
+
+function areAllCompatibleNetworksFetched(node) {
+  const compatibleChains = getCompatibleChainsForNode(node);
+  if (compatibleChains.length === 0) return false;
+  return compatibleChains.every(chain => {
+    const normalizedNode = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(chain)
+      ? node.toLowerCase()
+      : node;
+    return visitedKeysByChain.get(chain)?.has(normalizedNode) === true;
+  });
+}
+
+function drawNodeLabelWithFetchStatus(context, data, settings) {
+  if (!data.label) return;
+  const size = settings.labelSize;
+  const color = settings.labelColor.attribute
+    ? data[settings.labelColor.attribute] || settings.labelColor.color || "#000"
+    : settings.labelColor.color;
+  const startX = data.x + data.size + 3;
+  let textX = startX;
+
+  context.save();
+  context.fillStyle = color;
+  context.strokeStyle = color;
+  context.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
+
+  if (data.allNetworksFetched) {
+    const radius = Math.max(5, size * 0.32);
+    const centerX = startX + radius;
+    const centerY = data.y;
+    context.strokeStyle = color;
+    context.lineWidth = Math.max(1.4, size * 0.1);
+    context.beginPath();
+    context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(centerX - radius * 0.48, centerY);
+    context.lineTo(centerX - radius * 0.1, centerY + radius * 0.38);
+    context.lineTo(centerX + radius * 0.55, centerY - radius * 0.42);
+    context.stroke();
+    textX = startX + radius * 2 + 4;
+  }
+
+  context.fillStyle = color;
+  context.fillText(data.label, textX, data.y + size / 3);
+  context.restore();
 }
 
 function updateStartKeyPlaceholder(chain) {
