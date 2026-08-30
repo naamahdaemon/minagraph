@@ -5105,6 +5105,7 @@ function setupReducers() {
     // ★— NEW: check if this node is in favorites
     const isFav = isAddressInFavorites(node, primaryChain);
     const favName = getFavoriteName(node, primaryChain);
+    const renderedLabel = `${allNetworksFetched ? "✓ " : ""}${data.label}${isFav ? ` ⭐ (${favName})` : ""}`;
 
     if (node === window.initialPublicKey) {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
@@ -5149,12 +5150,11 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: data.label + (isFav ? ` ⭐ (${favName})` : ""),
+          label: renderedLabel,
           //label: showAllLabels ? data.label : "",
           labelSize: 36,
           labelColor: {color: "#000"},
           forceLabelColor: true,
-          allNetworksFetched,
           //labelBackground: {
           //  color: currentTheme === "light" ? "#000" : "#fff",
           //  opacity: 0.6,
@@ -5176,13 +5176,12 @@ function setupReducers() {
           //type: "circle",
           color: glowColor,
           overrideColor: glowColor, // 🟢 force Sigma to use this color
-          label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
+          label: showAllLabels ? renderedLabel : "",
           //label: showAllLabels ? data.label : "",
           labelSize: 36,
           // 👇 Force label color
           labelColor: {color: isLightTheme() ? "#000" : "#fff"},
           forceLabelColor: true,
-          allNetworksFetched,
           labelBackground: {
             color: currentTheme === "light" ? "#000" : "#fff",
             opacity: 0.6,
@@ -5223,12 +5222,11 @@ function setupReducers() {
       borderColor: isLightTheme() ? "#111" : "#eee",
       borderSize: 10,
       opacity: 1,
-      label: showAllLabels ? data.label + (isFav ? ` ⭐ (${favName})` : "") : "",
+      label: showAllLabels ? renderedLabel : "",
       //label: showAllLabels ? data.label : "",
       // 👇 Force label color
       labelColor: {color: isLightTheme() ? "#000" : "#fff"},
       forceLabelColor: true,
-      allNetworksFetched,
       //labelBackground: {
       //  color: currentTheme === "light" ? "#000" : "#fff",
       //  opacity: 0.6,
@@ -6152,6 +6150,8 @@ function areAllCompatibleNetworksFetched(node) {
 
 function drawNodeLabelWithFetchStatus(context, data, settings) {
   if (!data.label) return;
+  const hasFetchStatus = data.label.startsWith("✓ ");
+  const label = hasFetchStatus ? data.label.slice(2) : data.label;
   const size = settings.labelSize;
   const color = settings.labelColor.attribute
     ? data[settings.labelColor.attribute] || settings.labelColor.color || "#000"
@@ -6164,11 +6164,11 @@ function drawNodeLabelWithFetchStatus(context, data, settings) {
   context.strokeStyle = color;
   context.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
 
-  if (data.allNetworksFetched) {
+  if (hasFetchStatus) {
     const radius = Math.max(5, size * 0.32);
     const centerX = startX + radius;
     const centerY = data.y;
-    context.strokeStyle = color;
+    context.strokeStyle = isLightTheme() ? "#000" : "#fff";
     context.lineWidth = Math.max(1.4, size * 0.1);
     context.beginPath();
     context.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -6182,7 +6182,7 @@ function drawNodeLabelWithFetchStatus(context, data, settings) {
   }
 
   context.fillStyle = color;
-  context.fillText(data.label, textX, data.y + size / 3);
+  context.fillText(label, textX, data.y + size / 3);
   context.restore();
 }
 
