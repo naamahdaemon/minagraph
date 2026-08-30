@@ -151,12 +151,6 @@
             <option value="bitcoin">Bitcoin</option>
           </select>
 
-          <div id="bitcoin-api-settings" hidden>
-            <label for="bitcoin-api-key">ALCHEMY BITCOIN API KEY <span style="font-weight: normal;">(optional)</span></label>
-            <input id="bitcoin-api-key" type="password" autocomplete="off" placeholder="Uses mempool.space when empty">
-            <p class="sidebar-field-help">Optional. Stored only on this device.</p>
-          </div>
-
           <div style="margin-top: 10px;">
             <label for="wipe-select">Wipe graph data:</label>
             <select id="wipe-select">
@@ -710,7 +704,7 @@
           <li><strong>FIRST ITERATION LIMIT</strong>: Max transactions for the root key.</li>
           <li><strong>RECURSION DEPTH</strong>: How many levels of linked accounts to explore.</li>
           <li><strong>START KEY</strong>: The public key where exploration begins.</li>
-          <li><strong>API TOKEN</strong>: Depends on the selected data provider. Bitcoin works without a token through mempool.space; an Alchemy Bitcoin key can optionally be configured.</li>
+          <li><strong>API TOKEN</strong>: Depends on the selected data provider. Bitcoin currently works without a token through mempool.space.</li>
           <li><strong>LAYOUT PARAMETERS</strong>: Adjust the layout algorithm (iterations, gravity, scale, etc.)</li>
           <li><strong>EXPORT/IMPORT</strong>: Save or load graph JSON, export image.</li>
           <li><strong>LEGEND</strong>: Filter graph edges by transaction type and blockchain.</li>
