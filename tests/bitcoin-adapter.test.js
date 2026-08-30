@@ -9,6 +9,9 @@ const senderB = "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy";
 assert.equal(adapter.isBitcoinAddress(address), true);
 assert.equal(adapter.isBitcoinAddress(senderA), true);
 assert.equal(adapter.isBitcoinAddress("0x0000000000000000000000000000000000000000"), false);
+const txid = "a".repeat(64);
+assert.equal(adapter.isBitcoinTxid(txid), true);
+assert.equal(adapter.isBitcoinTxid(address), false);
 
 const incoming = adapter.normalizeTransactions(address, [{
   txid: "incoming",
@@ -40,8 +43,27 @@ assert.equal(outgoing[0].sender_key, address);
 assert.equal(outgoing[0].receiver_key, senderA);
 assert.equal(outgoing[0].amount, "6000");
 
+const transactionGraph = adapter.normalizeTransactionByTxid({
+  txid,
+  vin: [
+    { prevout: { scriptpubkey_address: senderA, value: 8000 } },
+    { prevout: { scriptpubkey_address: senderB, value: 4000 } }
+  ],
+  vout: [
+    { scriptpubkey_address: address, value: 11000 },
+    { scriptpubkey_address: senderA, value: 500 }
+  ],
+  fee: 500,
+  status: { confirmed: true, block_time: 1700000000 }
+});
+assert.equal(transactionGraph.length, 3, "The transaction search must expose all distinct input/output participants");
+assert.deepEqual(new Set(transactionGraph.map(edge => edge.sender_key)), new Set([senderA, senderB]));
+assert.deepEqual(new Set(transactionGraph.map(edge => edge.receiver_key)), new Set([address, senderA]));
+assert.equal(transactionGraph.every(edge => edge.utxo_ambiguous), true);
+
 const appSource = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "script.js"), "utf8");
 assert.match(appSource, /blockchain === "bitcoin"[\s\S]*?BitcoinAdapter\.fetchAddressTransactions/);
+assert.match(appSource, /isBitcoinTxid\(normalizedKey\)[\s\S]*?fetchTransaction\(normalizedKey\)/);
 assert.doesNotMatch(appSource, /getApiToken\("bitcoin"\)/, "The client must not request an Alchemy Bitcoin API key");
 assert.doesNotMatch(
   appSource.slice(appSource.indexOf("async function fetchTransactionsFromAlchemy"), appSource.indexOf("async function fetchTransactionsForKey2")),

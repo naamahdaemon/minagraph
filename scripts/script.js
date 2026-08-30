@@ -967,7 +967,9 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem('selectedBlockchain', chain);
     apiTokenInput.value = getApiToken(chain);
     loadStartKeyForBlockchain(chain);
+    updateStartKeyPlaceholder(chain);
   });
+  updateStartKeyPlaceholder(blockchainSelect.value);
   
   tokenInput.addEventListener("focus", () => {
     tokenInput.type = "text";
@@ -1037,6 +1039,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   if (param_chain && param_address) {
     document.getElementById("blockchain-select").value = param_chain;
+    updateStartKeyPlaceholder(param_chain);
     document.getElementById("param-base-key").value = param_address;
 
     if (param_firstLimit) {
@@ -1699,6 +1702,7 @@ function handleNotificationActions(notif) {
   console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
   BASE_KEY = notif.address;
   document.getElementById("blockchain-select").value = notif.chain;
+  updateStartKeyPlaceholder(notif.chain);
   document.getElementById("param-base-key").value = notif.address;
   main(2, true, notif.chain).catch(error => {
     console.error('Error triggering graph from notification:', error);
@@ -4100,7 +4104,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
         } else if (blockchain === "bitcoin") {
           if (!window.BitcoinAdapter) throw new Error("Bitcoin adapter is unavailable");
-          transactions = await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit);
+          transactions = window.BitcoinAdapter.isBitcoinTxid(normalizedKey)
+            ? await window.BitcoinAdapter.fetchTransaction(normalizedKey)
+            : await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit);
         } else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
@@ -6123,6 +6129,14 @@ function getExplorerURL(type, value, blockchain) {
 
 function getChainIconPath(chain) {
   return chain === "bitcoin" ? "img/bitcoin.svg" : `img/${chain}.png`;
+}
+
+function updateStartKeyPlaceholder(chain) {
+  const input = document.getElementById("param-base-key");
+  if (!input) return;
+  input.placeholder = chain === "bitcoin"
+    ? "Bitcoin address or 64-character transaction hash"
+    : "Starting wallet address to explore";
 }
 
 function saveApiToken(chain, token) {
