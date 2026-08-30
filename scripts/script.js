@@ -89,6 +89,7 @@ const delayByBlockchain = {
   cronos: 500,
   tezos: 300,
   base: 300,
+  bitcoin: 200,
 };
 
 let cancelRequested = false;
@@ -966,7 +967,13 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem('selectedBlockchain', chain);
     apiTokenInput.value = getApiToken(chain);
     loadStartKeyForBlockchain(chain);
+    updateBitcoinApiSettings();
   });
+
+  const bitcoinApiKeyInput = document.getElementById("bitcoin-api-key");
+  bitcoinApiKeyInput.value = getApiToken("bitcoin");
+  bitcoinApiKeyInput.addEventListener("input", event => saveApiToken("bitcoin", event.target.value.trim()));
+  updateBitcoinApiSettings();
   
   tokenInput.addEventListener("focus", () => {
     tokenInput.type = "text";
@@ -1036,6 +1043,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   if (param_chain && param_address) {
     document.getElementById("blockchain-select").value = param_chain;
+    updateBitcoinApiSettings();
     document.getElementById("param-base-key").value = param_address;
 
     if (param_firstLimit) {
@@ -1802,6 +1810,8 @@ function getDecimalsForBlockchain(chain) {
       return 9;
     case "tezos": 
       return 6;
+    case "bitcoin":
+      return 8;
     default:
       return 18; // Default fallback
   }
@@ -1880,7 +1890,8 @@ function getColorByDegree(degree, minDeg, maxDeg, chain, chainCount = 1) {
     tezos: [215, 100, 55],
     starknet: [260, 100, 55],
     mina: [180, 50, 45],
-    base: [200, 100, 60]
+    base: [200, 100, 60],
+    bitcoin: [34, 93, 54]
   };
 
   const [baseHue, baseSat, baseLight] = chainBaseHSL[chain] || [300, 100, 50];
@@ -4055,7 +4066,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
   let limit;
 
-  if (blockchain === "mina") {
+  if (blockchain === "mina" || blockchain === "bitcoin") {
     limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase())
       ? FIRST_ITERATION_LIMIT
       : LIMIT;
@@ -4094,7 +4105,12 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
-        }  else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
+        } else if (blockchain === "bitcoin") {
+          if (!window.BitcoinAdapter) throw new Error("Bitcoin adapter is unavailable");
+          transactions = await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit, {
+            apiKey: getApiToken("bitcoin")
+          });
+        } else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -4222,6 +4238,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         token_amount: tx.token_amount,        
         token_name: tx.token_name,
         token_decimals: tx.token_decimals,
+        utxo_ambiguous: tx.utxo_ambiguous === true,
         color: edgeColor,
         hash: tx.hash 
       });
@@ -4229,7 +4246,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   }
 
   // 🎨 Node coloring
-  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos", "base"].includes(chain)) {
+  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos", "base", "bitcoin"].includes(chain)) {
     const degrees = graph.nodes().map(n => graph.degree(n));
     const minDeg = Math.min(...degrees);
     const maxDeg = Math.max(...degrees);
@@ -4265,7 +4282,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
     transactions.flatMap(t => [
       normalize(t.receiver_key),
       normalize(t.sender_key)
-    ]).filter(k => k && k !== normalizedKey)
+    ]).filter(k => k && k !== normalizedKey && (chain !== "bitcoin" || window.BitcoinAdapter?.isBitcoinAddress(k)))
   )];
 
 
@@ -4736,6 +4753,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     return source === node ? target : source;
   }))];
   const isFav = isFavorite(node, selectedBlockchain);
+  const hasAmbiguousBitcoinRelations = visibleEdges.some(edge => graph.getEdgeAttribute(edge, "utxo_ambiguous") === true);
   let favName;
   
   setNodePanelOpen(true);
@@ -4755,18 +4773,18 @@ function showNodePanel(node, refreshExternalStatus = true) {
 
 
   const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
-  const strictChains = ["mina", "solana", "tezos"];
-
   const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
   const isTezosAddress = /^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(node); // include tz1-3 and KT1
   const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
+  const isBitcoinAddress = window.BitcoinAdapter?.isBitcoinAddress(node) === true;
   const isSolanaAddress =
     /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(node) &&
     !isTezosAddress && !isMinaAddress && !isEvmAddress; // avoid false positives
 
   let compatibleChains = [];
 
-  if (isMinaAddress) compatibleChains = ["mina"];
+  if (isBitcoinAddress) compatibleChains = ["bitcoin"];
+  else if (isMinaAddress) compatibleChains = ["mina"];
   else if (isTezosAddress) compatibleChains = ["tezos"];
   else if (isSolanaAddress) compatibleChains = ["solana"];
   else if (isEvmAddress) compatibleChains = evmChains;
@@ -4784,7 +4802,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     const links = chainsToFetch.map(chain => `
       <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
          title="Fetch from ${capitalize(chain)}">
-        <img class="chain-fetch-icon" src="img/${chain}.png" alt="${chain} icon" />
+        <img class="chain-fetch-icon" src="${getChainIconPath(chain)}" alt="${chain} icon" />
       </a>`).join("");
 
     fetchButtonsHTML = `
@@ -4828,6 +4846,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
       Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
     </p>
     <p class="node-transactions-heading"><strong>Linked Nodes & Transactions</strong></p>
+    ${hasAmbiguousBitcoinRelations ? `<p class="bitcoin-utxo-note">Some Bitcoin links originate from multi-input UTXO transactions. They show transaction participation, not a uniquely attributable sender-to-recipient payment.</p>` : ""}
     <label class="node-chronological-toggle">
       <input type="checkbox" id="chronological-transactions-toggle"
         ${showNodeTransactionsChronologically ? "checked" : ""}
@@ -6098,11 +6117,25 @@ function getExplorerURL(type, value, blockchain) {
       block: (val) => `https://basescan.org/block/${val}`,
       transaction: (val) => `https://basescan.org/tx/${val}`,
       account: (val) => `https://basescan.org/address/${val}`,
-    },    
+    },
+    bitcoin: {
+      block: (val) => `https://mempool.space/block/${val}`,
+      transaction: (val) => `https://mempool.space/tx/${val}`,
+      account: (val) => val === window.BitcoinAdapter?.COINBASE_NODE ? "#" : `https://mempool.space/address/${val}`,
+    },
   };
 
   const explorer = explorerMap[chain]?.[type];
   return typeof explorer === "function" ? explorer(value) : "#";
+}
+
+function getChainIconPath(chain) {
+  return chain === "bitcoin" ? "img/bitcoin.svg" : `img/${chain}.png`;
+}
+
+function updateBitcoinApiSettings() {
+  const settings = document.getElementById("bitcoin-api-settings");
+  if (settings) settings.hidden = document.getElementById("blockchain-select")?.value !== "bitcoin";
 }
 
 function saveApiToken(chain, token) {
@@ -7006,6 +7039,7 @@ function rebuildTransactionsByNeighbor() {
       token_name: attrs.token_name,
       token_decimals: attrs.token_decimals,
       contract_call_entrypoint: attrs.contract_call_entrypoint || null, // Valeur par défaut si non défini
+      utxo_ambiguous: attrs.utxo_ambiguous === true,
     };
 
     if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
