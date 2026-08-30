@@ -17,6 +17,11 @@ const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
   'technical-copy-button'
 ].forEach(id => assert.match(html, new RegExp(`id=["']${id}["']`), `Missing #${id}`));
 
+assert.doesNotMatch(html, /<footer\b/i, 'Credits should no longer consume application layout space');
+assert.match(html, /class="technical-info-credits"/, 'Technical information should contain application credits');
+assert.match(html, /mina\.naamahdaemon\.eu/);
+assert.match(html, /minataur\.net\/api\/restful/);
+
 assert.match(script, /function collectTechnicalDiagnostics\(/);
 assert.match(script, /type: 'get-technical-diagnostics'/);
 assert.match(script, /function activateApplicationUpdate\(/);
@@ -26,7 +31,7 @@ assert.match(worker, /event\.data\?\.type === 'activate-update'/);
 assert.match(worker, /self\.skipWaiting\(\)/);
 assert.match(worker, /cacheName: CACHE_NAME/);
 assert.match(worker, /buildDate: APP_BUILD_DATE/);
-assert.match(worker, /mina-graph-explorer-v39/);
+assert.match(worker, /mina-graph-explorer-v40/);
 assert.match(worker, /FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37'/);
 assert.match(worker, /url\.origin === self\.location\.origin/);
 assert.match(worker, /networkFirst\(request, request\.mode === 'navigate'\)/);

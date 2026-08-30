@@ -24,7 +24,10 @@
       --sidebar-width: 300px;
       display: flex;
       flex-direction: row;
+      width: 100%;
       height: 100vh;
+      height: 100dvh;
+      min-height: 0;
       transition: margin-left 0.3s ease;
     }
 
@@ -194,12 +197,13 @@
     }
 
     #main-content {
-      flex-grow: 1;
-      flex-shrink: 1;
-      flex-basis: auto;
+      flex: 1 1 0;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
       min-height: 0;
+      overflow: hidden;
       padding-top: 54px;
     }
 
@@ -1329,7 +1333,10 @@
     }
 
     body.mobile-mode #sigma-container {
-      height: calc(100vh - 90px) !important;
+      /* The command bar is accounted for by #main-content's padding. The date
+         controls float over the graph, so Sigma can use all remaining space. */
+      height: auto !important;
+      min-height: 0;
     }
 
     body.mobile-mode #date-slicer-container {
@@ -2198,6 +2205,36 @@
 
   #technical-activate-update-button {
     background: #27a745;
+  }
+
+  .technical-info-credits {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #444;
+    color: #aaa;
+    font-size: 11px;
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  .technical-info-credits p {
+    margin: 3px 0;
+  }
+
+  .technical-info-credits a {
+    color: #4fc3f7;
+    text-decoration: none;
+  }
+
+  .technical-info-credits a:hover,
+  .technical-info-credits a:focus-visible {
+    text-decoration: underline;
+    outline: none;
+  }
+
+  body[data-theme="light"] .technical-info-credits {
+    border-top-color: #ccc;
+    color: #555;
   }
 
   @media (max-width: 520px) {
