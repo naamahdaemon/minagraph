@@ -182,13 +182,6 @@
       letter-spacing: 0.5px;
     }
 
-    .sidebar-field-help {
-      margin: -7px 0 12px;
-      color: #aaa;
-      font-size: 10px;
-      line-height: 1.4;
-    }
-
     #left-sidebar h2 {
       font-size: 16px;
       margin-top: 24px;
@@ -886,8 +879,20 @@
       padding: 2px;
       border-radius: 5px;
       background: #050505;
+      border: 1px solid transparent;
+      box-sizing: border-box;
       object-fit: contain;
       vertical-align: middle;
+    }
+
+    body[data-theme="dark"] .chain-fetch-icon--bitcoin {
+      background: #050505;
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    body[data-theme="light"] .chain-fetch-icon--bitcoin {
+      background: #fff;
+      border-color: rgba(0, 0, 0, 0.24);
     }
 
     #close-panel-btn:hover,
