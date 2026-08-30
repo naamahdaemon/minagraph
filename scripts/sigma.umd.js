@@ -2852,7 +2852,12 @@
   function getTouchesArray(touches) {
     var arr = [];
     for (var i = 0, l = Math.min(touches.length, MAX_TOUCHES); i < l; i++) arr.push(touches[i]);
-    return arr;
+    // Chromium normally preserves TouchList order, but this is not guaranteed
+    // across every Android gesture transition. Keep each physical finger in a
+    // stable slot so a reordered list cannot make a pinch jump or rotate 180°.
+    return arr.sort(function (a, b) {
+      return (a.identifier || 0) - (b.identifier || 0);
+    });
   }
 
   /**
@@ -3489,7 +3494,19 @@
 
               // 2.
               var dimensions = this.getDimensions();
-              var touchGraphPosition = this.renderer.viewportToFramedGraph((this.startTouchesPositions || [])[0], {
+              // Anchor the transformation to the midpoint of both fingers.
+              // Using the first touch as Sigma 2.4 does is mathematically close
+              // while touch ordering stays stable, but can produce a visible
+              // offset on Chromium/Android when the TouchList is reordered.
+              var startTouchCenter = {
+                x: (this.startTouchesPositions[0].x + this.startTouchesPositions[1].x) / 2,
+                y: (this.startTouchesPositions[0].y + this.startTouchesPositions[1].y) / 2
+              };
+              var currentTouchCenter = {
+                x: (x0 + x1) / 2,
+                y: (y0 + y1) / 2
+              };
+              var touchGraphPosition = this.renderer.viewportToFramedGraph(startTouchCenter, {
                 cameraState: startCameraState
               });
               var smallestDimension = Math.min(dimensions.width, dimensions.height) - 2 * padding;
@@ -3498,8 +3515,8 @@
               var ratio = newRatio / smallestDimension;
 
               // Align with center of the graph:
-              var _x = x0 - smallestDimension / 2 / dx;
-              var _y = y0 - smallestDimension / 2 / dy;
+              var _x = currentTouchCenter.x - smallestDimension / 2 / dx;
+              var _y = currentTouchCenter.y - smallestDimension / 2 / dy;
 
               // Rotate:
               var _ref = [_x * Math.cos(-newCameraState.angle) - _y * Math.sin(-newCameraState.angle), _y * Math.cos(-newCameraState.angle) + _x * Math.sin(-newCameraState.angle)];
