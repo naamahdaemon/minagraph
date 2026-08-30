@@ -345,12 +345,14 @@ let sigmaRecoveryTimer = null;
 let sigmaRecoveryInProgress = false;
 let rotatePositionRun = 0;
 let pinchReference = null;
+let lastGraphTouchAt = 0;
 
 function bindStablePinchReference(container) {
   if (!container || container.dataset.minagraphPinchReference === "true") return;
   container.dataset.minagraphPinchReference = "true";
 
   container.addEventListener("touchstart", event => {
+    lastGraphTouchAt = Date.now();
     if (event.touches.length < 2 || !renderer || !graph?.order) return;
     const gestureRenderer = renderer;
 
@@ -5314,11 +5316,18 @@ function setupInteractions() {
   let dragOwnsCustomBBox = false;
   let suppressNodeClick = false;
   let ignoreStageClickUntil = 0;
-  let lastTouchNodeClick = { node: null, time: 0 };
+  let lastTouchNodeClick = { node: null, time: 0, source: null };
   let dragStartPos = { x: 0, y: 0 };
   const interactionContainer = renderer.getContainer();
 
-  const isTouchInteraction = event => event?.original?.type?.startsWith("touch") === true;
+  const isNativeTouchInteraction = event =>
+    event?.original?.type?.startsWith("touch") === true ||
+    event?.original?.pointerType === "touch" ||
+    event?.original?.sourceCapabilities?.firesTouchEvents === true;
+  const isTouchCompatibilityClick = event =>
+    !isNativeTouchInteraction(event) && Date.now() - lastGraphTouchAt < 800;
+  const isTouchInteraction = event =>
+    isNativeTouchInteraction(event) || isTouchCompatibilityClick(event);
   const getTouchCount = event => event?.original?.touches?.length || 0;
 
   const cancelDrag = () => {
@@ -5375,14 +5384,18 @@ function setupInteractions() {
   // few pixels outside the node. Drag completion must never open the panel.
   renderer.on("clickNode", ({ node, event }) => {
     if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
+    const now = Date.now();
+    const nativeTouchInteraction = isNativeTouchInteraction(event);
+    const touchCompatibilityClick = isTouchCompatibilityClick(event);
     const touchInteraction = isTouchInteraction(event);
 
     // Chromium can emit a compatibility mouse click immediately after Sigma's
     // touch tap. It is the same physical tap, not a request to open details.
     if (
-      !touchInteraction &&
+      touchCompatibilityClick &&
       lastTouchNodeClick.node === node &&
-      Date.now() - lastTouchNodeClick.time < 800
+      lastTouchNodeClick.source === "native" &&
+      now - lastTouchNodeClick.time < 250
     ) {
       return;
     }
@@ -5392,8 +5405,15 @@ function setupInteractions() {
     // second tap on the same node opens its details. Mouse clicks keep their
     // existing one-step behaviour.
     if (touchInteraction) {
-      lastTouchNodeClick = { node, time: Date.now() };
-      if (selectedNode === node) {
+      const isSecondTouchTap =
+        lastTouchNodeClick.node === node &&
+        now - lastTouchNodeClick.time < 1200;
+      lastTouchNodeClick = {
+        node,
+        time: now,
+        source: nativeTouchInteraction ? "native" : "compatibility"
+      };
+      if (isSecondTouchTap) {
         showNodePanel(node);
       } else {
         setNodePanelOpen(false);
