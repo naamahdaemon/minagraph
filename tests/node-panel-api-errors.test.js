@@ -14,6 +14,14 @@ assert.match(html, /id="error-popup" class="error-modal" role="alertdialog"[^>]+
 assert.match(html, /id="error-advice" hidden/);
 
 assert.match(script, /function setNodePanelOpen\(open,/);
+assert.match(script, /function getCompatibleChainsForNode\(node\)/);
+assert.match(script, /const compatibleChains = getCompatibleChainsForNode\(node\)/);
+assert.match(script, /function areAllCompatibleNetworksFetched\(node\)/);
+assert.match(script, /defaultDrawNodeLabel: drawNodeLabelWithFetchStatus/);
+assert.match(script, /function drawNodeLabelWithFetchStatus\(context, data, settings\)/);
+assert.match(script, /context\.arc\(centerX, centerY, radius, 0, Math\.PI \* 2\)/);
+assert.match(script, /context\.strokeStyle = color;/);
+assert.match(script, /allNetworksFetched/);
 assert.match(script, /dateSlicer\?\.classList\.toggle\("on-left", isOpen && isDesktop\)/);
 assert.match(script, /function hideNodePanel\(options = \{\}\)/);
 assert.match(script, /class="chain-fetch-icon\$\{chain === "bitcoin" \? " chain-fetch-icon--bitcoin" : ""\}"/);
