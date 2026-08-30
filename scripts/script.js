@@ -324,7 +324,6 @@ let arrow;
 let tokenSection;
 let sigmaContainer;
 let controls;
-let footer;
 let fullscreenBtn;
 let donateBtn;
 let exitFullscreenBtn;
@@ -890,7 +889,6 @@ document.addEventListener("DOMContentLoaded", () => {
   bindStablePinchReference(sigmaContainer);
   sigmaContainer.addEventListener("pointerdown", () => sigmaContainer.focus({ preventScroll: true }));
   controls = document.getElementById("controls");
-  footer = document.querySelector("footer");
   fullscreenBtn = document.getElementById("fullscreen-toggle");
   donateBtn = document.getElementById("donate-btn");
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
@@ -1250,12 +1248,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (menuToggle) {
         menuToggle.style.background = isLight ? "rgba(255,255,255,0)" : "rgba(68,68,68,0)";
         menuToggle.style.color = isLight ? "#111" : "#fff";      
-    }
-
-    const footer = document.getElementById("footer");
-    if (footer) {
-      footer.style.color = isLight ? "#333" : "#aaa";
-      footer.style.borderTop = isLight ? "1px solid #aaa" : "1px solid #333";
     }
 
     const sigmaContainer = document.getElementById("sigma-container");
@@ -6477,7 +6469,6 @@ function setFullscreenMode(active) {
     sidebar.style.display = "none";
     controls.style.display = "none";
     slicer.style.display = "none";
-    if (footer) footer.style.display = "none";
     appContainer.classList.remove("sidebar-open"); // 👈 remove margin
     //sidebar.classList.remove("open"); // 👈 remove margin
     fullscreenBtn.title = "Exit Full Screen (F)";
@@ -6495,7 +6486,6 @@ function setFullscreenMode(active) {
     slicer.style.display = "block";
     setFilterPanelVisible(isFilterPanelVisible, { persist: false });
     legend.style.top = "70px";
-    if (footer) footer.style.display = "block";
     menu.style.display="block"
 
     // 👇 Only add sidebar-open on desktop
