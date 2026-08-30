@@ -30,6 +30,7 @@
   <!--<script src="https://unpkg.com/@walletconnect/ethereum-provider@2.15.0/dist/index.umd.min.js"></script>-->
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.21.2/dist/index.umd.min.js"></script>
   <script src="./scripts/donations.js"></script>
+  <script src="./scripts/bitcoin-adapter.js"></script>
 
   <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
@@ -147,7 +148,14 @@
             <option value="cronos">Cronos</option>
             <option value="tezos">Tezos</option>
             <option value="base">Base</option>
+            <option value="bitcoin">Bitcoin</option>
           </select>
+
+          <div id="bitcoin-api-settings" hidden>
+            <label for="bitcoin-api-key">ALCHEMY BITCOIN API KEY <span style="font-weight: normal;">(optional)</span></label>
+            <input id="bitcoin-api-key" type="password" autocomplete="off" placeholder="Uses mempool.space when empty">
+            <p class="sidebar-field-help">Optional. Stored only on this device.</p>
+          </div>
 
           <div style="margin-top: 10px;">
             <label for="wipe-select">Wipe graph data:</label>
@@ -691,7 +699,7 @@
         <p style="font-size: 18px; line-height: 1.6;">
           Mina Graph Explorer is a tool that lets you explore the blockchain visually by graphing interactive connections between accounts. It dynamically fetches and displays transactions as nodes and links, helping you uncover relationships and activity across chains.
           Currently supported blockchains include:
-          Mina, Ethereum, Polygon, BSC (Binance Smart Chain), Solana, zkSync, Optimism, Arbitrum, Cronos, Base and Tezos.
+          Mina, Ethereum, Polygon, BSC (Binance Smart Chain), Solana, zkSync, Optimism, Arbitrum, Cronos, Base, Tezos and Bitcoin.
         </p>
 
         <h2 style="font-size: 20px; margin-bottom: 12px;">🔧 Configuration Parameters:</h2>
@@ -702,7 +710,7 @@
           <li><strong>FIRST ITERATION LIMIT</strong>: Max transactions for the root key.</li>
           <li><strong>RECURSION DEPTH</strong>: How many levels of linked accounts to explore.</li>
           <li><strong>START KEY</strong>: The public key where exploration begins.</li>
-          <li><strong>API TOKEN</strong>: NOT REQUIRED FOR NOW</li>
+          <li><strong>API TOKEN</strong>: Depends on the selected data provider. Bitcoin works without a token through mempool.space; an Alchemy Bitcoin key can optionally be configured.</li>
           <li><strong>LAYOUT PARAMETERS</strong>: Adjust the layout algorithm (iterations, gravity, scale, etc.)</li>
           <li><strong>EXPORT/IMPORT</strong>: Save or load graph JSON, export image.</li>
           <li><strong>LEGEND</strong>: Filter graph edges by transaction type and blockchain.</li>
@@ -891,6 +899,7 @@
       <div class="legend-chain" data-chain="cronos" style="color:#d42727;">● Cronos</div>
       <div class="legend-chain" data-chain="tezos" style="color:#2c7df7;">● Tezos</div>
       <div class="legend-chain" data-chain="base" style="color:#2c7df7;">● Base</div>
+      <div class="legend-chain" data-chain="bitcoin" style="color:#f7931a;">● Bitcoin</div>
     </div>
   </div>
 
@@ -1009,8 +1018,9 @@
       <p>
         Data APIs:
         <a href="https://minataur.net/api/restful" target="_blank" rel="noopener noreferrer">Minataur</a>,
-        <a href="https://api.tzkt.io/#section/Get-Started/Free-TzKT-API" target="_blank" rel="noopener noreferrer">TzKT</a>
-        and <a href="https://www.alchemy.com/" target="_blank" rel="noopener noreferrer">Alchemy</a>.
+        <a href="https://api.tzkt.io/#section/Get-Started/Free-TzKT-API" target="_blank" rel="noopener noreferrer">TzKT</a>,
+        <a href="https://www.alchemy.com/" target="_blank" rel="noopener noreferrer">Alchemy</a>
+        and <a href="https://mempool.space/" target="_blank" rel="noopener noreferrer">mempool.space</a>.
       </p>
     </div>
   </div>

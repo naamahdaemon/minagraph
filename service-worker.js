@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v42';
+const CACHE_NAME = 'mina-graph-explorer-v43';
 const APP_BUILD_DATE = '2026-08-30';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -158,11 +158,13 @@ const STATIC_ASSETS = [
   '/favicon.ico',
   '/style/style.css',
   '/scripts/script.js',
+  '/scripts/bitcoin-adapter.js',
   '/scripts/sigma.umd.js',
   '/scripts/forceAtlas.js',
   '/scripts/fruchtermanReingold.js',
   '/scripts/openOrd.js',
   '/img/arbitrum.png',
+  '/img/bitcoin.svg',
   '/img/base.png',
   '/img/bsc.png',
   '/img/cronos.png',
