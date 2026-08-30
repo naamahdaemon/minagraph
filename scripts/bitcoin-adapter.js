@@ -17,6 +17,10 @@
       /^(bc1)[ac-hj-np-z02-9]{11,71}$/.test(address.toLowerCase());
   }
 
+  function isBitcoinTxid(value) {
+    return typeof value === "string" && /^[a-fA-F0-9]{64}$/.test(value.trim());
+  }
+
   function uniqueAddresses(items) {
     return [...new Set(items.flatMap(item => item.addresses || []).filter(isBitcoinAddress))];
   }
@@ -101,6 +105,37 @@
     return normalized;
   }
 
+  function normalizeTransactionByTxid(rawTransaction, source = "mempool") {
+    const transaction = toCommonTransaction(rawTransaction || {}, source);
+    if (!isBitcoinTxid(transaction.txid)) throw new Error("Invalid Bitcoin transaction hash");
+
+    const inputAddresses = uniqueAddresses(transaction.inputs);
+    const coinbase = transaction.inputs.some(input => input.coinbase);
+    const senders = inputAddresses.length ? inputAddresses : (coinbase ? [COINBASE_NODE] : []);
+    const ambiguity = senders.length > 1
+      ? `Bitcoin UTXO transaction with ${senders.length} input addresses; attribution is not uniquely determinable.`
+      : null;
+    const normalized = [];
+
+    transaction.outputs.forEach((output, outputIndex) => {
+      const receiver = output.addresses.find(isBitcoinAddress);
+      if (!receiver) return;
+      senders.forEach((sender, inputIndex) => {
+        if (sender === receiver) return;
+        normalized.push(buildEdge(
+          transaction,
+          sender,
+          receiver,
+          output.value,
+          `${inputIndex}-${output.index ?? outputIndex}-tx`,
+          ambiguity
+        ));
+      });
+    });
+
+    return normalized;
+  }
+
   async function requireJson(response, label) {
     if (!response.ok) {
       const error = new Error(`${label} returned HTTP ${response.status}`);
@@ -154,5 +189,24 @@
       : fetchFromMempool(address, safeLimit, fetchImpl);
   }
 
-  return Object.freeze({ CHAIN, COINBASE_NODE, isBitcoinAddress, normalizeTransactions, fetchAddressTransactions });
+  async function fetchTransaction(txid, options = {}) {
+    if (!isBitcoinTxid(txid)) throw new Error("Invalid Bitcoin transaction hash");
+    const fetchImpl = options.fetchImpl || fetch;
+    const transaction = await requireJson(
+      await fetchImpl(`${MEMPOOL_API}/tx/${encodeURIComponent(txid.toLowerCase())}`),
+      "mempool.space Bitcoin transaction API"
+    );
+    return normalizeTransactionByTxid(transaction, "mempool");
+  }
+
+  return Object.freeze({
+    CHAIN,
+    COINBASE_NODE,
+    isBitcoinAddress,
+    isBitcoinTxid,
+    normalizeTransactions,
+    normalizeTransactionByTxid,
+    fetchAddressTransactions,
+    fetchTransaction
+  });
 });
