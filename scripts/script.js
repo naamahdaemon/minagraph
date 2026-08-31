@@ -99,7 +99,14 @@ let currentLayout = null;  // the one currently running
 let previousLayout = null;
 const LAYOUT_STORAGE_KEY = "layoutSettings";
 const FILTER_PANEL_VISIBILITY_KEY = "minagraphFilterPanelVisible";
+const EDGE_THICKNESS_STORAGE_KEY = "minagraphEdgeThicknessMode";
+const EDGE_THICKNESS_MODES = new Set(["uniform", "transactions", "amount"]);
+const DEFAULT_EDGE_SIZE = 0.8;
+const MIN_WEIGHTED_EDGE_SIZE = 0.8;
+const MAX_WEIGHTED_EDGE_SIZE = 4;
 let isFilterPanelVisible = true;
+let edgeThicknessMode = "uniform";
+let edgeVisualSizes = new Map();
 
 // Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
 // Playwright cannot locate them through the DOM. Getters are used because both
@@ -143,6 +150,7 @@ function transactionMatchesActiveLegendFilters(transaction) {
 }
 
 function refreshLegendFilteredViews() {
+  rebuildEdgeVisualSizes();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
   if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
 }
@@ -915,6 +923,15 @@ document.addEventListener("DOMContentLoaded", () => {
   slicer = document.getElementById("date-slicer-container");
 
   const technicalModal = document.getElementById('technical-info-modal');
+  try {
+    setEdgeThicknessMode(localStorage.getItem(EDGE_THICKNESS_STORAGE_KEY) || "uniform", { persist: false });
+  } catch (error) {
+    console.warn("Could not restore edge thickness mode:", error);
+    setEdgeThicknessMode("uniform", { persist: false });
+  }
+  document.getElementById("edge-thickness-mode")?.addEventListener("change", event => {
+    setEdgeThicknessMode(event.target.value);
+  });
   try {
     isFilterPanelVisible = localStorage.getItem(FILTER_PANEL_VISIBILITY_KEY) !== "false";
   } catch (error) {
@@ -4604,6 +4621,105 @@ function getSortableNodeTransactionAmount(tx, field) {
   return value / Math.pow(10, getDecimalsForBlockchain(tx.blockchain));
 }
 
+function normalizeEdgeVisualMetric(value, minimum, maximum) {
+  if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(maximum) || maximum <= minimum) {
+    return MIN_WEIGHTED_EDGE_SIZE;
+  }
+  const safeMinimum = Math.max(0, minimum);
+  const denominator = Math.log1p(maximum) - Math.log1p(safeMinimum);
+  if (denominator <= 0) return MIN_WEIGHTED_EDGE_SIZE;
+  const ratio = (Math.log1p(value) - Math.log1p(safeMinimum)) / denominator;
+  return MIN_WEIGHTED_EDGE_SIZE + Math.max(0, Math.min(1, ratio)) *
+    (MAX_WEIGHTED_EDGE_SIZE - MIN_WEIGHTED_EDGE_SIZE);
+}
+
+function getEdgeRelationKey(source, target) {
+  return [String(source), String(target)].sort().join("\u0000");
+}
+
+function getEdgeAssetKey(attributes) {
+  const chain = attributes.blockchain || "unknown";
+  const command = attributes.command_type || attributes.label;
+  if (["token_transfer", "nft_transfer"].includes(command)) {
+    const token = attributes.token_contract || attributes.token_name || "unknown-token";
+    return `${chain}:token:${String(token).toLowerCase()}`;
+  }
+  return `${chain}:native`;
+}
+
+function getEdgeTransferredAmount(attributes) {
+  const command = attributes.command_type || attributes.label;
+  if (["token_transfer", "nft_transfer"].includes(command)) {
+    return getSortableNodeTransactionAmount(attributes, "token_amount");
+  }
+  // Contract values are execution fields, not necessarily asset movements.
+  if (!["payment", "transfer"].includes(command)) return 0;
+  return getSortableNodeTransactionAmount(attributes, "amount");
+}
+
+function rebuildEdgeVisualSizes() {
+  edgeVisualSizes = new Map();
+  if (!graph || edgeThicknessMode === "uniform") return;
+
+  const visibleEdges = [];
+  graph.forEachEdge((edge, attributes, source, target) => {
+    if (attributes.hidden || !transactionMatchesActiveLegendFilters(attributes)) return;
+    visibleEdges.push({ edge, attributes, relation: getEdgeRelationKey(source, target) });
+  });
+
+  if (edgeThicknessMode === "transactions") {
+    const counts = new Map();
+    visibleEdges.forEach(({ relation }) => counts.set(relation, (counts.get(relation) || 0) + 1));
+    const maximum = Math.max(1, ...counts.values());
+    visibleEdges.forEach(({ edge, relation }) => {
+      edgeVisualSizes.set(edge, normalizeEdgeVisualMetric(counts.get(relation), 1, maximum));
+    });
+    return;
+  }
+
+  const totals = new Map();
+  const assetValues = new Map();
+  visibleEdges.forEach(({ attributes, relation }) => {
+    const asset = getEdgeAssetKey(attributes);
+    const key = `${relation}\u0001${asset}`;
+    const amount = getEdgeTransferredAmount(attributes);
+    if (Number.isFinite(amount) && amount > 0) totals.set(key, (totals.get(key) || 0) + amount);
+  });
+  totals.forEach((amount, key) => {
+    const asset = key.slice(key.indexOf("\u0001") + 1);
+    if (!assetValues.has(asset)) assetValues.set(asset, []);
+    assetValues.get(asset).push(amount);
+  });
+  const assetRanges = new Map([...assetValues].map(([asset, values]) => [asset, {
+    minimum: Math.min(...values),
+    maximum: Math.max(...values)
+  }]));
+
+  visibleEdges.forEach(({ edge, attributes, relation }) => {
+    const asset = getEdgeAssetKey(attributes);
+    const amount = totals.get(`${relation}\u0001${asset}`) || 0;
+    const range = assetRanges.get(asset);
+    edgeVisualSizes.set(edge, range
+      ? normalizeEdgeVisualMetric(amount, range.minimum, range.maximum)
+      : MIN_WEIGHTED_EDGE_SIZE);
+  });
+}
+
+function setEdgeThicknessMode(mode, { persist = true } = {}) {
+  edgeThicknessMode = EDGE_THICKNESS_MODES.has(mode) ? mode : "uniform";
+  const select = document.getElementById("edge-thickness-mode");
+  if (select) select.value = edgeThicknessMode;
+  if (persist) {
+    try {
+      localStorage.setItem(EDGE_THICKNESS_STORAGE_KEY, edgeThicknessMode);
+    } catch (error) {
+      console.warn("Unable to save edge thickness mode:", error);
+    }
+  }
+  rebuildEdgeVisualSizes();
+  renderer?.refresh();
+}
+
 function addressesMatchForTransaction(left, right) {
   if (!left || !right) return false;
   const a = String(left);
@@ -5322,6 +5438,7 @@ function initRenderer() {
 }
 
 function setupReducers() {
+  rebuildEdgeVisualSizes();
   // 🔢 Precompute min/max degree for color gradient (used only for Polygon & Ethereum & BSC)
   let minDegree = Infinity;
   let maxDegree = -Infinity;
@@ -5511,6 +5628,9 @@ function setupReducers() {
 
     const focusNode = hoveredNode || selectedNode;
     const command = data.command_type || data.label;
+    const visualSize = edgeThicknessMode === "uniform"
+      ? DEFAULT_EDGE_SIZE
+      : (edgeVisualSizes.get(edge) || MIN_WEIGHTED_EDGE_SIZE);
 
     const source = graph.source(edge);
     const target = graph.target(edge);
@@ -5552,7 +5672,7 @@ function setupReducers() {
         return {
           ...data,
         color: isFocusEdge ? baseColor : (isLightTheme() ? "#eee" : "#111"),
-        size: isFocusEdge ? 1.5 : 0.4,
+        size: isFocusEdge ? Math.max(1.5, visualSize * 1.35) : 0.4,
         opacity: isFocusEdge ? 0.6 : 0.1,
         zIndex: isFocusEdge ? 2 : 0
         };
@@ -5562,7 +5682,7 @@ function setupReducers() {
     return {
       ...data,
       color: baseColor,
-      size: 0.8,
+      size: visualSize,
       opacity: 0.3,
       zIndex: 0
     };
@@ -7313,6 +7433,8 @@ function applyDateFilter() {
   graph.forEachNode((n) => {
     graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
   });
+
+  rebuildEdgeVisualSizes();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
     showNodePanel(selectedNode, false);
