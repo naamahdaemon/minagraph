@@ -4658,7 +4658,10 @@ function summarizeNativeMovements(transactions, node) {
     const asset = NATIVE_ASSET_BY_CHAIN[chain];
     const commandType = transaction.label || transaction.command_type;
     const failed = ["failed", "error", "reverted"].includes(String(transaction.status || "").toLowerCase());
-    if (!asset || failed || ["token_transfer", "nft_transfer"].includes(commandType)) continue;
+    // Contract operation values are API/execution fields and are not reliable
+    // native-asset movements. Only explicit native payment/transfer records
+    // belong in this summary; contracts remain visible in the operation table.
+    if (!asset || failed || !["payment", "transfer"].includes(commandType)) continue;
 
     const direction = getNodeTransactionDirection(transaction, node);
     if (direction !== -1 && direction !== 1) continue;
@@ -6703,16 +6706,19 @@ async function sendDonation() {
     return;
   }
 
-  const provider = auroProvider || window.mina;
-  if (!provider) {
-    showStatus(
-      "Auro Wallet not detected. Please install it from https://www.aurowallet.com/",
-      "error"
-    );
-    return;
-  }
-
   try {
+    const injectedProvider = auroProvider || window.mina;
+    const provider = window.MinagraphWallets
+      ? await window.MinagraphWallets.getMinaProvider(injectedProvider)
+      : injectedProvider;
+    if (!provider) {
+      showStatus(
+        "Auro Wallet not detected. Please install it from https://www.aurowallet.com/",
+        "error"
+      );
+      return;
+    }
+
     const accounts = await provider.requestAccounts();
     const sender = accounts[0];
     //showStatus(`Donating from: ${sender.slice(0,6) + "..." + sender.slice(-6)}`, 'info');

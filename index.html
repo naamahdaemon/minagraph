@@ -27,9 +27,8 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.8.1/dist/ethers.umd.min.js"></script>
-  <!--<script src="https://unpkg.com/@walletconnect/ethereum-provider@2.15.0/dist/index.umd.min.js"></script>-->
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.21.2/dist/index.umd.min.js"></script>
   <script src="./scripts/donations.js"></script>
+  <script src="./scripts/walletconnect-donations.bundle.js"></script>
   <script src="./scripts/bitcoin-adapter.js"></script>
 
   <script type="module" src="./scripts/fcm-init.js"></script>
@@ -371,6 +370,12 @@
               <span class="info-icon" title="Support this project using any EVM wallet.">ℹ</span>
             </div>
             <input id="donation-amount-evm" type="number" min="0.01" step="0.01" placeholder="Amount" style="width: 100%; margin-bottom: 5px;" />
+            <select id="donation-network" style="width: 100%; margin-bottom: 5px;">
+              <option value="1">Ethereum</option>
+              <option value="137">Polygon</option>
+              <option value="56">BNB Smart Chain</option>
+              <option value="auto">Wallet current network</option>
+            </select>
             <select id="donation-token" style="width: 100%; margin-bottom: 5px;">
               <option value="native">Native token (ETH, MATIC, BNB...)</option>
               <option value="USDT">USDT</option>
@@ -903,18 +908,6 @@
     <div class="legend-item" data-command-type="" style="color:#aaa; cursor:pointer; margin-top: 6px;">✖ Reset</div>
   </div>
   
-  <script type="module">
-    import bs58 from 'https://cdn.skypack.dev/bs58';
-
-    function encodeMemoToBase58(memo) {
-      const bytes = new TextEncoder().encode(memo);
-      return bs58.encode(bytes);
-    }
-
-    // Make function globally available if needed
-    window.encodeMemoToBase58 = encodeMemoToBase58;
-  </script>
-
   <div id="loader-modal" style="
     position: fixed;
     top: 0; left: 0;
@@ -961,6 +954,22 @@
       <p id="error-advice" hidden></p>
     </div>
     <button id="error-popup-close" type="button">Close</button>
+  </div>
+</div>
+
+<div id="wallet-connect-modal" class="wallet-connect-modal" role="dialog" aria-modal="true" aria-labelledby="wallet-connect-title" hidden>
+  <div class="wallet-connect-card">
+    <h2 id="wallet-connect-title">WalletConnect</h2>
+    <p id="wallet-connect-message"></p>
+    <div id="wallet-connect-wallets" class="wallet-connect-wallets"></div>
+    <div id="wallet-connect-links" class="wallet-connect-links"></div>
+    <button id="wallet-connect-copy" type="button">Copy WalletConnect URI</button>
+    <button id="wallet-connect-qr-toggle" type="button">Show connection QR code</button>
+    <div id="wallet-connect-qr-box" class="wallet-connect-qr-box" hidden>
+      <div id="wallet-connect-qr" class="wallet-connect-qr"></div>
+      <code id="wallet-connect-uri"></code>
+    </div>
+    <button id="wallet-connect-cancel" class="wallet-connect-cancel" type="button">Cancel</button>
   </div>
 </div>
 
