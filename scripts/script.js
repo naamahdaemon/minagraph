@@ -4615,6 +4615,123 @@ function formatSignedNodeTransactionAmount(tx, node) {
   return formattedAmount;
 }
 
+const NATIVE_ASSET_BY_CHAIN = Object.freeze({
+  mina: { symbol: "MINA", priceId: "mina-protocol" },
+  ethereum: { symbol: "ETH", priceId: "ethereum" },
+  polygon: { symbol: "POL", priceId: "polygon-ecosystem-token" },
+  bsc: { symbol: "BNB", priceId: "binancecoin" },
+  solana: { symbol: "SOL", priceId: "solana" },
+  zksync: { symbol: "ETH", priceId: "ethereum" },
+  optimism: { symbol: "ETH", priceId: "ethereum" },
+  arbitrum: { symbol: "ETH", priceId: "ethereum" },
+  cronos: { symbol: "CRO", priceId: "crypto-com-chain" },
+  tezos: { symbol: "XTZ", priceId: "tezos" },
+  base: { symbol: "ETH", priceId: "ethereum" },
+  bitcoin: { symbol: "BTC", priceId: "bitcoin" }
+});
+const nativeUsdPriceCache = new Map();
+const NATIVE_USD_PRICE_TTL = 60 * 1000;
+
+function summarizeNativeMovements(transactions, node) {
+  const summary = new Map();
+  const countedAmbiguousBitcoinReceipts = new Set();
+
+  for (const transaction of transactions || []) {
+    const chain = transaction.blockchain;
+    const asset = NATIVE_ASSET_BY_CHAIN[chain];
+    const commandType = transaction.label || transaction.command_type;
+    const failed = ["failed", "error", "reverted"].includes(String(transaction.status || "").toLowerCase());
+    if (!asset || failed || ["token_transfer", "nft_transfer"].includes(commandType) || transaction.token_contract) continue;
+
+    const direction = getNodeTransactionDirection(transaction, node);
+    if (direction !== -1 && direction !== 1) continue;
+    const amount = getSortableNodeTransactionAmount(transaction, "amount");
+    if (!Number.isFinite(amount) || amount < 0) continue;
+
+    if (!summary.has(chain)) {
+      summary.set(chain, { chain, symbol: asset.symbol, priceId: asset.priceId, incoming: 0, outgoing: 0, ambiguousOutgoingExcluded: false });
+    }
+    const row = summary.get(chain);
+
+    if (chain === "bitcoin" && transaction.utxo_ambiguous === true) {
+      if (direction === -1) {
+        row.ambiguousOutgoingExcluded = true;
+        continue;
+      }
+      const receiptKey = `${transaction.hash || "unknown"}:${String(node)}`;
+      if (countedAmbiguousBitcoinReceipts.has(receiptKey)) continue;
+      countedAmbiguousBitcoinReceipts.add(receiptKey);
+    }
+
+    if (direction === 1) row.incoming += amount;
+    else row.outgoing += amount;
+  }
+
+  return [...summary.values()].map(row => ({ ...row, net: row.incoming - row.outgoing }));
+}
+
+function formatNativeMovementAmount(value, symbol) {
+  return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 })} ${symbol}`;
+}
+
+function renderNativeMovementSummary(rows) {
+  if (!rows.length) return `<p class="native-movement-empty">No native asset movement matches the active filters.</p>`;
+  return rows.map(row => `
+    <section class="native-movement-row" data-native-chain="${row.chain}">
+      <h4>${capitalize(row.chain)} · ${row.symbol}</h4>
+      <div><span>Incoming</span><strong>+${formatNativeMovementAmount(row.incoming, row.symbol)}</strong><small data-native-usd="incoming">USD price loading…</small></div>
+      <div><span>Outgoing</span><strong>−${formatNativeMovementAmount(row.outgoing, row.symbol)}</strong><small data-native-usd="outgoing">USD price loading…</small></div>
+      <div><span>Net total</span><strong>${row.net >= 0 ? "+" : "−"}${formatNativeMovementAmount(Math.abs(row.net), row.symbol)}</strong><small data-native-usd="net">USD price loading…</small></div>
+      ${row.ambiguousOutgoingExcluded ? `<p>Ambiguous Bitcoin multi-input outputs are excluded from outgoing totals.</p>` : ""}
+    </section>`).join("");
+}
+
+async function getNativeUsdPrices(rows) {
+  const now = Date.now();
+  const missingIds = [...new Set(rows.map(row => row.priceId))].filter(id => {
+    const cached = nativeUsdPriceCache.get(id);
+    return !cached || cached.expiresAt <= now;
+  });
+  if (missingIds.length) {
+    const params = new URLSearchParams({
+      ids: missingIds.join(","),
+      vs_currencies: "usd",
+      include_last_updated_at: "true"
+    });
+    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?${params}`);
+    if (!response.ok) throw new Error(`CoinGecko price API returned HTTP ${response.status}`);
+    const prices = await response.json();
+    missingIds.forEach(id => {
+      const usd = Number(prices[id]?.usd);
+      if (Number.isFinite(usd)) nativeUsdPriceCache.set(id, { usd, expiresAt: now + NATIVE_USD_PRICE_TTL });
+    });
+  }
+  return Object.fromEntries(rows.map(row => [row.chain, nativeUsdPriceCache.get(row.priceId)?.usd ?? null]));
+}
+
+async function updateNativeMovementUsdValues(rows, node) {
+  if (!rows.length) return;
+  try {
+    const prices = await getNativeUsdPrices(rows);
+    if (selectedNode !== node) return;
+    rows.forEach(row => {
+      const container = document.querySelector(`.native-movement-row[data-native-chain="${row.chain}"]`);
+      const price = prices[row.chain];
+      if (!container || !Number.isFinite(price)) return;
+      [["incoming", row.incoming], ["outgoing", row.outgoing], ["net", row.net]].forEach(([kind, amount]) => {
+        const target = container.querySelector(`[data-native-usd="${kind}"]`);
+        if (target) target.textContent = `≈ ${(amount * price).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 })}`;
+      });
+    });
+  } catch (error) {
+    if (selectedNode !== node) return;
+    document.querySelectorAll(".native-movement-row [data-native-usd]").forEach(element => {
+      element.textContent = "USD price unavailable";
+    });
+    console.warn("Unable to load native asset USD prices:", error);
+  }
+}
+
 function getNodeTransactionSortValue(item, column, node) {
   const tx = item.tx || item;
   switch (column) {
@@ -4751,6 +4868,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   }))];
   const isFav = isFavorite(node, selectedBlockchain);
   const hasAmbiguousBitcoinRelations = visibleEdges.some(edge => graph.getEdgeAttribute(edge, "utxo_ambiguous") === true);
+  const nativeMovementSummary = summarizeNativeMovements(visibleEdges.map(edge => graph.getEdgeAttributes(edge)), node);
   let favName;
   
   setNodePanelOpen(true);
@@ -4826,6 +4944,10 @@ function showNodePanel(node, refreshExternalStatus = true) {
       <div><span>Token transfers</span><strong>${tt}</strong></div>
       <div><span>Failed</span><strong>${failed}</strong></div>
     </div>
+    <section class="native-movement-summary" aria-label="Filtered native asset movements">
+      <h3>Native asset movements</h3>
+      ${renderNativeMovementSummary(nativeMovementSummary)}
+    </section>
     <p class="node-period">
       Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
     </p>
@@ -5007,6 +5129,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     </div>`;
     
   details.innerHTML = html;
+  updateNativeMovementUsdValues(nativeMovementSummary, node);
   details.querySelector(".node-key-copy")?.addEventListener("click", event => copyNodeKey(node, event.currentTarget));
   if (previouslySelectedNode !== node) details.scrollTop = 0;
   
