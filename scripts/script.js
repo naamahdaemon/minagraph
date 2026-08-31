@@ -234,17 +234,29 @@ function toggleLeftSidebar() {
   setLeftSidebarOpen(!sidebarElement?.classList.contains("open"), { persist: true });
 }
 
-function setNodePanelOpen(open, { restoreFocus = false } = {}) {
+function syncDateSlicerWithNodePanel() {
   const nodePanel = document.getElementById("side-panel");
   const dateSlicer = document.getElementById("date-slicer-container");
+  if (!nodePanel || !dateSlicer) return;
+  const panelOpen = nodePanel.classList.contains("open");
+  const panelWidth = panelOpen ? nodePanel.getBoundingClientRect().width : 0;
+  const slicerWidth = Math.min(dateSlicer.getBoundingClientRect().width || 400, 400);
+  const gap = 20;
+  const fitsBesidePanel = window.innerWidth >= 769 && panelOpen &&
+    window.innerWidth - panelWidth >= slicerWidth + gap * 2;
+  dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
+  dateSlicer.classList.toggle("on-left", fitsBesidePanel);
+}
+
+function setNodePanelOpen(open, { restoreFocus = false } = {}) {
+  const nodePanel = document.getElementById("side-panel");
   if (!nodePanel) return;
   const isOpen = Boolean(open);
-  const isDesktop = window.innerWidth >= 769;
   nodePanel.style.removeProperty("display");
   nodePanel.classList.toggle("open", isOpen);
   nodePanel.setAttribute("aria-hidden", String(!isOpen));
   document.body.classList.toggle("node-panel-open", isOpen);
-  dateSlicer?.classList.toggle("on-left", isOpen && isDesktop);
+  syncDateSlicerWithNodePanel();
   if (restoreFocus && !isOpen) {
     document.getElementById("sigma-container")?.focus({ preventScroll: true });
   }
@@ -262,6 +274,7 @@ function initializeNodePanelResize() {
       return;
     }
     nodePanel.style.width = `${clampWidth(width)}px`;
+    syncDateSlicerWithNodePanel();
   };
 
   resizeHandle.addEventListener("pointerdown", event => {
@@ -282,10 +295,14 @@ function initializeNodePanelResize() {
   };
   resizeHandle.addEventListener("pointerup", finishResize);
   resizeHandle.addEventListener("pointercancel", finishResize);
-  resizeHandle.addEventListener("dblclick", () => nodePanel.style.removeProperty("width"));
+  resizeHandle.addEventListener("dblclick", () => {
+    nodePanel.style.removeProperty("width");
+    syncDateSlicerWithNodePanel();
+  });
   window.addEventListener("resize", () => {
     if (window.innerWidth <= 768) nodePanel.style.removeProperty("width");
     else if (nodePanel.style.width) applyWidth(nodePanel.getBoundingClientRect().width);
+    syncDateSlicerWithNodePanel();
   });
 }
 
@@ -4641,7 +4658,7 @@ function summarizeNativeMovements(transactions, node) {
     const asset = NATIVE_ASSET_BY_CHAIN[chain];
     const commandType = transaction.label || transaction.command_type;
     const failed = ["failed", "error", "reverted"].includes(String(transaction.status || "").toLowerCase());
-    if (!asset || failed || ["token_transfer", "nft_transfer"].includes(commandType) || transaction.token_contract) continue;
+    if (!asset || failed || ["token_transfer", "nft_transfer"].includes(commandType)) continue;
 
     const direction = getNodeTransactionDirection(transaction, node);
     if (direction !== -1 && direction !== 1) continue;
@@ -4670,6 +4687,25 @@ function summarizeNativeMovements(transactions, node) {
   return [...summary.values()].map(row => ({ ...row, net: row.incoming - row.outgoing }));
 }
 
+function includeBalanceRowsForVisibleChains(rows, transactions, node) {
+  const byChain = new Map(rows.map(row => [row.chain, row]));
+  for (const transaction of transactions || []) {
+    const chain = transaction.blockchain;
+    const asset = NATIVE_ASSET_BY_CHAIN[chain];
+    if (!asset || byChain.has(chain) || getNodeTransactionDirection(transaction, node) === null) continue;
+    byChain.set(chain, {
+      chain,
+      symbol: asset.symbol,
+      priceId: asset.priceId,
+      incoming: 0,
+      outgoing: 0,
+      net: 0,
+      ambiguousOutgoingExcluded: false
+    });
+  }
+  return [...byChain.values()];
+}
+
 function formatNativeMovementAmount(value, symbol) {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 })} ${symbol}`;
 }
@@ -4679,11 +4715,76 @@ function renderNativeMovementSummary(rows) {
   return rows.map(row => `
     <section class="native-movement-row" data-native-chain="${row.chain}">
       <h4>${capitalize(row.chain)} · ${row.symbol}</h4>
+      <div><span>Current balance</span><strong data-native-balance>Loading…</strong><small data-native-balance-usd>USD price loading…</small></div>
       <div><span>Incoming</span><strong>+${formatNativeMovementAmount(row.incoming, row.symbol)}</strong><small data-native-usd="incoming">USD price loading…</small></div>
       <div><span>Outgoing</span><strong>−${formatNativeMovementAmount(row.outgoing, row.symbol)}</strong><small data-native-usd="outgoing">USD price loading…</small></div>
-      <div><span>Net total</span><strong>${row.net >= 0 ? "+" : "−"}${formatNativeMovementAmount(Math.abs(row.net), row.symbol)}</strong><small data-native-usd="net">USD price loading…</small></div>
+      <div><span>Visible net</span><strong>${row.net >= 0 ? "+" : "−"}${formatNativeMovementAmount(Math.abs(row.net), row.symbol)}</strong><small data-native-usd="net">USD price loading…</small></div>
       ${row.ambiguousOutgoingExcluded ? `<p>Ambiguous Bitcoin multi-input outputs are excluded from outgoing totals.</p>` : ""}
     </section>`).join("");
+}
+
+const nativeBalanceCache = new Map();
+const NATIVE_BALANCE_TTL = 60_000;
+
+async function fetchJsonWithApiError(url, options, label) {
+  const response = await fetch(url, options);
+  await assertApiResponse(response, label);
+  return response.json();
+}
+
+async function fetchNativeAccountBalance(chain, address) {
+  const cacheKey = `${chain}:${String(address).toLowerCase()}`;
+  const cached = nativeBalanceCache.get(cacheKey);
+  if (cached?.expiresAt > Date.now()) return cached.value;
+
+  let value;
+  if (chain === "bitcoin") {
+    const data = await fetchJsonWithApiError(
+      `https://mempool.space/api/address/${encodeURIComponent(address)}`, {}, "mempool.space balance API"
+    );
+    const confirmed = Number(data.chain_stats?.funded_txo_sum || 0) - Number(data.chain_stats?.spent_txo_sum || 0);
+    const pending = Number(data.mempool_stats?.funded_txo_sum || 0) - Number(data.mempool_stats?.spent_txo_sum || 0);
+    value = (confirmed + pending) / 1e8;
+  } else if (chain === "tezos") {
+    const data = await fetchJsonWithApiError(
+      `https://api.tzkt.io/v1/accounts/${encodeURIComponent(address)}/balance`, {}, "TzKT balance API"
+    );
+    value = Number(data) / 1e6;
+  } else {
+    const rpcTargets = {
+      ethereum: "https://eth-mainnet.g.alchemy.com/v2/",
+      polygon: "https://polygon-mainnet.g.alchemy.com/v2/",
+      bsc: "https://bnb-mainnet.g.alchemy.com/v2/",
+      zksync: "https://zksync-mainnet.g.alchemy.com/v2/",
+      optimism: "https://opt-mainnet.g.alchemy.com/v2/",
+      arbitrum: "https://arb-mainnet.g.alchemy.com/v2/",
+      base: "https://base-mainnet.g.alchemy.com/v2/",
+      solana: "https://solana-mainnet.g.alchemy.com/v2/",
+      cronos: "https://evm.cronos.org"
+    };
+    const target = chain === "mina"
+      ? "https://api.minascan.io/node/mainnet/v1/graphql"
+      : rpcTargets[chain];
+    if (!target) throw new Error(`No balance provider configured for ${chain}`);
+    const proxyUrl = `https://www.akirion.com:4664/proxy?url=${encodeURIComponent(target)}`;
+    const body = chain === "mina"
+      ? { query: "query AccountBalance($publicKey: PublicKey!) { account(publicKey: $publicKey) { balance { total } } }", variables: { publicKey: address } }
+      : chain === "solana"
+        ? { jsonrpc: "2.0", id: 1, method: "getBalance", params: [address, { commitment: "confirmed" }] }
+        : { jsonrpc: "2.0", id: 1, method: "eth_getBalance", params: [address, "latest"] };
+    const data = await fetchJsonWithApiError(proxyUrl, {
+      method: "POST",
+      headers: { "x-api-key": "755beb7f-24bc-4ead-924c-031e89af6d89", "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }, `${capitalize(chain)} balance API`);
+    if (data.error || data.errors) throw new Error(data.error?.message || data.errors?.[0]?.message || `${chain} balance unavailable`);
+    if (chain === "mina") value = Number(data.data?.account?.balance?.total) / 1e9;
+    else if (chain === "solana") value = Number(data.result?.value) / 1e9;
+    else value = Number(BigInt(data.result)) / 1e18;
+  }
+  if (!Number.isFinite(value)) throw new Error(`${chain} balance unavailable`);
+  nativeBalanceCache.set(cacheKey, { value, expiresAt: Date.now() + NATIVE_BALANCE_TTL });
+  return value;
 }
 
 async function getNativeUsdPrices(rows) {
@@ -4711,25 +4812,39 @@ async function getNativeUsdPrices(rows) {
 
 async function updateNativeMovementUsdValues(rows, node) {
   if (!rows.length) return;
+  let prices = {};
   try {
-    const prices = await getNativeUsdPrices(rows);
-    if (selectedNode !== node) return;
-    rows.forEach(row => {
-      const container = document.querySelector(`.native-movement-row[data-native-chain="${row.chain}"]`);
-      const price = prices[row.chain];
-      if (!container || !Number.isFinite(price)) return;
-      [["incoming", row.incoming], ["outgoing", row.outgoing], ["net", row.net]].forEach(([kind, amount]) => {
-        const target = container.querySelector(`[data-native-usd="${kind}"]`);
-        if (target) target.textContent = `≈ ${(amount * price).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 })}`;
-      });
-    });
+    prices = await getNativeUsdPrices(rows);
   } catch (error) {
-    if (selectedNode !== node) return;
-    document.querySelectorAll(".native-movement-row [data-native-usd]").forEach(element => {
-      element.textContent = "USD price unavailable";
-    });
     console.warn("Unable to load native asset USD prices:", error);
   }
+  if (selectedNode !== node) return;
+  rows.forEach(row => {
+    const container = document.querySelector(`.native-movement-row[data-native-chain="${row.chain}"]`);
+    const price = prices[row.chain];
+    if (!container) return;
+    fetchNativeAccountBalance(row.chain, node).then(balance => {
+      if (!container.isConnected || selectedNode !== node) return;
+      const balanceElement = container.querySelector("[data-native-balance]");
+      const balanceUsdElement = container.querySelector("[data-native-balance-usd]");
+      if (balanceElement) balanceElement.textContent = formatNativeMovementAmount(balance, row.symbol);
+      if (balanceUsdElement) balanceUsdElement.textContent = Number.isFinite(price)
+        ? `≈ ${(balance * price).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 })}`
+        : "USD price unavailable";
+    }).catch(error => {
+      console.warn(`Unable to load ${row.chain} balance`, error);
+      const balanceElement = container.querySelector("[data-native-balance]");
+      const balanceUsdElement = container.querySelector("[data-native-balance-usd]");
+      if (balanceElement) balanceElement.textContent = "Unavailable";
+      if (balanceUsdElement) balanceUsdElement.textContent = "";
+    });
+    [["incoming", row.incoming], ["outgoing", row.outgoing], ["net", row.net]].forEach(([kind, amount]) => {
+      const target = container.querySelector(`[data-native-usd="${kind}"]`);
+      if (target) target.textContent = Number.isFinite(price)
+        ? `≈ ${(amount * price).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 })}`
+        : "USD price unavailable";
+    });
+  });
 }
 
 function getNodeTransactionSortValue(item, column, node) {
@@ -4868,7 +4983,12 @@ function showNodePanel(node, refreshExternalStatus = true) {
   }))];
   const isFav = isFavorite(node, selectedBlockchain);
   const hasAmbiguousBitcoinRelations = visibleEdges.some(edge => graph.getEdgeAttribute(edge, "utxo_ambiguous") === true);
-  const nativeMovementSummary = summarizeNativeMovements(visibleEdges.map(edge => graph.getEdgeAttributes(edge)), node);
+  const visibleTransactions = visibleEdges.map(edge => graph.getEdgeAttributes(edge));
+  const nativeMovementSummary = includeBalanceRowsForVisibleChains(
+    summarizeNativeMovements(visibleTransactions, node),
+    visibleTransactions,
+    node
+  );
   let favName;
   
   setNodePanelOpen(true);
@@ -4946,6 +5066,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     </div>
     <section class="native-movement-summary" aria-label="Filtered native asset movements">
       <h3>Native asset movements</h3>
+      <p class="native-movement-disclaimer">Current balance is live and independent of filters. Movements only include native transfers loaded in this graph and matching the active filters; fees, rewards/coinbase and unloaded activity may be absent.</p>
       ${renderNativeMovementSummary(nativeMovementSummary)}
     </section>
     <p class="node-period">
