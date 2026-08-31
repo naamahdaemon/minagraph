@@ -10,7 +10,8 @@ const names = [
   "getSortableNodeTransactionAmount",
   "addressesMatchForTransaction",
   "getNodeTransactionDirection",
-  "summarizeNativeMovements"
+  "summarizeNativeMovements",
+  "includeBalanceRowsForVisibleChains"
 ];
 const functions = names.map(name => {
   const match = source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`));
@@ -48,5 +49,13 @@ assert.equal(bitcoin.incoming, 1, "ambiguous multi-input receipt must be counted
 assert.equal(bitcoin.outgoing, 0, "ambiguous Bitcoin outgoing attribution must be excluded");
 assert.equal(bitcoin.net, 1);
 assert.equal(bitcoin.ambiguousOutgoingExcluded, true);
+
+const tezosNode = "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb";
+const tezos = summarize([{
+  blockchain: "tezos", sender_key: otherEvm, receiver_key: tezosNode,
+  amount: "1000000", status: "applied", command_type: "transfer",
+  token_contract: "KT1TargetAddress"
+}], tezosNode)[0];
+assert.equal(tezos.incoming, 1, "a native Tezos transfer must not be discarded because TzKT supplies a target contract field");
 
 console.log("Native movement summary tests passed");

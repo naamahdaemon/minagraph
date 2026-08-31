@@ -41,6 +41,8 @@ assert.match(html, /header\.setAttribute\('tabindex', '0'\)/);
 assert.match(html, /event\.key === 'Enter' \|\| event\.key === ' '/);
 
 assert.match(css, /@media screen and \(max-width: 768px\)[\s\S]*?#app-container\.sidebar-open\s*\{\s*margin-left: 0;/);
+assert.match(css, /#app-container\.sidebar-open\s*\{[\s\S]*?width: calc\(100% - var\(--sidebar-width\)\);/);
+assert.match(css, /html, body\s*\{[\s\S]*?overflow: hidden;/);
 assert.match(css, /#sidebar-backdrop\.visible/);
 assert.match(css, /\.sidebar-heading\s*\{[\s\S]*?position: sticky;/);
 assert.match(css, /#controls\s*\{[\s\S]*?top: 0;[\s\S]*?left: 0;[\s\S]*?right: 0;[\s\S]*?width: 100%;/);
