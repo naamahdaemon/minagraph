@@ -54,7 +54,7 @@ assert.match(html, /id="donation-network"/);
 assert.match(app, /MinagraphWallets\.getMinaProvider\(injectedProvider\)/);
 assert.match(css, /\.wallet-connect-modal\s*\{/);
 assert.match(css, /\.wallet-connect-card \[hidden\]\s*\{[\s\S]*?display: none !important/);
-assert.match(worker, /mina-graph-explorer-v65/);
+assert.match(worker, /mina-graph-explorer-v66/);
 assert.match(worker, /\/scripts\/walletconnect-donations\.bundle\.js/);
 
 console.log("WalletConnect donation tests passed");

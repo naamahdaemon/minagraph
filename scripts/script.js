@@ -256,6 +256,46 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
 }
 
+let nodePanelViewportSyncFrame = 0;
+let nodePanelViewportSyncTimers = [];
+
+function syncNodePanelViewportHeight() {
+  const nodePanel = document.getElementById("side-panel");
+  const nodeDetails = document.getElementById("node-details");
+  if (!nodePanel || !nodeDetails) return;
+
+  const viewportHeight = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  if (viewportHeight <= 0) return;
+
+  const previousScrollTop = nodeDetails.scrollTop;
+  const previousMaxScroll = Math.max(0, nodeDetails.scrollHeight - nodeDetails.clientHeight);
+  const wasAtBottom = previousMaxScroll - previousScrollTop <= 8;
+  nodePanel.style.setProperty("--node-panel-viewport-height", `${viewportHeight}px`);
+
+  // Reading the new dimensions commits the flex layout before restoring the
+  // scroll position. This matters when returning from an external explorer:
+  // some mobile browsers update the visual viewport without a window resize.
+  void nodePanel.offsetHeight;
+  const nextMaxScroll = Math.max(0, nodeDetails.scrollHeight - nodeDetails.clientHeight);
+  nodeDetails.scrollTop = wasAtBottom ? nextMaxScroll : Math.min(previousScrollTop, nextMaxScroll);
+  syncDateSlicerWithNodePanel();
+}
+
+function scheduleNodePanelViewportSync({ followViewportSettling = false } = {}) {
+  if (nodePanelViewportSyncFrame) cancelAnimationFrame(nodePanelViewportSyncFrame);
+  nodePanelViewportSyncFrame = requestAnimationFrame(() => {
+    nodePanelViewportSyncFrame = 0;
+    syncNodePanelViewportHeight();
+  });
+
+  if (followViewportSettling) {
+    nodePanelViewportSyncTimers.forEach(clearTimeout);
+    nodePanelViewportSyncTimers = [100, 350].map(delay =>
+      setTimeout(syncNodePanelViewportHeight, delay)
+    );
+  }
+}
+
 function setNodePanelOpen(open, { restoreFocus = false } = {}) {
   const nodePanel = document.getElementById("side-panel");
   if (!nodePanel) return;
@@ -264,6 +304,7 @@ function setNodePanelOpen(open, { restoreFocus = false } = {}) {
   nodePanel.classList.toggle("open", isOpen);
   nodePanel.setAttribute("aria-hidden", String(!isOpen));
   document.body.classList.toggle("node-panel-open", isOpen);
+  if (isOpen) scheduleNodePanelViewportSync();
   syncDateSlicerWithNodePanel();
   if (restoreFocus && !isOpen) {
     document.getElementById("sigma-container")?.focus({ preventScroll: true });
@@ -311,6 +352,7 @@ function initializeNodePanelResize() {
     if (window.innerWidth <= 768) nodePanel.style.removeProperty("width");
     else if (nodePanel.style.width) applyWidth(nodePanel.getBoundingClientRect().width);
     syncDateSlicerWithNodePanel();
+    scheduleNodePanelViewportSync();
   });
 }
 
@@ -1449,6 +1491,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const dateSlicerContainer = document.getElementById("date-slicer-container");
   if (dateSlicerContainer) rotateLayoutObserver.observe(dateSlicerContainer);
   window.visualViewport?.addEventListener("resize", scheduleRotateSliderPosition);
+  window.visualViewport?.addEventListener("resize", () => scheduleNodePanelViewportSync());
+  window.visualViewport?.addEventListener("scroll", () => scheduleNodePanelViewportSync());
+  window.addEventListener("pageshow", () => scheduleNodePanelViewportSync({ followViewportSettling: true }));
+  window.addEventListener("focus", () => scheduleNodePanelViewportSync({ followViewportSettling: true }));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleNodePanelViewportSync({ followViewportSettling: true });
+  });
   document.getElementById("app-container")?.addEventListener("transitionend", scheduleRotateSliderPosition);
 
   /*document.getElementById("menu-toggle").addEventListener("click", () => {
@@ -4360,7 +4409,6 @@ function stopLayout() {
 function getAutomaticLayoutIterations(profile = "initial") {
   const nodeCount = graph?.order || 0;
 
-  if (profile === "drag") return nodeCount <= 500 ? 150 : 75;
   if (profile === "incremental") return nodeCount <= 500 ? 500 : 250;
   if (nodeCount <= 150) return 2000;
   if (nodeCount <= 400) return 1200;
@@ -5880,8 +5928,9 @@ function setupInteractions() {
 
     if (hasMoved) {
       suppressNodeClick = true;
-      // you dragged: optionally re-layout or whatever
-      animateLayout(null, "drag");
+      // A manual drag is an explicit placement choice. Keep the node where it
+      // was dropped; the user can still reorganize the whole graph with the
+      // Apply Layout command.
       setTimeout(() => { suppressNodeClick = false; }, 0);
     }
 
