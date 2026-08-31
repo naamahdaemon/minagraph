@@ -31,6 +31,7 @@ const endDragEnd = interactions.indexOf('renderer.on("upNode"', endDragStart);
 const endDrag = interactions.slice(endDragStart, endDragEnd);
 assert.doesNotMatch(endDrag, /showNodePanel\(/, 'Drag completion must not open node details');
 assert.match(endDrag, /if \(hasMoved\) \{\s*suppressNodeClick = true;/);
+assert.doesNotMatch(endDrag, /animateLayout\(/, 'Dropping a node must preserve its manually chosen position');
 assert.match(interactions, /if \(hasMoved\) \{\s*const pos = renderer\.viewportToGraph\(event\);/);
 
 console.log('Node interaction tests passed');
