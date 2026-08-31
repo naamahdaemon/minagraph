@@ -4725,6 +4725,14 @@ function renderNativeMovementSummary(rows) {
 
 const nativeBalanceCache = new Map();
 const NATIVE_BALANCE_TTL = 60_000;
+const ALCHEMY_PROXY_API_KEY = "2c57fa11-3463-47fa-802d-116c2dfff660";
+const GENERAL_PROXY_API_KEY = "755beb7f-24bc-4ead-924c-031e89af6d89";
+
+function getNativeBalanceProxyApiKey(chain) {
+  return ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base", "solana"].includes(chain)
+    ? ALCHEMY_PROXY_API_KEY
+    : GENERAL_PROXY_API_KEY;
+}
 
 async function fetchJsonWithApiError(url, options, label) {
   const response = await fetch(url, options);
@@ -4774,7 +4782,7 @@ async function fetchNativeAccountBalance(chain, address) {
         : { jsonrpc: "2.0", id: 1, method: "eth_getBalance", params: [address, "latest"] };
     const data = await fetchJsonWithApiError(proxyUrl, {
       method: "POST",
-      headers: { "x-api-key": "755beb7f-24bc-4ead-924c-031e89af6d89", "Content-Type": "application/json" },
+      headers: { "x-api-key": getNativeBalanceProxyApiKey(chain), "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }, `${capitalize(chain)} balance API`);
     if (data.error || data.errors) throw new Error(data.error?.message || data.errors?.[0]?.message || `${chain} balance unavailable`);
