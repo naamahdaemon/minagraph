@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v49';
+const CACHE_NAME = 'mina-graph-explorer-v50';
 const APP_BUILD_DATE = '2026-08-31';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 

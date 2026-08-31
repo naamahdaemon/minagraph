@@ -46,6 +46,8 @@ assert.match(css, /\.native-movement-summary\s*\{/);
 assert.match(script, /Current balance is live and independent of filters/);
 assert.match(script, /<span>Visible net<\/span>/);
 assert.match(script, /async function fetchNativeAccountBalance\(chain, address\)/);
+assert.match(script, /function getNativeBalanceProxyApiKey\(chain\)/);
+assert.match(script, /headers: \{ "x-api-key": getNativeBalanceProxyApiKey\(chain\)/);
 assert.match(script, /function includeBalanceRowsForVisibleChains\(rows, transactions, node\)/);
 assert.match(css, /\.native-movement-row strong,[\s\S]*?justify-self: end;[\s\S]*?text-align: right;[\s\S]*?font-variant-numeric: tabular-nums;/);
 assert.match(script, /function initializeNodePanelResize\(\)/);
