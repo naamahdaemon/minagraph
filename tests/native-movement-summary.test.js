@@ -34,6 +34,8 @@ const ethereum = summarize([
   { blockchain: "ethereum", sender_key: otherEvm, receiver_key: evmNode, amount: "1.5", status: "applied", command_type: "transfer" },
   { blockchain: "ethereum", sender_key: evmNode, receiver_key: otherEvm, amount: "0.4", status: "applied", command_type: "transfer" },
   { blockchain: "ethereum", sender_key: otherEvm, receiver_key: evmNode, amount: "99", status: "applied", command_type: "token_transfer" },
+  { blockchain: "ethereum", sender_key: otherEvm, receiver_key: evmNode, amount: "126.23", status: "applied", command_type: "contract_creation" },
+  { blockchain: "ethereum", sender_key: otherEvm, receiver_key: evmNode, amount: "4.58", status: "applied", command_type: "contract_call" },
   { blockchain: "ethereum", sender_key: otherEvm, receiver_key: evmNode, amount: "8", status: "failed", command_type: "transfer" }
 ], evmNode)[0];
 assert.equal(ethereum.incoming, 1.5);

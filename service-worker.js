@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v50';
+const CACHE_NAME = 'mina-graph-explorer-v64';
 const APP_BUILD_DATE = '2026-08-31';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -159,6 +159,7 @@ const STATIC_ASSETS = [
   '/style/style.css',
   '/scripts/script.js',
   '/scripts/bitcoin-adapter.js',
+  '/scripts/walletconnect-donations.bundle.js',
   '/scripts/sigma.umd.js',
   '/scripts/forceAtlas.js',
   '/scripts/fruchtermanReingold.js',
@@ -184,7 +185,6 @@ const STATIC_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.0.0',
   'https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.js',
   'https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.css',
-  'https://cdn.skypack.dev/bs58',
 ];
 
 // Installation
