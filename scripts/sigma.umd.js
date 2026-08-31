@@ -4874,8 +4874,14 @@
           if (node !== _this7.hoveredNode) nodesToRender.push(node);
         });
 
-        // Draw labels:
+        var compatibilityMode = useMobileChromiumWebGLCompatibility();
+
+        // Draw labels. In the single-context mobile compatibility path, the
+        // regular label canvas may already contain this node label. Drawing
+        // the hover copy as well produces two slightly offset labels (most
+        // visibly when the custom fetched-networks checkmark shifts the text).
         nodesToRender.forEach(function (node) {
+          if (compatibilityMode && _this7.displayedNodeLabels.has(node)) return;
           return render(node);
         });
 
@@ -4883,7 +4889,7 @@
         // the reducer's focused size and border. Drawing the hover program a
         // second time in that same context would cover the node with its hover
         // fill instead of adding a separate overlay as Sigma normally does.
-        if (useMobileChromiumWebGLCompatibility()) return this;
+        if (compatibilityMode) return this;
 
         // Draw WebGL nodes on top of the labels:
         var nodesPerPrograms = {};
