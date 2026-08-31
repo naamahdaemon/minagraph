@@ -1,4 +1,3 @@
-const WALLETCONNECT_PROJECT_ID = "e7c987c4886cb9b77abbda154818712e";
 const EVM_DONATION_ADDRESS = "0x52356a419879331172c1326909316bb8205071e0";
 
 const ERC20_ADDRESSES = {
@@ -58,6 +57,7 @@ function setButtonState(loading) {
 async function sendEVMDonation() {
     const amount = parseFloat(document.getElementById("donation-amount-evm").value);
     const token = document.getElementById("donation-token").value;
+    const requestedNetwork = document.getElementById("donation-network")?.value || "auto";
     
     if (!amount || amount <= 0) {
         showStatus("Please enter a valid amount", 'error');
@@ -74,42 +74,21 @@ async function sendEVMDonation() {
     let chain;
 
     try {
-        // Essayer d'abord les wallets injectés (MetaMask, etc.)
-        if (window.ethereum) {
-            showStatus("Detected browser wallet, connecting...", 'info');
-            provider = window.ethereum;
-            await provider.request({ method: "eth_requestAccounts" });
-            
-        } else {
-            // Si pas de wallet injecté, utiliser WalletConnect
-            showStatus("No browser wallet detected, opening WalletConnect...", 'info');
-            
-            if (!window.WalletConnectEthereumProvider) {
-                throw new Error("WalletConnect not loaded properly");
+        if (!window.MinagraphWallets) throw new Error("Wallet connection module is still loading. Please retry.");
+        showStatus("Detecting available wallets...", 'info');
+        const connectionChainId = requestedNetwork === "auto" ? 1 : Number(requestedNetwork);
+        provider = await window.MinagraphWallets.connectEvmProvider(connectionChainId);
+
+        if (requestedNetwork !== "auto") {
+            const requestedChainId = Number(requestedNetwork);
+            const currentChainId = Number.parseInt(await provider.request({ method: "eth_chainId" }), 16);
+            if (currentChainId !== requestedChainId) {
+                showStatus(`Requesting ${CHAIN_INFO[requestedChainId].name} network...`, 'info');
+                await provider.request({
+                    method: "wallet_switchEthereumChain",
+                    params: [{ chainId: `0x${requestedChainId.toString(16)}` }]
+                });
             }
-
-            const WalletConnectProvider = window.WalletConnectEthereumProvider.default;
-            
-            provider = await WalletConnectProvider.init({
-                projectId: WALLETCONNECT_PROJECT_ID,
-                chains: [1, 56, 137],
-                showQrModal: true,
-                optionalChains: [1, 56, 137],
-                rpcMap: {
-                    1: "https://eth.llamarpc.com",
-                    56: "https://bsc-dataseed.binance.org",
-                    137: "https://polygon-rpc.com"
-                },
-                metadata: {
-                    name: "Crypto Tip Donation",
-                    description: "Send crypto tips easily",
-                    url: window.location.origin,
-                    icons: ["https://walletconnect.com/walletconnect-logo.png"]
-                }
-            });
-
-            showStatus("Please scan the QR code with your mobile wallet", 'info');
-            await provider.connect();
         }
 
         showStatus("Wallet connected! Preparing transaction...", 'info');
@@ -129,10 +108,25 @@ async function sendEVMDonation() {
 
         let tx;
         if (token === "native") {
-            tx = await signer.sendTransaction({
-                to: EVM_DONATION_ADDRESS,
-                value: ethers.parseEther(amount.toString())
-            });
+            if (provider.__minagraphWalletConnect) {
+                const from = await signer.getAddress();
+                const hash = await provider.request({
+                    method: "eth_sendTransaction",
+                    params: [{
+                        from,
+                        to: EVM_DONATION_ADDRESS,
+                        value: ethers.toBeHex(ethers.parseEther(amount.toString())),
+                        gas: "0x5208",
+                        data: "0x"
+                    }]
+                });
+                tx = { hash, wait: () => ethersProvider.waitForTransaction(hash) };
+            } else {
+                tx = await signer.sendTransaction({
+                    to: EVM_DONATION_ADDRESS,
+                    value: ethers.parseEther(amount.toString())
+                });
+            }
         } else {
             const tokenAddr = ERC20_ADDRESSES[token][chain];
             if (!tokenAddr) {
@@ -141,12 +135,18 @@ async function sendEVMDonation() {
 
             const abi = [
                 "function transfer(address to, uint256 value) public returns (bool)",
-                "function decimals() view returns (uint8)"
+                "function decimals() view returns (uint8)",
+                "function balanceOf(address owner) view returns (uint256)"
             ];
             
             const contract = new ethers.Contract(tokenAddr, abi, signer);
             const decimals = await contract.decimals();
             const value = ethers.parseUnits(amount.toString(), decimals);
+            const owner = await signer.getAddress();
+            const balance = await contract.balanceOf(owner);
+            if (balance < value) {
+                throw new Error(`Insufficient ${token} balance. Available: ${ethers.formatUnits(balance, decimals)} ${token}`);
+            }
             
             tx = await contract.transfer(EVM_DONATION_ADDRESS, value);
         }
@@ -155,7 +155,13 @@ async function sendEVMDonation() {
         
         // Attendre la confirmation
         showStatus("Waiting for confirmation...", 'info');
-        await tx.wait();
+        try {
+            await tx.wait();
+        } catch (confirmationError) {
+            console.warn("Transaction sent, but confirmation lookup failed:", confirmationError);
+            showStatus(`✅ Transaction sent! Confirmation lookup is temporarily unavailable. Hash: ${tx.hash}`, 'success');
+            return;
+        }
         showStatus(`✅ Donation successful! Thank you for your ${amount} ${token === 'native' ? CHAIN_INFO[chainId].symbol : token} tip!`, 'success');
 
     } catch (err) {
@@ -163,12 +169,14 @@ async function sendEVMDonation() {
         
         if (err.code === 4001) {
             showStatus("Transaction cancelled by user", 'error');
-        } else if (err.message.includes("insufficient funds")) {
+        } else if (/insufficient funds|insufficient (USDT|USDC) balance/i.test(err.message || "")) {
             showStatus("Insufficient funds in wallet", 'error');
         } else if (err.message.includes("user rejected")) {
             showStatus("Connection rejected by user", 'error');
         } else if (err.message.includes("ACTION_REJECTED")) {
             showStatus("Transaction cancelled by user", 'error');
+        } else if (/Unknown method\(s\) requested|unsupported method/i.test(err.message || "")) {
+            showStatus("The wallet did not approve transaction permissions. Disconnect it, reconnect, and approve the requested network and transaction permissions.", 'error');
         } else {
             showStatus(`Error: ${err.message || err}`, 'error');
         }
@@ -176,9 +184,9 @@ async function sendEVMDonation() {
         setButtonState(false);
         
         // Nettoyer la connexion WalletConnect
-        if (provider && provider.disconnect && !window.ethereum) {
+        if (provider?.__minagraphWalletConnect && provider.disconnect) {
             try {
-                setTimeout(() => provider.disconnect(), 2000);
+                setTimeout(() => provider.disconnect().catch(error => console.warn("WalletConnect disconnect failed:", error)), 2000);
             } catch (e) {
                 console.warn("WalletConnect disconnect failed:", e);
             }
