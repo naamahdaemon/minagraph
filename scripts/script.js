@@ -111,6 +111,27 @@ let isFilterPanelVisible = true;
 let edgeThicknessMode = "uniform";
 let edgeVisualSizes = new Map();
 
+const LAYOUT_PARAMETER_HELP = Object.freeze({
+  "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; OpenOrd-inspired favors large-scale separation and is experimental.",
+  "layout-linlog": "ForceAtlas2 only. Replaces linear attraction with logarithmic attraction, weakening long-distance links so communities separate more clearly.",
+  "layout-outbound": "ForceAtlas2 only. Distributes each source node's outgoing attraction using its mass (1 + degree), compensated by the graph's average mass. Hubs pull each individual target less strongly without globally weakening the layout.",
+  "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
+  "layout-prevent-overlap": "ForceAtlas2 only. Enforces a minimum separation during force calculations. It reduces exact overlaps but does not guarantee that every rendered node disc or label stays separate.",
+  "layout-ewi": "OpenOrd-inspired only. Raises edge weights to this exponent before attraction is calculated. 0 ignores weights; larger values favor heavy links. Minagraph edges currently default to weight 1, so this usually has no visible effect.",
+  "layout-cooling": "OpenOrd-inspired only. Multiplies movement temperature after each iteration. Values closer to 1 converge more slowly and explore more arrangements; lower values freeze the layout sooner.",
+  "layout-attraction": "OpenOrd-inspired only. Multiplies the force pulling connected nodes together. Higher values shorten links and tighten connected groups.",
+  "layout-repulsion": "OpenOrd-inspired only. Multiplies the force pushing every pair of nodes apart. Higher values spread the graph and increase spacing.",
+  "layout-iterations": "Maximum number of spatialization steps. More iterations can improve convergence but take longer. They do not add graph data or change the rendering quality directly.",
+  "layout-width": "Width of the algorithm's coordinate space and gravity center, not the screen or canvas width. Larger values can give the layout more horizontal room. OpenOrd-inspired currently ignores it.",
+  "layout-height": "Height of the algorithm's coordinate space and gravity center, not the screen or canvas height. Larger values can give the layout more vertical room. OpenOrd-inspired currently ignores it.",
+  "layout-gravity": "Pulls nodes toward the center in Fruchterman-Reingold and ForceAtlas2. Higher values reduce remote branches and produce a more compact graph. OpenOrd-inspired currently ignores it.",
+  "layout-scale": "Controls repulsion in Fruchterman-Reingold and ForceAtlas2. Higher values generally spread nodes farther apart; lower values produce a tighter graph. OpenOrd-inspired currently ignores it.",
+  "toggle-labels": "Shows or hides node labels. This is a rendering option only and never changes node positions or spatialization.",
+  "edge-thickness-mode": "Changes link thickness using a uniform size, transaction count, or transferred amount. This is visual only: link thickness never influences spatialization or edge weight."
+});
+let activeLayoutHelpButton = null;
+let layoutHelpPinned = false;
+
 // Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
 // Playwright cannot locate them through the DOM. Getters are used because both
 // objects can be replaced when the graph is reloaded.
@@ -931,6 +952,101 @@ const knownTokens = {
   "0x58d0a58e4b165a27e4e1b8c2a3ef39c89b581180": { name: "ShowCoin  ", symbol: "Show", decimals: 18 },
   // Add more as needed
 };
+
+function positionLayoutParameterHelp(button, tooltip) {
+  const anchor = button.getBoundingClientRect();
+  const margin = 8;
+  const viewportWidth = window.visualViewport?.width || window.innerWidth;
+  const viewportHeight = window.visualViewport?.height || window.innerHeight;
+  const tooltipWidth = tooltip.offsetWidth;
+  const tooltipHeight = tooltip.offsetHeight;
+  let left = anchor.right + margin;
+  if (left + tooltipWidth > viewportWidth - margin) left = anchor.left - tooltipWidth - margin;
+  if (left < margin) left = Math.max(margin, (viewportWidth - tooltipWidth) / 2);
+  const top = Math.min(
+    Math.max(margin, anchor.top + anchor.height / 2 - tooltipHeight / 2),
+    Math.max(margin, viewportHeight - tooltipHeight - margin)
+  );
+  tooltip.style.left = `${Math.round(left)}px`;
+  tooltip.style.top = `${Math.round(top)}px`;
+}
+
+function showLayoutParameterHelp(button, { pinned = false } = {}) {
+  const tooltip = document.getElementById("layout-parameter-tooltip");
+  const helpText = LAYOUT_PARAMETER_HELP[button?.dataset.layoutHelpFor];
+  if (!tooltip || !helpText) return;
+  if (activeLayoutHelpButton && activeLayoutHelpButton !== button) {
+    activeLayoutHelpButton.setAttribute("aria-expanded", "false");
+  }
+  activeLayoutHelpButton = button;
+  layoutHelpPinned = pinned;
+  button.setAttribute("aria-expanded", "true");
+  tooltip.textContent = helpText;
+  tooltip.hidden = false;
+  positionLayoutParameterHelp(button, tooltip);
+}
+
+function closeLayoutParameterHelp() {
+  const tooltip = document.getElementById("layout-parameter-tooltip");
+  activeLayoutHelpButton?.setAttribute("aria-expanded", "false");
+  activeLayoutHelpButton = null;
+  layoutHelpPinned = false;
+  if (tooltip) tooltip.hidden = true;
+}
+
+function initializeLayoutParameterHelp() {
+  if (document.getElementById("layout-parameter-tooltip")) return;
+  const tooltip = document.createElement("div");
+  tooltip.id = "layout-parameter-tooltip";
+  tooltip.className = "layout-parameter-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.hidden = true;
+  document.body.appendChild(tooltip);
+
+  Object.keys(LAYOUT_PARAMETER_HELP).forEach(controlId => {
+    const control = document.getElementById(controlId);
+    if (!control) return;
+    const label = control.closest("label") || document.querySelector(`label[for="${controlId}"]`);
+    if (!label || label.querySelector(`[data-layout-help-for="${controlId}"]`)) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "layout-parameter-help";
+    button.dataset.layoutHelpFor = controlId;
+    button.setAttribute("aria-label", `Explain ${label.textContent.trim()}`);
+    button.setAttribute("aria-describedby", tooltip.id);
+    button.setAttribute("aria-expanded", "false");
+    button.textContent = "i";
+    const lineBreak = label.querySelector("br");
+    if (lineBreak) label.insertBefore(button, lineBreak);
+    else label.appendChild(button);
+
+    button.addEventListener("mouseenter", () => showLayoutParameterHelp(button));
+    button.addEventListener("mouseleave", () => {
+      if (!layoutHelpPinned) closeLayoutParameterHelp();
+    });
+    button.addEventListener("focus", () => showLayoutParameterHelp(button, { pinned: layoutHelpPinned }));
+    button.addEventListener("blur", () => {
+      if (!layoutHelpPinned) closeLayoutParameterHelp();
+    });
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeLayoutHelpButton === button && layoutHelpPinned) closeLayoutParameterHelp();
+      else showLayoutParameterHelp(button, { pinned: true });
+    });
+  });
+
+  document.addEventListener("pointerdown", event => {
+    if (!event.target.closest?.(".layout-parameter-help")) closeLayoutParameterHelp();
+  });
+  window.addEventListener("resize", () => {
+    const tooltipElement = document.getElementById("layout-parameter-tooltip");
+    if (activeLayoutHelpButton && tooltipElement && !tooltipElement.hidden) {
+      positionLayoutParameterHelp(activeLayoutHelpButton, tooltipElement);
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
@@ -947,6 +1063,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // or recovering its renderer.
   setupSearch();
   algorithmSelect = document.getElementById("layout-algorithm");
+  initializeLayoutParameterHelp();
   faSettings = document.getElementById("forceatlas-settings");
   ordSettings = document.getElementById("openord-settings");
   themeToggleBtn = document.getElementById("theme-toggle-btn");
@@ -7603,6 +7720,13 @@ document.addEventListener("keydown", function (event) {
   const input = document.getElementById("search-input");
   const searchDiv = document.getElementById("searchdiv");
   const clearBtn = document.getElementById("clear-search");
+
+  if (event.key === "Escape" && activeLayoutHelpButton) {
+    const helpButton = activeLayoutHelpButton;
+    closeLayoutParameterHelp();
+    helpButton.focus({ preventScroll: true });
+    return;
+  }
 
   if (event.key === "Escape" && !document.getElementById("error-popup")?.hidden) {
     closeErrorPopup();
