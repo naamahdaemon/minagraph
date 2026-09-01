@@ -81,6 +81,12 @@ assert.notEqual(
   "ForceAtlas gravity modes should produce different movement"
 );
 
+const forceAtlasSource = fs.readFileSync(path.join(projectRoot, "scripts", "forceAtlas.js"), "utf8");
+assert.match(forceAtlasSource, /masses\[node\.id\] = 1 \+ degrees\[node\.id\]/);
+assert.match(forceAtlasSource, /const outboundAttractionCompensation = nodes\.length \? totalMass \/ nodes\.length : 1/);
+assert.match(forceAtlasSource, /attraction \*= outboundAttractionCompensation \/ masses\[src\]/);
+assert.doesNotMatch(forceAtlasSource, /attraction \/= degrees\[src\]/);
+
 function runOpenOrd(weight) {
   return runWorker("openOrd.js", {
     nodes: [{ id: "a", x: 0, y: 0 }, { id: "b", x: 10, y: 0 }],

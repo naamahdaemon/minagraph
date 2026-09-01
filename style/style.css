@@ -2639,6 +2639,64 @@
   #left-sidebar .foldable-content button:active:not(:disabled) {
     transform: translateY(0);
   }
+
+  #left-sidebar .layout-parameter-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+    margin: 0 0 0 6px;
+    padding: 0;
+    border: 1.5px solid #4fc3f7;
+    border-radius: 50%;
+    background: transparent;
+    color: #4fc3f7;
+    box-shadow: none;
+    font: 700 12px/1 Arial, sans-serif;
+    cursor: help;
+    vertical-align: middle;
+    transform: none;
+  }
+
+  #left-sidebar .layout-parameter-help:hover,
+  #left-sidebar .layout-parameter-help:focus-visible,
+  #left-sidebar .layout-parameter-help[aria-expanded="true"] {
+    background: rgba(79, 195, 247, 0.18);
+    box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.18);
+    filter: none;
+    outline: none;
+    transform: none;
+  }
+
+  .layout-parameter-tooltip {
+    position: fixed;
+    z-index: 10050;
+    width: min(310px, calc(100vw - 16px));
+    padding: 10px 12px;
+    border: 1px solid rgba(79, 195, 247, 0.75);
+    border-radius: 8px;
+    background: #20262b;
+    color: #f5f7f8;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: left;
+    pointer-events: none;
+  }
+
+  .layout-parameter-tooltip[hidden] {
+    display: none;
+  }
+
+  body[data-theme="light"] .layout-parameter-tooltip {
+    background: #fff;
+    color: #171a1d;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  }
   
   /* 1) Ensure the slider container is narrow & padded so the thumb never escapes */
   #zoom-slider {
