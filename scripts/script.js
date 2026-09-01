@@ -114,7 +114,7 @@ let edgeVisualSizes = new Map();
 const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; OpenOrd-inspired favors large-scale separation and is experimental.",
   "layout-linlog": "ForceAtlas2 only. Replaces linear attraction with logarithmic attraction, weakening long-distance links so communities separate more clearly.",
-  "layout-outbound": "ForceAtlas2 only. Distributes each source node's outgoing attraction using its mass (1 + degree), compensated by the graph's average mass. Hubs pull each individual target less strongly without globally weakening the layout.",
+  "layout-outbound": "ForceAtlas2 only. Distributes a hub's attraction across its connections using a softened mass compensation. Transaction direction does not affect the result. Hubs pull each neighbor less strongly while avoiding excessively long branches.",
   "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
   "layout-prevent-overlap": "ForceAtlas2 only. Enforces a minimum separation during force calculations. It reduces exact overlaps but does not guarantee that every rendered node disc or label stays separate.",
   "layout-ewi": "OpenOrd-inspired only. Raises edge weights to this exponent before attraction is calculated. 0 ignores weights; larger values favor heavy links. Minagraph edges currently default to weight 1, so this usually has no visible effect.",
