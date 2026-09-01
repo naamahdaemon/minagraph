@@ -6,6 +6,7 @@ self.onmessage = function (e) {
   const swinging = {};
   const traction = {};
   const degrees = {};
+  const masses = {};
   let speed = 1.0;
 
   const defaultSettings = {
@@ -38,6 +39,18 @@ self.onmessage = function (e) {
     degrees[edge.target]++;
   }
 
+  // ForceAtlas2 defines a node's mass as 1 + degree. When outbound
+  // attraction distribution is enabled, attraction is divided by the source
+  // mass and compensated by the graph's average mass. The compensation is
+  // essential: without it, every outbound spring in transaction-heavy graphs
+  // becomes globally too weak and produces excessively distant leaf nodes.
+  let totalMass = 0;
+  for (const node of nodes) {
+    masses[node.id] = 1 + degrees[node.id];
+    totalMass += masses[node.id];
+  }
+  const outboundAttractionCompensation = nodes.length ? totalMass / nodes.length : 1;
+
   for (let iter = 0; iter < s.iterations; iter++) {
     const disp = {};
     for (const node of nodes) disp[node.id] = { x: 0, y: 0 };
@@ -61,7 +74,7 @@ self.onmessage = function (e) {
         // Prevent overlap
         if (s.preventOverlap && dist < 1) dist = 1;
 
-        let repulsion = s.scalingRatio * (1 + degrees[v.id]) * (1 + degrees[u.id]);
+        let repulsion = s.scalingRatio * masses[v.id] * masses[u.id];
         repulsion /= dist;
 
         const forceX = dx / dist * repulsion;
@@ -85,7 +98,7 @@ self.onmessage = function (e) {
 
       let attraction = (edge.weight ?? 1);
       if (s.outboundAttractionDistribution) {
-        attraction /= degrees[src];
+        attraction *= outboundAttractionCompensation / masses[src];
       }
 
       if (s.linLogMode) {
