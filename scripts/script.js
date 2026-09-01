@@ -4574,7 +4574,10 @@ function setFilterPanelVisible(visible, { persist = true } = {}) {
   const legend = document.getElementById("legend");
   const button = document.getElementById("filter-toggle-btn");
 
-  if (legend) legend.style.display = isFilterPanelVisible && !isFullscreen ? "block" : "none";
+  const interfaceCanShowFilters = !isFullscreen || fullscreenUiVisible;
+  if (legend) {
+    legend.style.display = isFilterPanelVisible && interfaceCanShowFilters ? "block" : "none";
+  }
   if (button) {
     const label = isFilterPanelVisible ? "Hide filters" : "Show filters";
     button.classList.toggle("is-active", isFilterPanelVisible);
@@ -7446,6 +7449,10 @@ function setFullscreenUiVisible(visible) {
   }
   controls?.style.removeProperty("display");
   slicer?.style.removeProperty("display");
+  // Fullscreen keeps the preference, but only renders the filter window while
+  // the temporary interface is visible. This also hides it again with the
+  // toolbar when S or a graph click dismisses the fullscreen UI.
+  setFilterPanelVisible(isFilterPanelVisible, { persist: false });
   if (fullscreenUiVisible) {
     updateSlicerView();
     slicer?.style.removeProperty("display");
