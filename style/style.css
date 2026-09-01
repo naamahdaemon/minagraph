@@ -1131,6 +1131,31 @@
       accent-color: #4fc3f7;
     }
 
+    .node-transactions-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 4px 0 24px;
+      padding: 10px 12px;
+      border: 1px solid var(--node-panel-border);
+      border-radius: 9px;
+      background: var(--node-panel-surface);
+      color: var(--node-panel-muted);
+      font-size: 12px;
+    }
+
+    .node-transactions-pagination button {
+      flex: 0 0 auto;
+      min-height: 36px;
+      padding: 7px 12px;
+      border: 1px solid var(--node-panel-link);
+      border-radius: 7px;
+      background: rgba(79, 195, 247, 0.12);
+      color: var(--node-panel-link);
+      cursor: pointer;
+    }
+
     #controls input,
     #controls button,
     #controls select,
