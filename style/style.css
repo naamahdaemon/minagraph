@@ -1,3 +1,18 @@
+    :root {
+      /* Shared application stacking order. Keep graph controls below drawers,
+         contextual floating panels above drawers, and true modals on top. */
+      --z-graph-overlay: 900;
+      --z-command-bar: 1000;
+      --z-command-popover: 1020;
+      --z-sidebar-backdrop: 1100;
+      --z-sidebar: 1110;
+      --z-floating-panel: 1120;
+      --z-node-panel: 5000;
+      --z-app-overlay: 9000;
+      --z-modal: 10000;
+      --z-critical-modal: 12000;
+    }
+
     html, body {
       margin: 0;
       padding: 0;
@@ -52,7 +67,7 @@
       border-right: 1px solid rgba(255, 255, 255, 0.14);
       box-shadow: none;
       font-family: sans-serif;
-      z-index: 1002;
+      z-index: var(--z-sidebar);
     }
 
     #left-sidebar.open {
@@ -117,7 +132,7 @@
     #sidebar-backdrop {
       position: fixed;
       inset: 0;
-      z-index: 1001;
+      z-index: var(--z-sidebar-backdrop);
       background: rgba(0, 0, 0, 0.56);
       opacity: 0;
       transition: opacity 0.25s ease;
@@ -219,7 +234,7 @@
       width: 100%;
       min-height: 54px;
       background: #222;
-      z-index: 1001;
+      z-index: var(--z-command-bar);
       padding: 5px 10px;
       border-bottom: 1px solid rgba(127, 127, 127, 0.38);
       border-radius: 0;
@@ -314,6 +329,10 @@
       opacity: 1;
       pointer-events: auto;
       transform: translateY(0);
+    }
+
+    body.fullscreen-mode.fullscreen-ui-visible #legend.legend-box {
+      z-index: var(--z-floating-panel);
     }
 
     body.fullscreen-mode #date-slicer-container {
@@ -553,7 +572,7 @@
       visibility: hidden;
       pointer-events: none;
       transition: transform 0.3s ease, visibility 0s linear 0.3s;
-      z-index: 5000;
+      z-index: var(--z-node-panel);
     }
 
     #side-panel.open {
@@ -872,7 +891,7 @@
       transform: translate(-50%, -50%);
       pointer-events: none;
       animation: pulse 1.5s infinite;
-      z-index: 1000;
+      z-index: var(--z-floating-panel);
     }
 
     .legend-item.active {
@@ -1350,7 +1369,7 @@
       border-radius: 8px;
       padding: 10px;
       box-shadow: 0 0 6px rgba(0,0,0,0.4);
-      z-index: 999;
+      z-index: var(--z-graph-overlay);
     }
 
     #slicer-container {
@@ -1513,7 +1532,7 @@
       border-radius: 6px;
       padding: 6px 10px;
       display: none;
-      z-index: 1000;
+      z-index: var(--z-command-popover);
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       width: min(330px, calc(100vw - 20px));
       margin-top: 0;
@@ -1658,6 +1677,7 @@
       right: 10px !important;
       width: min(330px, calc(100vw - 20px));
       min-width: min(330px, calc(100vw - 20px)) !important;
+      z-index: var(--z-command-popover) !important;
     }
 
     #side-panel {
@@ -1702,7 +1722,7 @@
   .error-modal {
     position: fixed;
     inset: 0;
-    z-index: 12000;
+    z-index: var(--z-critical-modal);
     display: grid;
     place-items: center;
     padding: 18px;
