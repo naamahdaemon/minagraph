@@ -6281,6 +6281,28 @@ function handleSearch(query) {
     matchMode = "receiver";
     lowerQuery = lowerQuery.slice(1);
   }
+
+  // Favorite labels live in localStorage rather than in graphology. Resolve
+  // matching labels back to their node addresses so custom names participate
+  // in search without changing the graph's canonical labels.
+  const favoriteAddresses = new Set(
+    getFavorites()
+      .filter(favorite => String(favorite.label || "").toLowerCase().includes(lowerQuery))
+      .map(favorite => String(favorite.address || "").toLowerCase())
+      .filter(Boolean)
+  );
+
+  graph.forEachNode((node, attr) => {
+    const nodeAddress = String(node || "").toLowerCase();
+    const nodeFields = [node, attr.label, attr.name]
+      .map(value => String(value || "").toLowerCase());
+
+    if (favoriteAddresses.has(nodeAddress) || nodeFields.some(field => field.includes(lowerQuery))) {
+      directlyMatchedNodes.add(node);
+      visibleNodes.add(node);
+    }
+  });
+
   graph.forEachEdge((edge, attr) => {
       const source = graph.source(edge);
       const target = graph.target(edge);
@@ -7049,23 +7071,15 @@ async function connectAuroAndSend() {
 }
 
 function adjustSidebarState() {
-  const sidebar = document.getElementById("left-sidebar");
-  const appContainer = document.getElementById("app-container");
-  const activeElement = document.activeElement;
-  const isInputFocusedInSidebar = sidebar.contains(activeElement) &&
-    (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || activeElement.tagName === "SELECT");
-
   if (isFullscreen) {
     setLeftSidebarOpen(fullscreenUiVisible);
   } else if (window.innerWidth >= 769) {
     const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
     setLeftSidebarOpen(savedState !== "false");
-  } else {
-    // ✅ Ne ferme pas la sidebar si un champ est actif dedans (sur mobile)
-    if (!isInputFocusedInSidebar) {
-      setLeftSidebarOpen(false);
-    }
   }
+  // On mobile, preserve the current state. Focusing or leaving an input opens
+  // and closes the virtual keyboard, which resizes the visual viewport; that
+  // resize must never be interpreted as a request to close the sidebar.
 
   if (isFullscreen && slicer) {
     slicer.style.removeProperty("display");
@@ -8506,6 +8520,12 @@ function updateFavoriteLabel(address, chain, newLabel) {
   if (idx !== -1) {
     favorites[idx].label = newLabel;
     saveFavorites(favorites);
+
+    // Keep an already-open search synchronized with a renamed favorite.
+    const activeQuery = document.getElementById("search-input")?.value || "";
+    if (activeQuery.trim() && graph && renderer) {
+      handleSearch(activeQuery);
+    }
   }
 }
 

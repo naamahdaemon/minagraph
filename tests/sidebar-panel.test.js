@@ -7,6 +7,8 @@ const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8'
 const css = fs.readFileSync(path.resolve(__dirname, '..', 'style', 'style.css'), 'utf8');
 
 assert.match(script, /function setLeftSidebarOpen\(open,/);
+assert.match(script, /On mobile, preserve the current state/);
+assert.doesNotMatch(script, /if \(!isInputFocusedInSidebar\) \{\s*setLeftSidebarOpen\(false\)/, 'Virtual keyboard resize must not close the mobile sidebar');
 assert.match(script, /appElement\.classList\.toggle\("sidebar-open", isOpen && isDesktop\)/);
 assert.match(script, /sidebarElement\.setAttribute\("aria-hidden", String\(!isOpen\)\)/);
 assert.match(script, /setLeftSidebarOpen\(false, \{ restoreFocus: true \}\)/);
@@ -61,6 +63,9 @@ assert.match(script, /searchButton\.dataset\.searchInitialized === "true"/);
 assert.match(script, /searchInput = document\.getElementById\("search-input"\);\s*\/\/[\s\S]*?setupSearch\(\);\s*algorithmSelect/);
 assert.match(script, /const shouldShow = searchDiv\.style\.display !== "block";/);
 assert.match(script, /if \(graph && renderer\) handleSearch\(query\);/);
+assert.match(script, /const favoriteAddresses = new Set\([\s\S]*?getFavorites\(\)[\s\S]*?favorite\.label/);
+assert.match(script, /favoriteAddresses\.has\(nodeAddress\)/);
+assert.match(script, /function updateFavoriteLabel[\s\S]*?handleSearch\(activeQuery\)/);
 assert.doesNotMatch(script, /toggleBtn\.addEventListener\("click"/, 'Search must have only one active toolbar click handler');
 assert.match(css, /#notification-list\s*\{[\s\S]*?top: calc\(100% \+ 6px\) !important;/);
 assert.match(css, /#searchdiv\s*\{[\s\S]*?top: calc\(100% \+ 6px\);/);
