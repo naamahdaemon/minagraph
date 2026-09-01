@@ -25,10 +25,11 @@ assert.doesNotMatch(
   "legacy native titles should not compete with the consistent custom tooltip"
 );
 assert.match(script, /mouseenter[\s\S]*mouseleave/, "help must support mouse hovering");
-assert.match(script, /button\.addEventListener\("click"/, "help must support tapping/clicking");
-assert.match(script, /button\.addEventListener\("focus"/, "help must support keyboard focus");
-assert.match(script, /event\.key === "Escape" && activeLayoutHelpButton/, "Escape must close pinned help");
-assert.match(styles, /\.layout-parameter-help\s*\{/, "the information icon must be styled");
+assert.match(script, /label\.addEventListener\("click"/, "labels must support tapping/clicking");
+assert.match(script, /label\.addEventListener\("focus"/, "labels must support keyboard focus");
+assert.match(script, /event\.key === "Escape" && activeLayoutHelpAnchor/, "Escape must close pinned help");
+assert.doesNotMatch(script, /createElement\("button"\)[\s\S]{0,500}layout-parameter-help/, "help must not inject information buttons");
+assert.match(styles, /\.layout-parameter-label-help\s*\{/, "explanatory labels must expose an unobtrusive help cursor");
 assert.match(styles, /\.layout-parameter-tooltip\s*\{/, "the explanatory tooltip must be styled");
 
 console.log("Layout parameter help tests passed.");

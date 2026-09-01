@@ -2648,50 +2648,18 @@
     color: #46545d !important;
   }
 
-  #left-sidebar .layout-parameter-help {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 14px;
-    width: 14px;
-    min-width: 14px;
-    height: 14px;
-    min-height: 14px;
-    margin: 0 0 0 3px;
-    padding: 0;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    background: transparent;
-    color: #f4f6f7;
-    box-shadow: none;
-    font: 700 9px/1 Arial, sans-serif;
+  #graph-parameters-section .layout-parameter-label-help {
     cursor: help;
-    vertical-align: middle;
-    opacity: 0.58;
-    transform: none;
-    transition: opacity 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 3px;
   }
 
-  #left-sidebar .layout-parameter-help:hover,
-  #left-sidebar .layout-parameter-help:focus-visible,
-  #left-sidebar .layout-parameter-help[aria-expanded="true"] {
-    background: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
-    filter: none;
-    outline: none;
-    opacity: 1;
-    transform: none;
+  #graph-parameters-section .layout-parameter-label-help :is(input, select) {
+    cursor: auto;
   }
 
-  body[data-theme="light"] #left-sidebar .layout-parameter-help {
-    color: #38454c;
-  }
-
-  body[data-theme="light"] #left-sidebar .layout-parameter-help:hover,
-  body[data-theme="light"] #left-sidebar .layout-parameter-help:focus-visible,
-  body[data-theme="light"] #left-sidebar .layout-parameter-help[aria-expanded="true"] {
-    background: rgba(31, 43, 49, 0.08);
-    box-shadow: 0 0 0 2px rgba(31, 43, 49, 0.06);
+  #graph-parameters-section .layout-parameter-label-help:focus-visible {
+    outline: 1px dotted currentColor;
+    outline-offset: 2px;
   }
 
   .layout-parameter-tooltip {

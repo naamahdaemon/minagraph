@@ -114,7 +114,7 @@ let edgeVisualSizes = new Map();
 const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; OpenOrd-inspired favors large-scale separation and is experimental.",
   "layout-linlog": "ForceAtlas2 only. Replaces linear attraction with logarithmic attraction, weakening long-distance links so communities separate more clearly.",
-  "layout-outbound": "ForceAtlas2 only. Distributes a hub's attraction across its connections using a softened mass compensation. Transaction direction does not affect the result. Hubs pull each neighbor less strongly while avoiding excessively long branches.",
+  "layout-outbound": "ForceAtlas2 only. Distributes each sender's attraction across its outgoing connections using a moderated mass compensation. Highly connected senders pull each recipient less strongly, so transaction direction remains visible without the extreme branches of full linear distribution.",
   "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
   "layout-prevent-overlap": "ForceAtlas2 only. Enforces a minimum separation during force calculations. It reduces exact overlaps but does not guarantee that every rendered node disc or label stays separate.",
   "layout-ewi": "OpenOrd-inspired only. Raises edge weights to this exponent before attraction is calculated. 0 ignores weights; larger values favor heavy links. Minagraph edges currently default to weight 1, so this usually has no visible effect.",
@@ -129,7 +129,7 @@ const LAYOUT_PARAMETER_HELP = Object.freeze({
   "toggle-labels": "Shows or hides node labels. This is a rendering option only and never changes node positions or spatialization.",
   "edge-thickness-mode": "Changes link thickness using a uniform size, transaction count, or transferred amount. This is visual only: link thickness never influences spatialization or edge weight."
 });
-let activeLayoutHelpButton = null;
+let activeLayoutHelpAnchor = null;
 let layoutHelpPinned = false;
 
 // Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
@@ -953,8 +953,8 @@ const knownTokens = {
   // Add more as needed
 };
 
-function positionLayoutParameterHelp(button, tooltip) {
-  const anchor = button.getBoundingClientRect();
+function positionLayoutParameterHelp(anchorElement, tooltip) {
+  const anchor = anchorElement.getBoundingClientRect();
   const margin = 8;
   const viewportWidth = window.visualViewport?.width || window.innerWidth;
   const viewportHeight = window.visualViewport?.height || window.innerHeight;
@@ -971,25 +971,25 @@ function positionLayoutParameterHelp(button, tooltip) {
   tooltip.style.top = `${Math.round(top)}px`;
 }
 
-function showLayoutParameterHelp(button, { pinned = false } = {}) {
+function showLayoutParameterHelp(anchorElement, { pinned = false } = {}) {
   const tooltip = document.getElementById("layout-parameter-tooltip");
-  const helpText = LAYOUT_PARAMETER_HELP[button?.dataset.layoutHelpFor];
+  const helpText = LAYOUT_PARAMETER_HELP[anchorElement?.dataset.layoutHelpFor];
   if (!tooltip || !helpText) return;
-  if (activeLayoutHelpButton && activeLayoutHelpButton !== button) {
-    activeLayoutHelpButton.setAttribute("aria-expanded", "false");
+  if (activeLayoutHelpAnchor && activeLayoutHelpAnchor !== anchorElement) {
+    activeLayoutHelpAnchor.setAttribute("aria-expanded", "false");
   }
-  activeLayoutHelpButton = button;
+  activeLayoutHelpAnchor = anchorElement;
   layoutHelpPinned = pinned;
-  button.setAttribute("aria-expanded", "true");
+  anchorElement.setAttribute("aria-expanded", "true");
   tooltip.textContent = helpText;
   tooltip.hidden = false;
-  positionLayoutParameterHelp(button, tooltip);
+  positionLayoutParameterHelp(anchorElement, tooltip);
 }
 
 function closeLayoutParameterHelp() {
   const tooltip = document.getElementById("layout-parameter-tooltip");
-  activeLayoutHelpButton?.setAttribute("aria-expanded", "false");
-  activeLayoutHelpButton = null;
+  activeLayoutHelpAnchor?.setAttribute("aria-expanded", "false");
+  activeLayoutHelpAnchor = null;
   layoutHelpPinned = false;
   if (tooltip) tooltip.hidden = true;
 }
@@ -1007,42 +1007,42 @@ function initializeLayoutParameterHelp() {
     const control = document.getElementById(controlId);
     if (!control) return;
     const label = control.closest("label") || document.querySelector(`label[for="${controlId}"]`);
-    if (!label || label.querySelector(`[data-layout-help-for="${controlId}"]`)) return;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "layout-parameter-help";
-    button.dataset.layoutHelpFor = controlId;
-    button.setAttribute("aria-label", `Explain ${label.textContent.trim()}`);
-    button.setAttribute("aria-describedby", tooltip.id);
-    button.setAttribute("aria-expanded", "false");
-    button.textContent = "i";
-    const lineBreak = label.querySelector("br");
-    if (lineBreak) label.insertBefore(button, lineBreak);
-    else label.appendChild(button);
+    if (!label || label.dataset.layoutHelpFor) return;
+    label.classList.add("layout-parameter-label-help");
+    label.dataset.layoutHelpFor = controlId;
+    label.tabIndex = 0;
+    label.setAttribute("aria-describedby", tooltip.id);
+    label.setAttribute("aria-expanded", "false");
 
-    button.addEventListener("mouseenter", () => showLayoutParameterHelp(button));
-    button.addEventListener("mouseleave", () => {
+    label.addEventListener("mouseenter", () => showLayoutParameterHelp(label));
+    label.addEventListener("mouseleave", () => {
       if (!layoutHelpPinned) closeLayoutParameterHelp();
     });
-    button.addEventListener("focus", () => showLayoutParameterHelp(button, { pinned: layoutHelpPinned }));
-    button.addEventListener("blur", () => {
+    label.addEventListener("focus", () => showLayoutParameterHelp(label, { pinned: layoutHelpPinned }));
+    label.addEventListener("blur", () => {
       if (!layoutHelpPinned) closeLayoutParameterHelp();
     });
-    button.addEventListener("click", event => {
+    label.addEventListener("click", event => {
+      if (event.target !== label) return;
       event.preventDefault();
-      event.stopPropagation();
-      if (activeLayoutHelpButton === button && layoutHelpPinned) closeLayoutParameterHelp();
-      else showLayoutParameterHelp(button, { pinned: true });
+      if (activeLayoutHelpAnchor === label && layoutHelpPinned) closeLayoutParameterHelp();
+      else showLayoutParameterHelp(label, { pinned: true });
+    });
+    label.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      if (activeLayoutHelpAnchor === label && layoutHelpPinned) closeLayoutParameterHelp();
+      else showLayoutParameterHelp(label, { pinned: true });
     });
   });
 
   document.addEventListener("pointerdown", event => {
-    if (!event.target.closest?.(".layout-parameter-help")) closeLayoutParameterHelp();
+    if (!event.target.closest?.(".layout-parameter-label-help")) closeLayoutParameterHelp();
   });
   window.addEventListener("resize", () => {
     const tooltipElement = document.getElementById("layout-parameter-tooltip");
-    if (activeLayoutHelpButton && tooltipElement && !tooltipElement.hidden) {
-      positionLayoutParameterHelp(activeLayoutHelpButton, tooltipElement);
+    if (activeLayoutHelpAnchor && tooltipElement && !tooltipElement.hidden) {
+      positionLayoutParameterHelp(activeLayoutHelpAnchor, tooltipElement);
     }
   });
 }
@@ -7721,10 +7721,10 @@ document.addEventListener("keydown", function (event) {
   const searchDiv = document.getElementById("searchdiv");
   const clearBtn = document.getElementById("clear-search");
 
-  if (event.key === "Escape" && activeLayoutHelpButton) {
-    const helpButton = activeLayoutHelpButton;
+  if (event.key === "Escape" && activeLayoutHelpAnchor) {
+    const helpAnchor = activeLayoutHelpAnchor;
     closeLayoutParameterHelp();
-    helpButton.focus({ preventScroll: true });
+    helpAnchor.focus({ preventScroll: true });
     return;
   }
 

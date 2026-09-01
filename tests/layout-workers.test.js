@@ -84,8 +84,7 @@ assert.notEqual(
 const forceAtlasSource = fs.readFileSync(path.join(projectRoot, "scripts", "forceAtlas.js"), "utf8");
 assert.match(forceAtlasSource, /masses\[node\.id\] = 1 \+ degrees\[node\.id\]/);
 assert.match(forceAtlasSource, /const outboundAttractionCompensation = nodes\.length \? totalMass \/ nodes\.length : 1/);
-assert.match(forceAtlasSource, /const distributionMass = Math\.max\(masses\[src\], masses\[tgt\]\)/);
-assert.match(forceAtlasSource, /Math\.sqrt\(outboundAttractionCompensation \/ distributionMass\)/);
+assert.match(forceAtlasSource, /Math\.pow\(outboundAttractionCompensation \/ masses\[src\], 0\.75\)/);
 assert.doesNotMatch(forceAtlasSource, /attraction \/= degrees\[src\]/);
 
 const directedHubGraph = {
@@ -118,10 +117,10 @@ const reversedHubLayout = runWorker("forceAtlas.js", {
     target: edge.source
   }))
 });
-assert.deepEqual(
+assert.notDeepEqual(
   directedHubLayout.positions,
   reversedHubLayout.positions,
-  "outbound distribution should not change when transaction directions are reversed"
+  "outbound distribution should preserve transaction direction in the layout"
 );
 
 function runOpenOrd(weight) {
