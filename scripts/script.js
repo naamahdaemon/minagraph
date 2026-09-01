@@ -131,6 +131,7 @@ const LAYOUT_PARAMETER_HELP = Object.freeze({
 });
 let activeLayoutHelpAnchor = null;
 let layoutHelpPinned = false;
+let suppressLayoutHelpDismissalClick = false;
 
 // Opt-in bridge for browser automation. Sigma renders nodes on canvases, so
 // Playwright cannot locate them through the DOM. Getters are used because both
@@ -217,6 +218,7 @@ let dateWindowShiftState = null;
 let updatingRangeFromWindowShift = false;
 let histogramChart;
 let isFullscreen = false;
+let fullscreenUiVisible = false;
 let sidebar;
 let details;
 let tooltip;
@@ -1014,7 +1016,10 @@ function initializeLayoutParameterHelp() {
     label.setAttribute("aria-describedby", tooltip.id);
     label.setAttribute("aria-expanded", "false");
 
-    label.addEventListener("mouseenter", () => showLayoutParameterHelp(label));
+    label.addEventListener("mouseenter", () => {
+      const supportsHover = window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? true;
+      if (supportsHover) showLayoutParameterHelp(label);
+    });
     label.addEventListener("mouseleave", () => {
       if (!layoutHelpPinned) closeLayoutParameterHelp();
     });
@@ -1037,8 +1042,24 @@ function initializeLayoutParameterHelp() {
   });
 
   document.addEventListener("pointerdown", event => {
-    if (!event.target.closest?.(".layout-parameter-label-help")) closeLayoutParameterHelp();
-  });
+    if (!activeLayoutHelpAnchor || event.target.closest?.(".layout-parameter-label-help")) return;
+    const sidebarElement = document.getElementById("left-sidebar");
+    const outsideOpenSidebar = sidebarElement?.classList.contains("open") && !sidebarElement.contains(event.target);
+    closeLayoutParameterHelp();
+    if (outsideOpenSidebar) {
+      // On mobile the backdrop closes the sidebar on click. Consume this first
+      // outside tap so it dismisses only the contextual help.
+      suppressLayoutHelpDismissalClick = true;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+  document.addEventListener("click", event => {
+    if (!suppressLayoutHelpDismissalClick) return;
+    suppressLayoutHelpDismissalClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   window.addEventListener("resize", () => {
     const tooltipElement = document.getElementById("layout-parameter-tooltip");
     if (activeLayoutHelpAnchor && tooltipElement && !tooltipElement.hidden) {
@@ -1648,6 +1669,10 @@ document.addEventListener("DOMContentLoaded", () => {
     setLeftSidebarOpen(false, { persist: true, restoreFocus: true });
   });
   document.getElementById("sidebar-backdrop")?.addEventListener("click", () => {
+    if (isFullscreen && fullscreenUiVisible) {
+      setFullscreenUiVisible(false);
+      return;
+    }
     setLeftSidebarOpen(false, { restoreFocus: true });
   });
   window.matchMedia("(min-width: 769px)").addEventListener("change", event => {
@@ -5983,6 +6008,10 @@ function setupInteractions() {
 
   // Click on the background to hide the panel
   renderer.on("clickStage", () => {
+    if (isFullscreen && fullscreenUiVisible) {
+      setFullscreenUiVisible(false);
+      return;
+    }
     if (Date.now() <= ignoreStageClickUntil) {
       return;
     }
@@ -5993,6 +6022,7 @@ function setupInteractions() {
   // few pixels outside the node. Drag completion must never open the panel.
   renderer.on("clickNode", ({ node, event }) => {
     if (hasMoved || suppressNodeClick || !graph.hasNode(node)) return;
+    if (isFullscreen && fullscreenUiVisible) setFullscreenUiVisible(false);
     const now = Date.now();
     const nativeTouchInteraction = isNativeTouchInteraction(event);
     const touchCompatibilityClick = isTouchCompatibilityClick(event);
@@ -6974,7 +7004,7 @@ function updateSlicerView() {
   }
   
   // 🔒 Prevent re-showing slicer if fullscreen is active
-  if (isFullscreen && slicerContainer) {
+  if (isFullscreen && !fullscreenUiVisible && slicerContainer) {
     slicerContainer.style.display = "none";
     return;
   }
@@ -7025,7 +7055,9 @@ function adjustSidebarState() {
   const isInputFocusedInSidebar = sidebar.contains(activeElement) &&
     (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || activeElement.tagName === "SELECT");
 
-  if (window.innerWidth >= 769 && !isFullscreen) {
+  if (isFullscreen) {
+    setLeftSidebarOpen(fullscreenUiVisible);
+  } else if (window.innerWidth >= 769) {
     const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
     setLeftSidebarOpen(savedState !== "false");
   } else {
@@ -7035,9 +7067,8 @@ function adjustSidebarState() {
     }
   }
 
-  // 👇 Always hide the slicer in fullscreen mode
   if (isFullscreen && slicer) {
-    slicer.style.display = "none";
+    slicer.style.removeProperty("display");
   }
 
   updateLegendOffset(); // 👈 met aussi à jour la légende
@@ -7335,9 +7366,9 @@ function setFullscreenMode(active) {
   const exitfillColor = currentTheme === "dark" ? "black" : "white"  
 
   if (isFullscreen) {
-    sidebar.style.display = "none";
-    controls.style.display = "none";
-    slicer.style.display = "none";
+    sidebar.style.removeProperty("display");
+    controls.style.removeProperty("display");
+    slicer.style.removeProperty("display");
     appContainer.classList.remove("sidebar-open"); // 👈 remove margin
     //sidebar.classList.remove("open"); // 👈 remove margin
     fullscreenBtn.title = "Exit Full Screen (F)";
@@ -7348,8 +7379,11 @@ function setFullscreenMode(active) {
     document.body.classList.add("fullscreen-mode");
     legend.style.left = "50px";
     legend.style.display="none";
-    menu.style.display="none"
+    menu.style.removeProperty("display");
+    setFullscreenUiVisible(false);
   } else {
+    fullscreenUiVisible = false;
+    document.body.classList.remove("fullscreen-ui-visible");
     sidebar.style.display = "block";
     controls.style.display = "flex";
     slicer.style.display = "block";
@@ -7382,6 +7416,28 @@ function setFullscreenMode(active) {
       window.dispatchEvent(new Event("resize"));
     });
   });
+}
+
+function setFullscreenUiVisible(visible) {
+  if (!isFullscreen) return;
+  fullscreenUiVisible = Boolean(visible);
+  document.body.classList.toggle("fullscreen-ui-visible", fullscreenUiVisible);
+  setLeftSidebarOpen(fullscreenUiVisible, { persist: false });
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (backdrop && fullscreenUiVisible) {
+    // Keep the graph, command bar and date slicer directly interactive while
+    // the fullscreen controls are temporarily revealed.
+    backdrop.hidden = true;
+    backdrop.classList.remove("visible");
+  }
+  controls?.style.removeProperty("display");
+  slicer?.style.removeProperty("display");
+  if (fullscreenUiVisible) {
+    updateSlicerView();
+    slicer?.style.removeProperty("display");
+  }
+  scheduleRotateSliderPosition();
+  requestAnimationFrame(() => renderer?.resize?.());
 }
 
 function setupDateSlicer() {
@@ -7769,6 +7825,11 @@ document.addEventListener("keydown", function (event) {
   
   // Sidebar toggle (S)
   if (event.key === "s" || event.key === "S") {
+    if (isFullscreen) {
+      event.preventDefault();
+      setFullscreenUiVisible(!fullscreenUiVisible);
+      return;
+    }
     const menuBtn = document.getElementById("menu-toggle");
     if (menuBtn) menuBtn.click();
   }  

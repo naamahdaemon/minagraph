@@ -297,6 +297,42 @@
       padding-top: 0;
     }
 
+    body.fullscreen-mode #app-container.sidebar-open {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    body.fullscreen-mode #controls {
+      display: flex !important;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(calc(-100% - 8px));
+      transition: transform 0.28s ease, opacity 0.22s ease;
+    }
+
+    body.fullscreen-mode.fullscreen-ui-visible #controls {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    body.fullscreen-mode #date-slicer-container {
+      display: block !important;
+      opacity: 0;
+      pointer-events: none;
+      translate: 0 calc(100% + 120px);
+      visibility: hidden;
+      transition: translate 0.3s ease, opacity 0.22s ease, visibility 0s linear 0.3s;
+    }
+
+    body.fullscreen-mode.fullscreen-ui-visible #date-slicer-container {
+      opacity: 1;
+      pointer-events: auto;
+      translate: 0 0;
+      visibility: visible;
+      transition-delay: 0s;
+    }
+
     body.fullscreen-mode #app-container,
     body.fullscreen-mode #main-content {
       width: 100%;
@@ -2675,7 +2711,9 @@
     font-size: 13px;
     line-height: 1.4;
     text-align: left;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
   }
 
   .layout-parameter-tooltip[hidden] {
