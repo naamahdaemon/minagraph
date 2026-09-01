@@ -39,11 +39,11 @@ self.onmessage = function (e) {
     degrees[edge.target]++;
   }
 
-  // ForceAtlas2 defines a node's mass as 1 + degree. Minagraph transaction
-  // edges are directed, but their direction must not arbitrarily change the
-  // visual length of a connection. Use the heavier endpoint as the hub and a
-  // square-root compensation: this still distributes a hub's attraction while
-  // avoiding the extreme weakening caused by dividing linearly by its mass.
+  // ForceAtlas2 defines a node's mass as 1 + degree. Outbound attraction is
+  // deliberately based on the source mass so transaction direction remains
+  // visible in the layout: highly connected senders pull each recipient less
+  // strongly. The 0.75 exponent keeps that distinction clear while avoiding
+  // the extreme weakening caused by the former full linear distribution.
   let totalMass = 0;
   for (const node of nodes) {
     masses[node.id] = 1 + degrees[node.id];
@@ -98,10 +98,9 @@ self.onmessage = function (e) {
 
       let attraction = (edge.weight ?? 1);
       if (s.outboundAttractionDistribution) {
-        const distributionMass = Math.max(masses[src], masses[tgt]);
         const distributionFactor = Math.min(
           1,
-          Math.sqrt(outboundAttractionCompensation / distributionMass)
+          Math.pow(outboundAttractionCompensation / masses[src], 0.75)
         );
         attraction *= distributionFactor;
       }
