@@ -22,8 +22,9 @@ assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this8\
 assert.match(sigma, /if \(!useMobileChromiumWebGLCompatibility\(\)\) \{\s*_this\.createWebGLContext\("edges"/);
 assert.match(sigma, /compatibilityMode \? this\.webGLContexts\.nodes : this\.webGLContexts\.edges/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\) && \(!this\.settings\.hideEdgesOnMove \|\| !moving\)\)/);
-assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) return this;/);
 assert.match(sigma, /if \(useMobileChromiumWebGLCompatibility\(\)\) \{\s*drawDiscNodeLabel\(context, data, settings\);\s*return;/);
+assert.match(sigma, /if \(compatibilityMode && _this7\.displayedNodeLabels\.has\(node\)\) return;/);
+assert.match(sigma, /if \(compatibilityMode\) return this;/);
 assert.match(sigma, /_defineProperty\(_this, "hadMultiTouch", false\)/);
 assert.match(sigma, /if \(touches\.length > 1\) this\.hadMultiTouch = true/);
 assert.match(sigma, /if \(!e\.touches\.length && !this\.hadMultiTouch\)/);
