@@ -69,6 +69,7 @@ assert.match(css, /#side-panel\s*\{[\s\S]*?height: var\(--node-panel-viewport-he
 assert.match(css, /@media screen and \(min-width: 769px\)[\s\S]*?#node-panel-resize-handle/);
 assert.match(css, /\.node-key-value\s*\{[\s\S]*?white-space: nowrap;/);
 assert.match(css, /#node-details \.mono\s*\{[\s\S]*?overflow-x: auto;/);
+assert.match(css, /\.node-transactions-pagination\s*\{[\s\S]*?display: flex;/);
 assert.match(css, /\.transaction-sort-button\s*\{[\s\S]*?background: var\(--node-panel-surface\) !important;[\s\S]*?color: var\(--node-panel-text\) !important;/);
 assert.match(css, /th\[aria-sort="ascending"\] \.transaction-sort-button/);
 

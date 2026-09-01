@@ -17,6 +17,14 @@ assert.match(source, /function getNodeTransactionDirection\(tx, node\)/);
 assert.match(source, /formatSignedNodeTransactionAmount\(tx, node\)/);
 assert.match(source, /sortNodeTransactions\(interactions, node\)/);
 assert.match(source, /Show all transactions chronologically/);
+assert.match(source, /const NODE_TRANSACTION_PAGE_SIZE = 100/);
+assert.match(source, /const renderedOperations = operations\.slice\(0, nodeTransactionRenderLimit\)/);
+assert.match(source, /function getPaginatedNodeEdges\(visibleEdges, node\)/);
+assert.match(source, /\.slice\(0, nodeTransactionRenderLimit\)\.map\(item => item\.edge\)/);
+assert.match(source, /function showMoreNodeTransactions\(\)/);
+assert.match(source, /Showing \$\{shown\.toLocaleString\(\)\} of \$\{total\.toLocaleString\(\)\} operations/);
+assert.match(source, /renderNodeTransactionLoadMore\(visibleEdges\.length\)/);
+assert.doesNotMatch(source, /console\.log\("Tx Hash:/);
 assert.match(source, /Linked Node/);
 
 const addressHelper = source.match(/function addressesMatchForTransaction\(left, right\) \{[\s\S]*?\n\}/)?.[0];

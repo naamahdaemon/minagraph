@@ -69,6 +69,9 @@ let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
 let showNodeTransactionsChronologically = false;
+const NODE_TRANSACTION_PAGE_SIZE = 100;
+let nodeTransactionRenderLimit = NODE_TRANSACTION_PAGE_SIZE;
+let nodeTransactionRenderContext = "";
 
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
@@ -4617,6 +4620,43 @@ function setNodeTransactionsChronological(enabled) {
   if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
 }
 
+function getNodeTransactionRenderContext(node) {
+  return JSON.stringify({
+    node,
+    chronological: showNodeTransactionsChronologically,
+    sort: nodeTransactionSort,
+    range: currentRange,
+    commandTypes: [...commandTypeFilter].sort(),
+    chains: [...chainFilter].sort()
+  });
+}
+
+function resetNodeTransactionPaginationIfNeeded(node) {
+  const context = getNodeTransactionRenderContext(node);
+  if (context !== nodeTransactionRenderContext) {
+    nodeTransactionRenderContext = context;
+    nodeTransactionRenderLimit = NODE_TRANSACTION_PAGE_SIZE;
+  }
+}
+
+function renderNodeTransactionLoadMore(total) {
+  const shown = Math.min(nodeTransactionRenderLimit, total);
+  if (shown >= total) return "";
+  return `<div class="node-transactions-pagination">
+    <span>Showing ${shown.toLocaleString()} of ${total.toLocaleString()} operations</span>
+    <button type="button" onclick="showMoreNodeTransactions()">Load 100 more</button>
+  </div>`;
+}
+
+function showMoreNodeTransactions() {
+  if (!selectedNode || !graph?.hasNode(selectedNode)) return;
+  const details = document.getElementById("node-details");
+  const previousScrollTop = details?.scrollTop || 0;
+  nodeTransactionRenderLimit += NODE_TRANSACTION_PAGE_SIZE;
+  showNodePanel(selectedNode, false);
+  if (details) details.scrollTop = previousScrollTop;
+}
+
 function loadNodeTransactionSort() {
   const fallback = { column: "timestamp", direction: "desc" };
   try {
@@ -5076,6 +5116,20 @@ function formatNodeTransactionAmount(tx) {
   return `${formatTokenAmount(normalizedAmount, decimals)} ${tokenLabel}`;
 }
 
+function getPaginatedNodeEdges(visibleEdges, node) {
+  return sortNodeTransactions(visibleEdges.map(edge => {
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    const linkedNode = source === node ? target : source;
+    return {
+      edge,
+      tx: graph.getEdgeAttributes(edge),
+      linkedNode,
+      linkedNodeLabel: graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode
+    };
+  }), node).slice(0, nodeTransactionRenderLimit).map(item => item.edge);
+}
+
 function renderChronologicalNodeTransactions(visibleEdges, node) {
   if (!visibleEdges.length) return '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>';
 
@@ -5089,6 +5143,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
       linkedNodeLabel: graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode
     };
   }), node);
+  const renderedOperations = operations.slice(0, nodeTransactionRenderLimit);
 
   return `
     <div class="mono">
@@ -5106,7 +5161,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
           </tr>
         </thead>
         <tbody>
-          ${operations.map(({ tx, linkedNode }) => {
+          ${renderedOperations.map(({ tx, linkedNode }) => {
             const linkedLabel = graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode;
             const transactionLink = tx.hash
               ? getExplorerURL("transaction", tx.hash, tx.blockchain)
@@ -5151,7 +5206,16 @@ function showNodePanel(node, refreshExternalStatus = true) {
     return isTimestampInCurrentRange(attributes.timestamp) &&
       transactionMatchesActiveLegendFilters(attributes);
   });
+  resetNodeTransactionPaginationIfNeeded(node);
   const neighbors = [...new Set(visibleEdges.map(edge => {
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    return source === node ? target : source;
+  }))];
+  const groupedEdges = showNodeTransactionsChronologically
+    ? visibleEdges
+    : getPaginatedNodeEdges(visibleEdges, node);
+  const groupedNeighbors = [...new Set(groupedEdges.map(edge => {
     const source = graph.source(edge);
     const target = graph.target(edge);
     return source === node ? target : source;
@@ -5258,9 +5322,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
     <div>
       ${showNodeTransactionsChronologically
         ? renderChronologicalNodeTransactions(visibleEdges, node)
-        : (neighbors.length ? neighbors
+        : (groupedNeighbors.length ? groupedNeighbors
         .map(n => {
-          const directEdges = visibleEdges.filter(e => {
+          const directEdges = groupedEdges.filter(e => {
             const source = graph.source(e);
             const target = graph.target(e);
             return (source === node && target === n) || (source === n && target === node);
@@ -5288,7 +5352,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
             }
           }
 
-        const directEdges = visibleEdges.filter(e => {
+        const directEdges = groupedEdges.filter(e => {
           const source = graph.source(e);
           const target = graph.target(e);
           return (source === node && target === n) || (source === n && target === node);
@@ -5314,7 +5378,6 @@ function showNodePanel(node, refreshExternalStatus = true) {
             </thead>
             <tbody>
               ${sortedInteractions.map(tx => {
-                console.log("Tx Hash: ",tx.hash, " | Debug Token Amount:", tx.token_amount, "Raw amount:", tx.amount);
                   const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum", "base"].includes(chain);
                 return `
                 <tr title="${tx.memo || ''}">
@@ -5394,7 +5457,6 @@ function showNodePanel(node, refreshExternalStatus = true) {
                             tokenLabel = tokenInfo.symbol;
                           } else if (tx.token_contract) {
                             tokenLabel = tx.token_contract.slice(0, 6) + "..." + tx.token_contract.slice(-6);
-                            console.log ("\"" + tx.token_contract + "\",");
                           }
                         }
 
@@ -5422,6 +5484,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
           </div>
         `;
       }).join('') : '<p style="color:#888; margin-bottom: 16px;">No operations in the selected period.</p>')}
+      ${renderNodeTransactionLoadMore(visibleEdges.length)}
     </div>`;
     
   details.innerHTML = html;
