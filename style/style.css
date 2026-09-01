@@ -2640,36 +2640,58 @@
     transform: translateY(0);
   }
 
+  #graph-parameters-section label {
+    color: #c8cdd1 !important;
+  }
+
+  body[data-theme="light"] #graph-parameters-section label {
+    color: #46545d !important;
+  }
+
   #left-sidebar .layout-parameter-help {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 18px;
-    width: 18px;
-    min-width: 18px;
-    height: 18px;
-    min-height: 18px;
-    margin: 0 0 0 6px;
+    flex: 0 0 14px;
+    width: 14px;
+    min-width: 14px;
+    height: 14px;
+    min-height: 14px;
+    margin: 0 0 0 3px;
     padding: 0;
-    border: 1.5px solid #4fc3f7;
+    border: 1px solid currentColor;
     border-radius: 50%;
     background: transparent;
-    color: #4fc3f7;
+    color: #f4f6f7;
     box-shadow: none;
-    font: 700 12px/1 Arial, sans-serif;
+    font: 700 9px/1 Arial, sans-serif;
     cursor: help;
     vertical-align: middle;
+    opacity: 0.58;
     transform: none;
+    transition: opacity 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   #left-sidebar .layout-parameter-help:hover,
   #left-sidebar .layout-parameter-help:focus-visible,
   #left-sidebar .layout-parameter-help[aria-expanded="true"] {
-    background: rgba(79, 195, 247, 0.18);
-    box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.18);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
     filter: none;
     outline: none;
+    opacity: 1;
     transform: none;
+  }
+
+  body[data-theme="light"] #left-sidebar .layout-parameter-help {
+    color: #38454c;
+  }
+
+  body[data-theme="light"] #left-sidebar .layout-parameter-help:hover,
+  body[data-theme="light"] #left-sidebar .layout-parameter-help:focus-visible,
+  body[data-theme="light"] #left-sidebar .layout-parameter-help[aria-expanded="true"] {
+    background: rgba(31, 43, 49, 0.08);
+    box-shadow: 0 0 0 2px rgba(31, 43, 49, 0.06);
   }
 
   .layout-parameter-tooltip {
@@ -2677,7 +2699,7 @@
     z-index: 10050;
     width: min(310px, calc(100vw - 16px));
     padding: 10px 12px;
-    border: 1px solid rgba(79, 195, 247, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.28);
     border-radius: 8px;
     background: #20262b;
     color: #f5f7f8;
@@ -2693,6 +2715,7 @@
   }
 
   body[data-theme="light"] .layout-parameter-tooltip {
+    border-color: rgba(31, 43, 49, 0.24);
     background: #fff;
     color: #171a1d;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);

@@ -39,11 +39,11 @@ self.onmessage = function (e) {
     degrees[edge.target]++;
   }
 
-  // ForceAtlas2 defines a node's mass as 1 + degree. When outbound
-  // attraction distribution is enabled, attraction is divided by the source
-  // mass and compensated by the graph's average mass. The compensation is
-  // essential: without it, every outbound spring in transaction-heavy graphs
-  // becomes globally too weak and produces excessively distant leaf nodes.
+  // ForceAtlas2 defines a node's mass as 1 + degree. Minagraph transaction
+  // edges are directed, but their direction must not arbitrarily change the
+  // visual length of a connection. Use the heavier endpoint as the hub and a
+  // square-root compensation: this still distributes a hub's attraction while
+  // avoiding the extreme weakening caused by dividing linearly by its mass.
   let totalMass = 0;
   for (const node of nodes) {
     masses[node.id] = 1 + degrees[node.id];
@@ -98,7 +98,12 @@ self.onmessage = function (e) {
 
       let attraction = (edge.weight ?? 1);
       if (s.outboundAttractionDistribution) {
-        attraction *= outboundAttractionCompensation / masses[src];
+        const distributionMass = Math.max(masses[src], masses[tgt]);
+        const distributionFactor = Math.min(
+          1,
+          Math.sqrt(outboundAttractionCompensation / distributionMass)
+        );
+        attraction *= distributionFactor;
       }
 
       if (s.linLogMode) {
