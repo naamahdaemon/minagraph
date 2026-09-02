@@ -4,6 +4,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.resolve(__dirname, '..', 'style', 'style.css'), 'utf8');
 const dateHelper = source.match(/function dateInputToUtcTimestamp\(value, endOfDay = false\) \{[\s\S]*?\n\}/)?.[0];
 const timestampHelper = source.match(/function getTransactionTimestampMs\(transaction\) \{[\s\S]*?\n\}/)?.[0];
 
@@ -27,5 +29,9 @@ assert.match(source, /action: "getblocknobytime"/);
 assert.match(source, /cronos:\s*`https:\/\/explorer-api\.cronos\.org\/mainnet\/api\/v2`/);
 assert.doesNotMatch(source, /api\.cronoscan\.com/);
 assert.match(source, /transactions = filterTransactionsByFetchDateRange\(transactions\)/);
+assert.match(html, /class="fetch-date-clear"[^>]+data-date-input="param-start-date"/);
+assert.match(html, /class="fetch-date-clear"[^>]+data-date-input="param-end-date"/);
+assert.match(source, /document\.querySelectorAll\("\.fetch-date-clear"\)[\s\S]*?input\.value = "";[\s\S]*?dispatchEvent\(new Event\("input"/);
+assert.match(css, /\.fetch-date-input-row\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 38px;/);
 
 console.log('Fetch date range tests passed');

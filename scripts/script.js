@@ -6903,6 +6903,17 @@ function setupFetchParamListeners() {
     localStorage.setItem("param-end-date", e.target.value);
     syncFetchDateRangeFromInputs();
   });
+  document.querySelectorAll(".fetch-date-clear").forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const input = document.getElementById(button.dataset.dateInput);
+      if (!input) return;
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus({ preventScroll: true });
+    });
+  });
 }
 
 function loadStartKeyForBlockchain(blockchain) {
