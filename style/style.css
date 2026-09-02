@@ -190,6 +190,44 @@
       margin-right: 6px;
     }
 
+    .fetch-date-input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 38px;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    #left-sidebar .fetch-date-input-row input[type="date"] {
+      width: 100%;
+      height: 38px;
+      min-width: 0;
+      margin-bottom: 0;
+    }
+
+    #left-sidebar .fetch-date-clear {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      min-width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid rgba(127, 127, 127, 0.48);
+      border-radius: 8px;
+      background: rgba(127, 127, 127, 0.12);
+      color: inherit;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #left-sidebar .fetch-date-clear:hover,
+    #left-sidebar .fetch-date-clear:focus-visible {
+      border-color: #4fc3f7;
+      background: rgba(79, 195, 247, 0.14);
+      outline: none;
+    }
+
     #left-sidebar label {
       font-size: 12px;
       font-weight: 600;
