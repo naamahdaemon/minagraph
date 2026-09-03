@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.resolve(__dirname, '..', 'style', 'style.css'), 'utf8');
 
 assert.match(source, /let showNodeTransactionsChronologically = false/);
 assert.match(source, /id="chronological-transactions-toggle"/);
@@ -26,6 +28,14 @@ assert.match(source, /Showing \$\{shown\.toLocaleString\(\)\} of \$\{total\.toLo
 assert.match(source, /renderNodeTransactionLoadMore\(visibleEdges\.length\)/);
 assert.doesNotMatch(source, /console\.log\("Tx Hash:/);
 assert.match(source, /Linked Node/);
+assert.match(html, /id="transaction-memo-popup"[\s\S]*?id="transaction-memo-content"/);
+assert.match(source, /function setupTransactionMemoTouch\(\)/);
+assert.match(source, /event\.pointerType !== "touch"/);
+assert.match(source, /\.transaction-memo-trigger/);
+assert.match(source, /Math\.hypot\(event\.clientX - x, event\.clientY - y\) > 10/);
+assert.match(source, /document\.addEventListener\("pointerdown"[\s\S]*?closeTransactionMemoPopup\(\);[\s\S]*?}, true\);/);
+assert.match(source, /dismissingPointerId === event\.pointerId/);
+assert.match(css, /\.transaction-memo-popup\s*\{[\s\S]*?z-index: var\(--z-modal\);/);
 
 const addressHelper = source.match(/function addressesMatchForTransaction\(left, right\) \{[\s\S]*?\n\}/)?.[0];
 const directionHelper = source.match(/function getNodeTransactionDirection\(tx, node\) \{[\s\S]*?\n\}/)?.[0];
