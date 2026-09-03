@@ -1073,6 +1073,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tooltip = document.getElementById("tooltip");
   details = document.getElementById("node-details");
   initializeNodePanelResize();
+  setupTransactionMemoTouch();
   apiTokenInput = document.getElementById("param-api-token");
   blockchainSelect = document.getElementById("blockchain-select");    
   tokenInput = document.getElementById("param-api-token");
@@ -5261,6 +5262,77 @@ function formatNodeTransactionAmount(tx) {
   return `${formatTokenAmount(normalizedAmount, decimals)} ${tokenLabel}`;
 }
 
+function getTransactionMemoAttributes(memo) {
+  const value = String(memo || "");
+  const escapedTitle = value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return `data-transaction-memo="${encodeURIComponent(value)}" title="${escapedTitle}"`;
+}
+
+function closeTransactionMemoPopup() {
+  const popup = document.getElementById("transaction-memo-popup");
+  if (popup) popup.hidden = true;
+}
+
+function showTransactionMemoPopup(encodedMemo) {
+  const popup = document.getElementById("transaction-memo-popup");
+  const content = document.getElementById("transaction-memo-content");
+  if (!popup || !content) return;
+  let memo = "";
+  try {
+    memo = decodeURIComponent(encodedMemo || "").trim();
+  } catch (_) {
+    memo = String(encodedMemo || "").trim();
+  }
+  content.textContent = memo || "No memo is available for this transaction.";
+  popup.hidden = false;
+}
+
+function setupTransactionMemoTouch() {
+  const details = document.getElementById("node-details");
+  const popup = document.getElementById("transaction-memo-popup");
+  const closeButton = document.getElementById("transaction-memo-close");
+  if (!details || !popup || details.dataset.memoTouchInitialized === "true") return;
+  details.dataset.memoTouchInitialized = "true";
+  let touchStart = null;
+  let dismissingPointerId = null;
+
+  document.addEventListener("pointerdown", event => {
+    if (popup.hidden) return;
+    dismissingPointerId = event.pointerId;
+    touchStart = null;
+    closeTransactionMemoPopup();
+  }, true);
+
+  details.addEventListener("pointerdown", event => {
+    if (event.pointerType !== "touch") return;
+    if (dismissingPointerId === event.pointerId) return;
+    const cell = event.target.closest(".transaction-memo-trigger");
+    touchStart = cell
+      ? { cell, pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+      : null;
+  });
+
+  details.addEventListener("pointerup", event => {
+    if (dismissingPointerId === event.pointerId) {
+      dismissingPointerId = null;
+      touchStart = null;
+      return;
+    }
+    if (event.pointerType !== "touch" || !touchStart || touchStart.pointerId !== event.pointerId) return;
+    const { cell, x, y } = touchStart;
+    touchStart = null;
+    if (Math.hypot(event.clientX - x, event.clientY - y) > 10 || !cell.contains(event.target)) return;
+    showTransactionMemoPopup(cell.dataset.transactionMemo);
+  });
+
+  details.addEventListener("pointercancel", () => { touchStart = null; });
+  closeButton?.addEventListener("click", closeTransactionMemoPopup);
+}
+
 function getPaginatedNodeEdges(visibleEdges, node) {
   return sortNodeTransactions(visibleEdges.map(edge => {
     const source = graph.source(edge);
@@ -5317,21 +5389,21 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
               ? parseFloat(tx.fee || 0).toFixed(2)
               : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain));
             return `
-              <tr title="${tx.memo || ""}">
-                <td>${formatTimestamp(tx.timestamp)}</td>
+              <tr ${getTransactionMemoAttributes(tx.memo)}>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
                 <td>
                   <a href="#" onclick="showNodePanel('${linkedNode}'); return false;" style="color:#4fc3f7; text-decoration:none;">
                     ${linkedLabel}
                   </a>
                 </td>
-                <td>${tx.blockchain}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
                 <td>${tx.block_id || tx.block_hash
                   ? `<a href="${getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${tx.block_id || tx.block_hash}</a>`
                   : "-"}</td>
                 <td><a href="${transactionLink}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${typeLabel}</a></td>
-                <td>${formatSignedNodeTransactionAmount(tx, node)}</td>
-                <td>${fee}</td>
-                <td>${tx.status || "-"}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatSignedNodeTransactionAmount(tx, node)}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${fee}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.status || "-"}</td>
               </tr>`;
           }).join("")}
         </tbody>
@@ -5525,9 +5597,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
               ${sortedInteractions.map(tx => {
                   const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum", "base"].includes(chain);
                 return `
-                <tr title="${tx.memo || ''}">
-                  <td>${tx.blockchain}</td>
-                  <td>${formatTimestamp(tx.timestamp)}</td>
+                <tr ${getTransactionMemoAttributes(tx.memo)}>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
                   <td>
                       ${tx.block_id || tx.block_hash
                         ? `<a href="${getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain)}" 
@@ -5554,11 +5626,11 @@ function showNodePanel(node, refreshExternalStatus = true) {
                       `;
                     })()}
                   </td>
-                  <td>${formatSignedNodeTransactionAmount(tx, node)}</td>
-                  <td>${isAlchemyChain(tx.blockchain) 
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatSignedNodeTransactionAmount(tx, node)}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${isAlchemyChain(tx.blockchain)
                          ? parseFloat(tx.fee || 0).toFixed(2)
                          : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
-                  <td>${tx.status || "-"}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.status || "-"}</td>
                 </tr>
                   ${tx.label === "token_transfer" || tx.label === "nft_transfer" ? `
                   <tr style="opacity: 0.7;">
