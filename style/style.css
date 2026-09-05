@@ -291,6 +291,13 @@
       display: none;
     }
 
+    .layout-toggle-button {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
     #layout-algorithm-menu {
       position: absolute;
       top: calc(100% + 6px);
