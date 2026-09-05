@@ -8,6 +8,8 @@ const end = source.indexOf('function setupSearch_old()', start);
 assert.ok(start >= 0 && end > start, 'Interaction setup should exist');
 const interactions = source.slice(start, end);
 
+assert.match(source, /const interactionInitializedRenderers = new WeakSet\(\);/);
+assert.match(interactions, /if \(!renderer \|\| interactionInitializedRenderers\.has\(renderer\)\) return;\s*interactionInitializedRenderers\.add\(renderer\);/);
 assert.match(interactions, /const isNativeTouchInteraction = event =>[\s\S]*?sourceCapabilities\?\.firesTouchEvents === true;/);
 assert.match(interactions, /const isTouchCompatibilityClick = event =>[\s\S]*?Date\.now\(\) - lastGraphTouchAt < 800;/);
 assert.match(interactions, /renderer\.on\("enterNode", \(\{ node, event \}\) => \{\s*\/\/[\s\S]*?if \(isTouchInteraction\(event\)\) return;/);
