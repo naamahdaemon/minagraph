@@ -477,7 +477,7 @@
 
         <div class="command-bar-spacer" aria-hidden="true"></div>
 
-        <button id="layout-toggle-btn" class="control-button command-button layout-toggle-button" type="button" title="Apply current layout (L)" aria-label="Apply current layout">
+        <button id="layout-toggle-btn" class="control-button command-button layout-toggle-button" type="button" title="Apply current layout (L); hold to choose an algorithm" aria-label="Apply current layout" aria-haspopup="menu" aria-controls="layout-algorithm-menu" aria-expanded="false">
           <span class="layout-run-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24">
               <path d="M8 5v14l11-7z"/>
@@ -485,6 +485,12 @@
           </span>
           <span class="command-label">Apply Layout</span>
         </button>
+
+        <div id="layout-algorithm-menu" role="menu" aria-label="Choose layout algorithm" hidden>
+          <button type="button" role="menuitemradio" data-layout-algorithm="fr">Fruchterman-Reingold</button>
+          <button type="button" role="menuitemradio" data-layout-algorithm="fa">ForceAtlas2</button>
+          <button type="button" role="menuitemradio" data-layout-algorithm="ord">OpenOrd-inspired</button>
+        </div>
 
         <button id="filter-toggle-btn" class="control-button command-button" type="button" title="Show filters" aria-label="Show filters" aria-controls="legend" aria-pressed="true">
           <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
