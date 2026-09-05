@@ -1593,6 +1593,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   layoutBtn.addEventListener("click", toggleCurrentLayout);
+  initializeLayoutAlgorithmMenu();
   document.getElementById("layout-sidebar-toggle-btn")?.addEventListener("click", toggleCurrentLayout);
 
   toggleTokenBtn?.addEventListener("click", () => {
@@ -2172,7 +2173,9 @@ function setLayoutUiState(state, message = "") {
     button.classList.toggle("is-running", running);
     button.setAttribute("aria-pressed", String(running));
     button.setAttribute("aria-label", running ? "Stop current layout" : "Apply current layout");
-    button.title = running ? "Stop current layout (L)" : "Apply current layout (L)";
+    button.title = running
+      ? "Stop current layout (L); hold or right-click to choose an algorithm"
+      : "Apply current layout (L); hold or right-click to choose an algorithm";
   }
   if (sidebarButton) {
     sidebarButton.textContent = state === "running" ? "Stop Layout" : "Apply Layout (L)";
@@ -2539,6 +2542,117 @@ function stopLayoutInWorker() {
 
 function runLayoutInWorker() {
   layoutController.run({ origin: "manual" });
+}
+
+function initializeLayoutAlgorithmMenu() {
+  const button = document.getElementById("layout-toggle-btn");
+  const menu = document.getElementById("layout-algorithm-menu");
+  const select = document.getElementById("layout-algorithm");
+  const controlsElement = document.getElementById("controls");
+  if (!button || !menu || !select || button.dataset.longPressInitialized === "true") return;
+  button.dataset.longPressInitialized = "true";
+
+  const holdDelay = 600;
+  const moveTolerance = 10;
+  let holdTimer = 0;
+  let pointerStart = null;
+  let suppressNextClick = false;
+
+  const positionMenu = () => {
+    const buttonRect = button.getBoundingClientRect();
+    const controlsRect = controlsElement?.getBoundingClientRect() || { left: 0 };
+    const menuWidth = menu.offsetWidth || 230;
+    const desiredLeft = buttonRect.left - controlsRect.left;
+    const maximumLeft = Math.max(6, window.innerWidth - menuWidth - 6);
+    menu.style.left = `${Math.max(6, Math.min(desiredLeft, maximumLeft))}px`;
+  };
+
+  const setMenuOpen = open => {
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    menu.querySelectorAll("[data-layout-algorithm]").forEach(option => {
+      const selected = option.dataset.layoutAlgorithm === select.value;
+      option.setAttribute("aria-checked", String(selected));
+      option.classList.toggle("is-selected", selected);
+    });
+    requestAnimationFrame(() => {
+      positionMenu();
+      menu.querySelector(".is-selected")?.focus({ preventScroll: true });
+    });
+  };
+
+  const cancelHold = () => {
+    if (holdTimer) window.clearTimeout(holdTimer);
+    holdTimer = 0;
+    pointerStart = null;
+  };
+
+  button.addEventListener("pointerdown", event => {
+    if (event.button !== undefined && event.button !== 0) return;
+    cancelHold();
+    pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    holdTimer = window.setTimeout(() => {
+      holdTimer = 0;
+      suppressNextClick = true;
+      setMenuOpen(true);
+      navigator.vibrate?.(20);
+    }, holdDelay);
+  });
+
+  button.addEventListener("pointermove", event => {
+    if (!pointerStart || pointerStart.id !== event.pointerId) return;
+    if (Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > moveTolerance) cancelHold();
+  });
+  button.addEventListener("pointerup", cancelHold);
+  button.addEventListener("pointercancel", cancelHold);
+  button.addEventListener("contextmenu", event => {
+    event.preventDefault();
+    cancelHold();
+    setMenuOpen(true);
+  });
+  button.addEventListener("click", event => {
+    if (!suppressNextClick) return;
+    suppressNextClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  menu.addEventListener("click", event => {
+    const option = event.target.closest("[data-layout-algorithm]");
+    if (!option) return;
+    select.value = option.dataset.layoutAlgorithm;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    saveLayoutSettings(select.value);
+    setMenuOpen(false);
+    runLayoutInWorker();
+  });
+
+  menu.addEventListener("keydown", event => {
+    const options = [...menu.querySelectorAll("[data-layout-algorithm]")];
+    const currentIndex = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setMenuOpen(false);
+      button.focus();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      options[(currentIndex + direction + options.length) % options.length]?.focus();
+    }
+  });
+
+  button.addEventListener("keydown", event => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    setMenuOpen(true);
+  });
+  document.addEventListener("click", event => {
+    if (!menu.hidden && !menu.contains(event.target) && !button.contains(event.target)) setMenuOpen(false);
+  });
+  window.addEventListener("resize", () => {
+    if (!menu.hidden) positionMenu();
+  });
 }
 
 
