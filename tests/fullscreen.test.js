@@ -16,7 +16,8 @@ assert.match(source, /const interfaceCanShowFilters = !isFullscreen \|\| fullscr
 assert.match(source, /function setFullscreenUiVisible\(visible\)[\s\S]*?setFilterPanelVisible\(isFilterPanelVisible, \{ persist: false \}\);/);
 assert.match(source, /if \(isFullscreen && fullscreenUiVisible\) \{\s*setFullscreenUiVisible\(false\);/);
 assert.match(source, /Date\.now\(\) - candidate\.startedAt <= 450/);
-assert.match(source, /Date\.now\(\) - lastQualifiedGraphTouchTapAt < 300[\s\S]*?setFullscreenUiVisible\(true\);/);
+assert.match(source, /if \(isFullscreen && fullscreenUiVisible\) \{[\s\S]*?suppressFullscreenUiRevealUntil = Date\.now\(\) \+ 800;[\s\S]*?setFullscreenUiVisible\(false\);/);
+assert.match(source, /Date\.now\(\) > suppressFullscreenUiRevealUntil &&[\s\S]*?Date\.now\(\) - lastQualifiedGraphTouchTapAt < 300[\s\S]*?setFullscreenUiVisible\(true\);/);
 assert.match(source, /if \(isFullscreen\) \{\s*event\.preventDefault\(\);\s*setFullscreenUiVisible\(!fullscreenUiVisible\);/);
 assert.match(source, /Native fullscreen unavailable; using in-page mode/);
 assert.match(css, /body\.mobile-mode\.fullscreen-mode #sigma-container\s*\{[\s\S]*?height: 100dvh !important;/);
