@@ -72,7 +72,9 @@ assert.doesNotMatch(
 );
 assert.match(
   appSource,
-  /selectedBlockchain === "base" \|\| selectedBlockchain === "bitcoin"/,
-  "Bitcoin must initialize finite degree bounds before computing node colors"
+  /const minDegree = degrees\.length \? Math\.min\(\.\.\.degrees\) : 0;[\s\S]*?const maxDegree = degrees\.length \? Math\.max\(\.\.\.degrees\) : 0;/,
+  "Every imported chain, including Bitcoin, must use finite graph degree bounds"
 );
+assert.match(appSource, /function getDominantNodeChain\([\s\S]*?connectionCounts\.get\(chainName\)/);
+assert.match(appSource, /refreshNodeChainColors\(\);[\s\S]*?applyNodeSizesByDegree\(\)/);
 console.log("Bitcoin adapter tests passed");

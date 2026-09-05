@@ -444,6 +444,7 @@ let lastGraphTouchAt = 0;
 let graphTouchTapCandidate = null;
 let lastQualifiedGraphTouchTapAt = 0;
 let suppressFullscreenUiRevealUntil = 0;
+const interactionInitializedRenderers = new WeakSet();
 
 function bindStablePinchReference(container) {
   if (!container || container.dataset.minagraphPinchReference === "true") return;
@@ -2149,10 +2150,7 @@ function getBrightColorByName(name) {
   return nameColorMap.get(name);
 }
 
-function getColorByDegree(degree, minDeg, maxDeg, chain, chainCount = 1) {
-  // 🎯 Special color for nodes shared across multiple chains
-  if (chainCount > 1) return "#ff00ff"; // orange
-
+function getColorByDegree(degree, minDeg, maxDeg, chain) {
   const chainBaseHSL = {
     ethereum: [230, 70, 60],
     polygon: [270, 60, 60],
@@ -2179,6 +2177,58 @@ function getColorByDegree(degree, minDeg, maxDeg, chain, chainCount = 1) {
   const lightness = baseLight + ratio * 20;
 
   return hslToHex(hue, saturation, lightness);
+}
+
+function getNodeChains(node, data = graph.getNodeAttributes(node)) {
+  const storedChains = data?.chains instanceof Set
+    ? [...data.chains]
+    : Array.isArray(data?.chains)
+      ? data.chains
+      : data?.chains
+        ? [data.chains]
+        : [];
+  const edgeChains = graph.edges(node)
+    .map(edge => graph.getEdgeAttribute(edge, "blockchain"))
+    .filter(Boolean);
+  return [...new Set(
+    [...storedChains, data?.blockchain, ...edgeChains]
+      .filter(value => typeof value === "string" && value.trim())
+      .map(value => value.toLowerCase())
+  )];
+}
+
+function getDominantNodeChain(node, data = graph.getNodeAttributes(node), fallbackChain = selectedBlockchain) {
+  const chains = getNodeChains(node, data);
+  const connectionCounts = new Map(chains.map(chainName => [chainName, 0]));
+  graph.edges(node).forEach(edge => {
+    const edgeChain = graph.getEdgeAttribute(edge, "blockchain");
+    if (!edgeChain) return;
+    const normalizedChain = String(edgeChain).toLowerCase();
+    connectionCounts.set(normalizedChain, (connectionCounts.get(normalizedChain) || 0) + 1);
+  });
+  return chains.reduce((dominant, chainName) =>
+    (connectionCounts.get(chainName) || 0) > (connectionCounts.get(dominant) || 0) ? chainName : dominant,
+  chains[0] || String(fallbackChain || "mina").toLowerCase());
+}
+
+function refreshNodeChainColors(fallbackChain = selectedBlockchain) {
+  if (!graph?.order) return;
+  const degrees = graph.nodes().map(node => graph.degree(node));
+  const minDegree = Math.min(...degrees);
+  const maxDegree = Math.max(...degrees);
+
+  graph.forEachNode((node, data) => {
+    const chains = getNodeChains(node, data);
+    const dominantChain = getDominantNodeChain(node, data, fallbackChain);
+    const color = dominantChain === "mina"
+      ? getBrightColorByName(data.name || "noname")
+      : getColorByDegree(graph.degree(node), minDegree, maxDegree, dominantChain);
+    graph.setNodeAttribute(node, "chains", chains.length ? chains : [dominantChain]);
+    graph.setNodeAttribute(node, "dominantChain", dominantChain);
+    graph.setNodeAttribute(node, "colorByDegree", color);
+    graph.setNodeAttribute(node, "originalColor", color);
+    graph.setNodeAttribute(node, "color", color);
+  });
 }
 
 
@@ -4640,32 +4690,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
     }
   }
 
-  // 🎨 Node coloring
-  if (["polygon", "ethereum", "bsc", "solana", "zksync", "optimism", "arbitrum", "cronos", "tezos", "base", "bitcoin"].includes(chain)) {
-    const degrees = graph.nodes().map(n => graph.degree(n));
-    const minDeg = Math.min(...degrees);
-    const maxDeg = Math.max(...degrees);
-
-    graph.forEachNode((node) => {
-      const degree = graph.degree(node);
-      
-      const chains = graph.getNodeAttribute(node, 'chains') || [chain];
-      const primaryChain = chains[0];
-      const color = getColorByDegree(degree, minDeg, maxDeg, primaryChain, chains.length);
-      
-      //const color = getColorByDegree(degree, minDeg, maxDeg);
-      //console.log(degree," : ",color);
-      graph.setNodeAttribute(node, 'colorByDegree', color);
-      graph.setNodeAttribute(node, 'originalColor', color);
-    });
-  } else if (chain === "mina") {
-    graph.forEachNode(node => {
-      const name = graph.getNodeAttribute(node, 'name') || "noname";
-      const color = getBrightColorByName(name);
-      graph.setNodeAttribute(node, 'colorByDegree', color);
-      graph.setNodeAttribute(node, 'originalColor', color);
-    });
-  }
+  // 🎨 Color every node from its own dominant chain, not from the sidebar.
+  refreshNodeChainColors(chain);
 
   // Prepare next keys
   const normalize = (key) =>
@@ -5936,17 +5962,11 @@ function initRenderer() {
 
 function setupReducers() {
   rebuildEdgeVisualSizes();
-  // 🔢 Precompute min/max degree for color gradient (used only for Polygon & Ethereum & BSC)
-  let minDegree = Infinity;
-  let maxDegree = -Infinity;
-
-  if (selectedBlockchain === "polygon" || selectedBlockchain === "ethereum" || selectedBlockchain === "bsc" || selectedBlockchain === "solana" || selectedBlockchain === "zksync" || selectedBlockchain === "optimism" || selectedBlockchain === "arbitrum" || selectedBlockchain === "cronos" || selectedBlockchain === "tezos" || selectedBlockchain === "base" || selectedBlockchain === "bitcoin") {
-    graph.forEachNode(node => {
-      const deg = graph.degree(node);
-      if (deg < minDegree) minDegree = deg;
-      if (deg > maxDegree) maxDegree = deg;
-    });
-  }
+  // Degree bounds must describe the loaded graph, independently of the chain
+  // currently selected in the sidebar.
+  const degrees = graph.nodes().map(node => graph.degree(node));
+  const minDegree = degrees.length ? Math.min(...degrees) : 0;
+  const maxDegree = degrees.length ? Math.max(...degrees) : 0;
   
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
@@ -5963,12 +5983,9 @@ function setupReducers() {
 
     // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
     // 🖌️ Use color from degree for Polygon & Ethereum, or name-based color for Mina
-    const isMina = selectedBlockchain === "mina";
     let glowColor;
 
-    const chains = data.chains instanceof Set ? Array.from(data.chains) : (data.chains || []);
-    const chainCount = chains.length;
-    const primaryChain = chains[0] || selectedBlockchain;
+    const primaryChain = getDominantNodeChain(node, data);
     const allNetworksFetched = areAllCompatibleNetworksFetched(node);
 
     // ★— NEW: check if this node is in favorites
@@ -5980,10 +5997,8 @@ function setupReducers() {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
     } else if (primaryChain === "mina") {
       glowColor = getBrightColorByName(data.name || "noname");
-    } else if (chainCount > 1) {
-      glowColor = "#ff00ff"; // 🟠 Orange for shared nodes
     } else {
-      glowColor = getColorByDegree(graph.degree(node), minDegree, maxDegree, primaryChain, chainCount);
+      glowColor = getColorByDegree(graph.degree(node), minDegree, maxDegree, primaryChain);
     }
 
     
@@ -6187,6 +6202,12 @@ function setupReducers() {
 }
 
 function setupInteractions() {
+  // Importing data reuses the current Sigma renderer. Never stack another set
+  // of click/drag handlers on that same instance: a single stage click would
+  // otherwise reveal the fullscreen UI and immediately hide it again.
+  if (!renderer || interactionInitializedRenderers.has(renderer)) return;
+  interactionInitializedRenderers.add(renderer);
+
   // State for drag'n'drop
   let draggedNode   = null;
   let isDragging = false;  
@@ -6798,6 +6819,7 @@ function importJSON(file, mode="", iterations=500) {
         updateProgressBar(current, total);
       });
 
+      refreshNodeChainColors();
       applyNodeSizesByDegree();     // reuse your logic
       //fruchtermanReingold(graph);   // optional
       renderer.refresh();
