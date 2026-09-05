@@ -7336,7 +7336,7 @@ async function connectAuroAndSend() {
 
 function adjustSidebarState() {
   if (isFullscreen) {
-    setLeftSidebarOpen(fullscreenUiVisible);
+    setLeftSidebarOpen(fullscreenUiVisible && shouldOpenSidebarWithFullscreenUi());
   } else if (window.innerWidth >= 769) {
     const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
     setLeftSidebarOpen(savedState !== "false");
@@ -7700,7 +7700,7 @@ function setFullscreenUiVisible(visible) {
   if (!isFullscreen) return;
   fullscreenUiVisible = Boolean(visible);
   document.body.classList.toggle("fullscreen-ui-visible", fullscreenUiVisible);
-  setLeftSidebarOpen(fullscreenUiVisible, { persist: false });
+  setLeftSidebarOpen(fullscreenUiVisible && shouldOpenSidebarWithFullscreenUi(), { persist: false });
   const backdrop = document.getElementById("sidebar-backdrop");
   if (backdrop && fullscreenUiVisible) {
     // Keep the graph, command bar and date slicer directly interactive while
@@ -7720,6 +7720,10 @@ function setFullscreenUiVisible(visible) {
   }
   scheduleRotateSliderPosition();
   requestAnimationFrame(() => renderer?.resize?.());
+}
+
+function shouldOpenSidebarWithFullscreenUi() {
+  return window.innerWidth >= 769 && !document.body.classList.contains("mobile-mode");
 }
 
 function setupDateSlicer() {
