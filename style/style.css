@@ -287,6 +287,55 @@
       min-width: 4px;
     }
 
+    #layout-algorithm-menu[hidden] {
+      display: none;
+    }
+
+    #layout-algorithm-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      z-index: var(--z-command-popover);
+      display: grid;
+      width: min(240px, calc(100vw - 12px));
+      gap: 4px;
+      padding: 6px;
+      border: 1px solid rgba(127, 127, 127, 0.48);
+      border-radius: 9px;
+      background: #222;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+    }
+
+    #layout-algorithm-menu button {
+      min-height: 40px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #layout-algorithm-menu button:hover,
+    #layout-algorithm-menu button:focus-visible,
+    #layout-algorithm-menu button.is-selected {
+      border-color: rgba(79, 195, 247, 0.75);
+      background: rgba(79, 195, 247, 0.15);
+      outline: none;
+    }
+
+    #layout-algorithm-menu button.is-selected::before {
+      content: "✓ ";
+    }
+
+    body[data-theme="light"] #layout-algorithm-menu {
+      border-color: rgba(31, 43, 49, 0.3);
+      background: #fff;
+      color: #17262e;
+    }
+
     #controls > button {
       flex: 0 0 38px;
       width: 38px !important;

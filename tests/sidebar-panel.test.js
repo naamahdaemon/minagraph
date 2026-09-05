@@ -24,6 +24,8 @@ assert.match(html, /id="sidebar-backdrop" hidden/);
 assert.match(html, /id="menu-toggle"[^>]+aria-controls="left-sidebar"[^>]+aria-expanded="false"/);
 assert.match(html, /<div id="controls">\s*<button id="menu-toggle"/);
 assert.match(html, /id="layout-toggle-btn"[^>]+layout-toggle-button/);
+assert.match(html, /id="layout-toggle-btn"[^>]+aria-haspopup="menu"[^>]+aria-controls="layout-algorithm-menu"/);
+assert.match(html, /id="layout-algorithm-menu"[\s\S]*?data-layout-algorithm="fr"[\s\S]*?data-layout-algorithm="fa"[\s\S]*?data-layout-algorithm="ord"/);
 assert.match(html, /id="layout-sidebar-toggle-btn"[^>]*>[\s\S]*?Apply Layout \(L\)/);
 const commandOrder = [
   'layout-toggle-btn',
@@ -54,6 +56,11 @@ assert.match(css, /#controls > button[\s\S]*?background: transparent !important;
 assert.match(css, /@media screen and \(min-width: 1180px\)[\s\S]*?\.command-button \.command-label\s*\{\s*display: inline;/);
 assert.match(script, /button\.classList\.toggle\("is-running", running\)/);
 assert.match(script, /document\.getElementById\("layout-sidebar-toggle-btn"\)\?\.addEventListener\("click", toggleCurrentLayout\)/);
+assert.match(script, /function initializeLayoutAlgorithmMenu\(\)/);
+assert.match(script, /const holdDelay = 600;/);
+assert.match(script, /suppressNextClick = true;[\s\S]*?setMenuOpen\(true\)/);
+assert.match(script, /select\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\);[\s\S]*?runLayoutInWorker\(\);/);
+assert.match(css, /#layout-algorithm-menu\s*\{[\s\S]*?top: calc\(100% \+ 6px\);[\s\S]*?z-index: var\(--z-command-popover\);/);
 assert.match(script, /sidebarButton\.textContent = state === "running" \? "Stop Layout" : "Apply Layout \(L\)"/);
 assert.match(script, /FILTER_PANEL_VISIBILITY_KEY = "minagraphFilterPanelVisible"/);
 assert.match(script, /localStorage\.setItem\(FILTER_PANEL_VISIBILITY_KEY, String\(isFilterPanelVisible\)\)/);
