@@ -440,13 +440,51 @@ let sigmaRecoveryInProgress = false;
 let rotatePositionRun = 0;
 let pinchReference = null;
 let lastGraphTouchAt = 0;
+let graphTouchTapCandidate = null;
+let lastQualifiedGraphTouchTapAt = 0;
 
 function bindStablePinchReference(container) {
   if (!container || container.dataset.minagraphPinchReference === "true") return;
   container.dataset.minagraphPinchReference = "true";
 
+  container.addEventListener("pointerdown", event => {
+    if (event.pointerType !== "touch") return;
+    lastGraphTouchAt = Date.now();
+    if (!event.isPrimary || graphTouchTapCandidate) {
+      graphTouchTapCandidate = null;
+      return;
+    }
+    graphTouchTapCandidate = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: Date.now(),
+      moved: false
+    };
+  }, { passive: true, capture: true });
+
+  container.addEventListener("pointermove", event => {
+    const candidate = graphTouchTapCandidate;
+    if (!candidate || candidate.id !== event.pointerId) return;
+    if (Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) > 10) {
+      candidate.moved = true;
+    }
+  }, { passive: true, capture: true });
+
+  container.addEventListener("pointerup", event => {
+    const candidate = graphTouchTapCandidate;
+    graphTouchTapCandidate = null;
+    if (!candidate || candidate.id !== event.pointerId || candidate.moved) return;
+    if (Date.now() - candidate.startedAt <= 450) lastQualifiedGraphTouchTapAt = Date.now();
+  }, { passive: true, capture: true });
+
+  container.addEventListener("pointercancel", () => {
+    graphTouchTapCandidate = null;
+  }, { passive: true, capture: true });
+
   container.addEventListener("touchstart", event => {
     lastGraphTouchAt = Date.now();
+    if (event.touches.length > 1) graphTouchTapCandidate = null;
     if (event.touches.length < 2 || !renderer || !graph?.order) return;
     const gestureRenderer = renderer;
 
@@ -2591,6 +2629,7 @@ function initializeLayoutAlgorithmMenu() {
   button.addEventListener("pointerdown", event => {
     if (event.button !== undefined && event.button !== 0) return;
     cancelHold();
+    if (event.pointerId !== undefined) button.setPointerCapture?.(event.pointerId);
     pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
     holdTimer = window.setTimeout(() => {
       holdTimer = 0;
@@ -2604,8 +2643,14 @@ function initializeLayoutAlgorithmMenu() {
     if (!pointerStart || pointerStart.id !== event.pointerId) return;
     if (Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > moveTolerance) cancelHold();
   });
-  button.addEventListener("pointerup", cancelHold);
-  button.addEventListener("pointercancel", cancelHold);
+  const finishHold = event => {
+    if (event.pointerId !== undefined && button.hasPointerCapture?.(event.pointerId)) {
+      button.releasePointerCapture(event.pointerId);
+    }
+    cancelHold();
+  };
+  button.addEventListener("pointerup", finishHold);
+  button.addEventListener("pointercancel", finishHold);
   button.addEventListener("contextmenu", event => {
     event.preventDefault();
     cancelHold();
@@ -6196,9 +6241,18 @@ function setupInteractions() {
   });
 
   // Click on the background to hide the panel
-  renderer.on("clickStage", () => {
+  renderer.on("clickStage", ({ event }) => {
     if (isFullscreen && fullscreenUiVisible) {
       setFullscreenUiVisible(false);
+      return;
+    }
+    if (
+      isFullscreen &&
+      isTouchInteraction(event) &&
+      Date.now() - lastQualifiedGraphTouchTapAt < 300
+    ) {
+      lastQualifiedGraphTouchTapAt = 0;
+      setFullscreenUiVisible(true);
       return;
     }
     if (Date.now() <= ignoreStageClickUntil) {
