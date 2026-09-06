@@ -2692,6 +2692,36 @@
     font-size: 11px;
   }
 
+  .native-movement-heading {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+  }
+
+  .native-movement-heading h4 {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .native-movement-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 5px;
+    align-items: center;
+    min-height: 24px;
+  }
+
+  .native-movement-actions > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    line-height: 1;
+  }
+
   .native-movement-row h4 a,
   .node-explorer-link,
   .node-explorer-selector > summary {
