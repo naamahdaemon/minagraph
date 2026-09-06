@@ -5267,14 +5267,50 @@ function renderNativeMovementSummary(rows, node) {
   if (!rows.length) return `<p class="native-movement-empty">No native asset movement matches the active filters.</p>`;
   return rows.map(row => `
     <section class="native-movement-row" data-native-chain="${row.chain}">
-      <h4><a href="${getExplorerURL("account", node, row.chain)}" target="_blank" rel="noopener noreferrer"
-        title="Open this address in ${getExplorerChainLabel(row.chain)}">${getExplorerChainLabel(row.chain)} · ${row.symbol}</a></h4>
+      <header class="native-movement-heading">
+        <h4><a href="${getExplorerURL("account", node, row.chain)}" target="_blank" rel="noopener noreferrer"
+          title="Open this address in ${getExplorerChainLabel(row.chain)}">${getExplorerChainLabel(row.chain)} · ${row.symbol}</a></h4>
+        <span class="native-movement-actions" aria-label="${getExplorerChainLabel(row.chain)} address actions">
+          <span data-native-favorite-status></span>
+          ${supportsAddressWatch(row.chain) ? `<span data-native-watch-status></span>` : ""}
+        </span>
+      </header>
       <div><span>Current balance</span><strong data-native-balance>Loading…</strong><small data-native-balance-usd>USD price loading…</small></div>
       <div><span>Incoming</span><strong>+${formatNativeMovementAmount(row.incoming, row.symbol)}</strong><small data-native-usd="incoming">USD price loading…</small></div>
       <div><span>Outgoing</span><strong>−${formatNativeMovementAmount(row.outgoing, row.symbol)}</strong><small data-native-usd="outgoing">USD price loading…</small></div>
       <div><span>Visible net</span><strong>${row.net >= 0 ? "+" : "−"}${formatNativeMovementAmount(Math.abs(row.net), row.symbol)}</strong><small data-native-usd="net">USD price loading…</small></div>
       ${row.ambiguousOutgoingExcluded ? `<p>Ambiguous Bitcoin multi-input outputs are excluded from outgoing totals.</p>` : ""}
     </section>`).join("");
+}
+
+function supportsAddressWatch(chain) {
+  return ["mina", "tezos", "solana", "ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain);
+}
+
+function initializeNativeMovementActions(rows, node) {
+  rows.forEach(row => {
+    const container = document.querySelector(`.native-movement-row[data-native-chain="${row.chain}"]`);
+    if (!container || selectedNode !== node) return;
+
+    const favoriteContainer = container.querySelector("[data-native-favorite-status]");
+    const refreshFavorite = () => {
+      if (!favoriteContainer.isConnected || selectedNode !== node) return;
+      renderFavIcon(favoriteContainer, isFavorite(node, row.chain), node, row.chain, refreshFavorite);
+    };
+    refreshFavorite();
+
+    const watchContainer = container.querySelector("[data-native-watch-status]");
+    if (!watchContainer) return;
+    isWatched(node, row.chain).then(watched => {
+      if (!watchContainer.isConnected || selectedNode !== node) return;
+      const refreshWatch = () => isWatched(node, row.chain).then(nextState => {
+        if (watchContainer.isConnected && selectedNode === node) {
+          renderWatchIcon(watchContainer, nextState, node, row.chain, refreshWatch);
+        }
+      });
+      renderWatchIcon(watchContainer, watched, node, row.chain, refreshWatch);
+    });
+  });
 }
 
 const nativeBalanceCache = new Map();
@@ -5904,6 +5940,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     </div>`;
     
   details.innerHTML = html;
+  initializeNativeMovementActions(nativeMovementSummary, node);
   updateNativeMovementUsdValues(nativeMovementSummary, node);
   details.querySelector(".node-key-copy")?.addEventListener("click", event => copyNodeKey(node, event.currentTarget));
   if (previouslySelectedNode !== node) details.scrollTop = 0;
@@ -8344,7 +8381,7 @@ async function toggleWatch(shouldWatch, address, chain) {
 
     if (res.ok) {
       const watchSpan = document.getElementById("watch-status");
-      if (watchSpan) renderWatchIcon(watchSpan, shouldWatch, address, chain);
+      if (watchSpan && chain === selectedBlockchain) renderWatchIcon(watchSpan, shouldWatch, address, chain);
       const favoriteSpan = document.getElementById("favorite-status");
       if (favoriteSpan) renderFavIcon(favoriteSpan, isFavorite(address, selectedBlockchain), address, selectedBlockchain);
     } else {
@@ -8462,10 +8499,18 @@ function unFavThisAddress(address, chain) {
   saveFavorites(favorites);
 }
 
-function renderFavIcon(container, isFav, address, chain) {
-  container.innerHTML = `<span onclick="toggleFavorite(${!isFav}, '${address}', '${chain}')" 
-    title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" 
-    style="cursor:pointer; font-size:18px;">${isFav ? "⭐" : "☆"}</span>`;
+function renderFavIcon(container, isFav, address, chain, refreshCallback = null) {
+  container.innerHTML = "";
+  const icon = document.createElement("span");
+  icon.title = isFav ? "Remove from favorites" : "Add to favorites";
+  icon.style.cursor = "pointer";
+  icon.style.fontSize = "18px";
+  icon.textContent = isFav ? "⭐" : "☆";
+  icon.onclick = () => {
+    toggleFavorite(!isFav, address, chain);
+    if (typeof refreshCallback === "function") refreshCallback();
+  };
+  container.appendChild(icon);
 }
 
 function toggleFavorite(shouldAdd, address, chain) {
@@ -8481,7 +8526,9 @@ function toggleFavorite(shouldAdd, address, chain) {
   saveFavorites(favorites);
 
   const favSpan = document.getElementById("favorite-status");
-  if (favSpan) renderFavIcon(favSpan, shouldAdd, address, chain);
+  if (favSpan) {
+    renderFavIcon(favSpan, isFavorite(address, selectedBlockchain), address, selectedBlockchain);
+  }
 }
 
 function toggleSort(key) {
