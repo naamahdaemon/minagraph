@@ -13,10 +13,12 @@ assert.match(source, /document\.addEventListener\("fullscreenchange", \(\) => \{
 assert.match(source, /function setFullscreenMode\(active\) \{\s*isFullscreen = active;/);
 assert.match(source, /function setFullscreenUiVisible\(visible, \{ openSidebar = true \} = \{\}\)/);
 assert.match(source, /fullscreenUiSidebarRequested = fullscreenUiVisible && Boolean\(openSidebar\);/);
-assert.match(source, /setLeftSidebarOpen\(fullscreenUiSidebarRequested && shouldOpenSidebarWithFullscreenUi\(\), \{ persist: false \}\);/);
+assert.match(source, /setLeftSidebarOpen\(fullscreenUiSidebarRequested, \{ persist: false \}\);/);
 assert.match(source, /setFullscreenUiVisible\(true, \{ openSidebar: false \}\);/);
 assert.match(source, /setFullscreenUiVisible\(!fullscreenUiVisible, \{ openSidebar: true \}\);/);
-assert.match(source, /function shouldOpenSidebarWithFullscreenUi\(\) \{\s*return window\.innerWidth >= 769 && !document\.body\.classList\.contains\("mobile-mode"\);/);
+assert.match(source, /if \(isFullscreen && fullscreenUiVisible\) fullscreenUiSidebarRequested = shouldOpen;/);
+assert.match(source, /input\.addEventListener\("focus", \(\) => \{\s*if \(isFullscreen && fullscreenUiVisible\) fullscreenUiSidebarRequested = true;/);
+assert.doesNotMatch(source, /function shouldOpenSidebarWithFullscreenUi/);
 assert.doesNotMatch(source, /setLeftSidebarOpen\(fullscreenUiVisible, \{ persist: false \}\)/);
 assert.match(source, /const interfaceCanShowFilters = !isFullscreen \|\| fullscreenUiVisible;/);
 assert.match(source, /function setFullscreenUiVisible\(visible, \{ openSidebar = true \} = \{\}\)[\s\S]*?setFilterPanelVisible\(isFilterPanelVisible, \{ persist: false \}\);/);
