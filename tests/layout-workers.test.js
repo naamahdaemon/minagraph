@@ -142,4 +142,43 @@ assert.deepEqual(
   "OpenOrd edgeWeightInfluence=0 should ignore edge weights"
 );
 
+const openOrdCollinear = runWorker("openOrd.js", {
+  nodes: [
+    { id: "hub", x: 0, y: 0 },
+    { id: "a", x: 10, y: 10 },
+    { id: "b", x: 20, y: 20 },
+    { id: "c", x: 30, y: 30 }
+  ],
+  edges: [
+    { source: "hub", target: "a", weight: 1 },
+    { source: "hub", target: "b", weight: 1 },
+    { source: "hub", target: "c", weight: 1 }
+  ],
+  settings: {
+    iterations: 120,
+    edgeWeightInfluence: 0,
+    coolingFactor: 0.95,
+    attractionMultiplier: 0.1,
+    repulsionMultiplier: 1,
+    gravity: 0.01,
+    scalingRatio: 1000,
+    width: 1000,
+    height: 1000
+  }
+});
+assertFinitePositions(openOrdCollinear.positions);
+const oa = openOrdCollinear.positions.a;
+const ob = openOrdCollinear.positions.b;
+const oc = openOrdCollinear.positions.c;
+const triangleAreaTwice = Math.abs((ob.x - oa.x) * (oc.y - oa.y) - (ob.y - oa.y) * (oc.x - oa.x));
+assert.ok(triangleAreaTwice > 1, "OpenOrd should break inherited collinearity instead of returning a linear graph");
+
+const openOrdSource = fs.readFileSync(path.join(projectRoot, "scripts", "openOrd.js"), "utf8");
+assert.match(openOrdSource, /const phases = \[/, "OpenOrd-inspired layout should use a multi-phase schedule");
+assert.match(openOrdSource, /Math\.min\(magnitude, temperature\)/, "OpenOrd movement should be temperature-clamped");
+for (const setting of ["width", "height", "scalingRatio", "gravity"]) {
+  assert.match(openOrdSource, new RegExp(`settings\\.${setting}`),
+    `OpenOrd should honor the shared ${setting} control`);
+}
+
 console.log("Layout worker tests passed");

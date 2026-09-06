@@ -118,14 +118,14 @@ const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
   "layout-prevent-overlap": "ForceAtlas2 only. Enforces a minimum separation during force calculations. It reduces exact overlaps but does not guarantee that every rendered node disc or label stays separate.",
   "layout-ewi": "OpenOrd-inspired only. Raises edge weights to this exponent before attraction is calculated. 0 ignores weights; larger values favor heavy links. Minagraph edges currently default to weight 1, so this usually has no visible effect.",
-  "layout-cooling": "OpenOrd-inspired only. Multiplies movement temperature after each iteration. Values closer to 1 converge more slowly and explore more arrangements; lower values freeze the layout sooner.",
+  "layout-cooling": "OpenOrd-inspired only. Shapes the progressive temperature schedule across all requested iterations. Values closer to 1 preserve more movement during later phases; lower values stabilize the graph sooner.",
   "layout-attraction": "OpenOrd-inspired only. Multiplies the force pulling connected nodes together. Higher values shorten links and tighten connected groups.",
   "layout-repulsion": "OpenOrd-inspired only. Multiplies the force pushing every pair of nodes apart. Higher values spread the graph and increase spacing.",
   "layout-iterations": "Maximum number of spatialization steps. More iterations can improve convergence but take longer. They do not add graph data or change the rendering quality directly.",
-  "layout-width": "Width of the algorithm's coordinate space and gravity center, not the screen or canvas width. Larger values can give the layout more horizontal room. OpenOrd-inspired currently ignores it.",
-  "layout-height": "Height of the algorithm's coordinate space and gravity center, not the screen or canvas height. Larger values can give the layout more vertical room. OpenOrd-inspired currently ignores it.",
-  "layout-gravity": "Pulls nodes toward the center in Fruchterman-Reingold and ForceAtlas2. Higher values reduce remote branches and produce a more compact graph. OpenOrd-inspired currently ignores it.",
-  "layout-scale": "Controls repulsion in Fruchterman-Reingold and ForceAtlas2. Higher values generally spread nodes farther apart; lower values produce a tighter graph. OpenOrd-inspired currently ignores it.",
+  "layout-width": "Width of the algorithm's coordinate space and gravity center, not the screen or canvas width. Larger values give every layout, including OpenOrd-inspired, more horizontal room.",
+  "layout-height": "Height of the algorithm's coordinate space and gravity center, not the screen or canvas height. Larger values give every layout, including OpenOrd-inspired, more vertical room.",
+  "layout-gravity": "Pulls nodes toward the center in every layout. Higher values reduce remote branches and produce a more compact graph.",
+  "layout-scale": "Controls repulsion in every layout. Higher values generally spread nodes farther apart; lower values produce a tighter graph.",
   "toggle-labels": "Shows or hides node labels. This is a rendering option only and never changes node positions or spatialization.",
   "edge-thickness-mode": "Changes link thickness using a uniform size, transaction count, or transferred amount. This is visual only: link thickness never influences spatialization or edge weight."
 });
@@ -7075,7 +7075,8 @@ function renderNodeExplorerTitle(node, data) {
     <summary title="Choose a blockchain explorer">${data.label}<span aria-hidden="true">▾</span></summary>
     <div class="node-explorer-options" role="menu">
       ${chains.map(chain => `<a href="${getExplorerURL("account", node, chain)}" target="_blank" rel="noopener noreferrer"
-        role="menuitem"><img src="${getChainIconPath(chain)}" alt="">${getExplorerChainLabel(chain)}</a>`).join("")}
+        role="menuitem"><img class="node-explorer-chain-icon node-explorer-chain-icon--${chain}"
+        src="${getChainIconPath(chain)}" alt="">${getExplorerChainLabel(chain)}</a>`).join("")}
     </div>
   </details>`;
 }
