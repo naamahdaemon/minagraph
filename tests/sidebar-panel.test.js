@@ -69,7 +69,7 @@ assert.match(script, /localStorage\.setItem\(FILTER_PANEL_VISIBILITY_KEY, String
 assert.match(script, /function setFilterPanelVisible\(visible,/);
 assert.match(script, /animateLayout\(null, "initial"\);/);
 assert.match(script, /searchButton\.dataset\.searchInitialized === "true"/);
-assert.match(script, /searchInput = document\.getElementById\("search-input"\);\s*\/\/[\s\S]*?setupSearch\(\);\s*algorithmSelect/);
+assert.match(script, /searchInput = document\.getElementById\("search-input"\);\s*\/\/[\s\S]*?setupSearch\(\);[\s\S]*?initializeNodeExplorerMenuDismissal\(\);\s*algorithmSelect/);
 assert.match(script, /const shouldShow = searchDiv\.style\.display !== "block";/);
 assert.match(script, /if \(graph && renderer\) handleSearch\(query\);/);
 assert.match(script, /const favoriteAddresses = new Set\([\s\S]*?getFavorites\(\)[\s\S]*?favorite\.label/);

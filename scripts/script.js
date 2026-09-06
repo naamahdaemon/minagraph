@@ -1133,6 +1133,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The command bar must remain interactive even while Sigma is still loading
   // or recovering its renderer.
   setupSearch();
+  initializeNodeExplorerMenuDismissal();
   algorithmSelect = document.getElementById("layout-algorithm");
   initializeLayoutParameterHelp();
   faSettings = document.getElementById("forceatlas-settings");
@@ -5258,11 +5259,12 @@ function formatNativeMovementAmount(value, symbol) {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 })} ${symbol}`;
 }
 
-function renderNativeMovementSummary(rows) {
+function renderNativeMovementSummary(rows, node) {
   if (!rows.length) return `<p class="native-movement-empty">No native asset movement matches the active filters.</p>`;
   return rows.map(row => `
     <section class="native-movement-row" data-native-chain="${row.chain}">
-      <h4>${capitalize(row.chain)} · ${row.symbol}</h4>
+      <h4><a href="${getExplorerURL("account", node, row.chain)}" target="_blank" rel="noopener noreferrer"
+        title="Open this address in ${getExplorerChainLabel(row.chain)}">${getExplorerChainLabel(row.chain)} · ${row.symbol}</a></h4>
       <div><span>Current balance</span><strong data-native-balance>Loading…</strong><small data-native-balance-usd>USD price loading…</small></div>
       <div><span>Incoming</span><strong>+${formatNativeMovementAmount(row.incoming, row.symbol)}</strong><small data-native-usd="incoming">USD price loading…</small></div>
       <div><span>Outgoing</span><strong>−${formatNativeMovementAmount(row.outgoing, row.symbol)}</strong><small data-native-usd="outgoing">USD price loading…</small></div>
@@ -5693,9 +5695,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   
   const html = `
     <h3 class="node-title">
-      <a href="${getExplorerURL('account', node, selectedBlockchain)}" target="_blank" style="color:#4fc3f7">
-        ${data.label}
-      </a>
+      ${renderNodeExplorerTitle(node, data)}
       <span id="favorite-status"></span>
       <span id="watch-status"></span>
     </h3>      
@@ -5718,7 +5718,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
     <section class="native-movement-summary" aria-label="Filtered native asset movements">
       <h3>Native asset movements</h3>
       <p class="native-movement-disclaimer">Current balance is live and independent of filters. Movements only include native transfers loaded in this graph and matching the active filters; fees, rewards/coinbase and unloaded activity may be absent.</p>
-      ${renderNativeMovementSummary(nativeMovementSummary)}
+      ${renderNativeMovementSummary(nativeMovementSummary, node)}
     </section>
     <p class="node-period">
       Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
@@ -7043,6 +7043,55 @@ function getExplorerURL(type, value, blockchain) {
 
   const explorer = explorerMap[chain]?.[type];
   return typeof explorer === "function" ? explorer(value) : "#";
+}
+
+function getExplorerChainLabel(chain) {
+  const labels = {
+    mina: "Mina", ethereum: "Ethereum", polygon: "Polygon", bsc: "BNB Smart Chain",
+    solana: "Solana", zksync: "zkSync Era", optimism: "Optimism", arbitrum: "Arbitrum",
+    cronos: "Cronos", tezos: "Tezos", starknet: "Starknet", base: "Base", bitcoin: "Bitcoin"
+  };
+  return labels[String(chain || "").toLowerCase()] || capitalize(String(chain || ""));
+}
+
+function getNodeExplorerChains(node, data = graph.getNodeAttributes(node)) {
+  const fetchedChains = getNodeChains(node, data);
+  if (!fetchedChains.length) return [];
+  const dominantChain = getDominantNodeChain(node, data);
+  return [...new Set([dominantChain, ...fetchedChains])]
+    .filter(chain => getExplorerURL("account", node, chain) !== "#")
+    .sort((left, right) => left === dominantChain ? -1 : right === dominantChain ? 1 : left.localeCompare(right));
+}
+
+function renderNodeExplorerTitle(node, data) {
+  const chains = getNodeExplorerChains(node, data);
+  if (!chains.length) return `<span class="node-title-label">${data.label}</span>`;
+  if (chains.length === 1) {
+    const chain = chains[0];
+    return `<a class="node-explorer-link" href="${getExplorerURL("account", node, chain)}" target="_blank"
+      rel="noopener noreferrer" title="Open in ${getExplorerChainLabel(chain)}">${data.label}</a>`;
+  }
+  return `<details class="node-explorer-selector">
+    <summary title="Choose a blockchain explorer">${data.label}<span aria-hidden="true">▾</span></summary>
+    <div class="node-explorer-options" role="menu">
+      ${chains.map(chain => `<a href="${getExplorerURL("account", node, chain)}" target="_blank" rel="noopener noreferrer"
+        role="menuitem"><img src="${getChainIconPath(chain)}" alt="">${getExplorerChainLabel(chain)}</a>`).join("")}
+    </div>
+  </details>`;
+}
+
+function initializeNodeExplorerMenuDismissal() {
+  if (document.documentElement.dataset.nodeExplorerDismissalInitialized === "true") return;
+  document.documentElement.dataset.nodeExplorerDismissalInitialized = "true";
+  document.addEventListener("pointerdown", event => {
+    document.querySelectorAll(".node-explorer-selector[open]").forEach(menu => {
+      if (!menu.contains(event.target)) menu.removeAttribute("open");
+    });
+  }, true);
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    document.querySelectorAll(".node-explorer-selector[open]").forEach(menu => menu.removeAttribute("open"));
+  });
 }
 
 function getChainIconPath(chain) {
