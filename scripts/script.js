@@ -266,7 +266,9 @@ function setLeftSidebarOpen(open, { persist = false, restoreFocus = false } = {}
 
 function toggleLeftSidebar() {
   const sidebarElement = sidebar || document.getElementById("left-sidebar");
-  setLeftSidebarOpen(!sidebarElement?.classList.contains("open"), { persist: true });
+  const shouldOpen = !sidebarElement?.classList.contains("open");
+  if (isFullscreen && fullscreenUiVisible) fullscreenUiSidebarRequested = shouldOpen;
+  setLeftSidebarOpen(shouldOpen, { persist: true });
 }
 
 function syncDateSlicerWithNodePanel() {
@@ -1605,6 +1607,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   inputs.forEach(input => {
     input.addEventListener("focus", () => {
+      if (isFullscreen && fullscreenUiVisible) fullscreenUiSidebarRequested = true;
       setLeftSidebarOpen(true);
     });
   });
@@ -1718,6 +1721,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 150);        
   });
   document.getElementById("sidebar-close")?.addEventListener("click", () => {
+    if (isFullscreen && fullscreenUiVisible) fullscreenUiSidebarRequested = false;
     setLeftSidebarOpen(false, { persist: true, restoreFocus: true });
   });
   document.getElementById("sidebar-backdrop")?.addEventListener("click", () => {
@@ -7406,7 +7410,7 @@ async function connectAuroAndSend() {
 
 function adjustSidebarState() {
   if (isFullscreen) {
-    setLeftSidebarOpen(fullscreenUiSidebarRequested && shouldOpenSidebarWithFullscreenUi());
+    setLeftSidebarOpen(fullscreenUiSidebarRequested);
   } else if (window.innerWidth >= 769) {
     const savedState = localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
     setLeftSidebarOpen(savedState !== "false");
@@ -7771,7 +7775,7 @@ function setFullscreenUiVisible(visible, { openSidebar = true } = {}) {
   fullscreenUiVisible = Boolean(visible);
   fullscreenUiSidebarRequested = fullscreenUiVisible && Boolean(openSidebar);
   document.body.classList.toggle("fullscreen-ui-visible", fullscreenUiVisible);
-  setLeftSidebarOpen(fullscreenUiSidebarRequested && shouldOpenSidebarWithFullscreenUi(), { persist: false });
+  setLeftSidebarOpen(fullscreenUiSidebarRequested, { persist: false });
   const backdrop = document.getElementById("sidebar-backdrop");
   if (backdrop && fullscreenUiVisible) {
     // Keep the graph, command bar and date slicer directly interactive while
@@ -7791,10 +7795,6 @@ function setFullscreenUiVisible(visible, { openSidebar = true } = {}) {
   }
   scheduleRotateSliderPosition();
   requestAnimationFrame(() => renderer?.resize?.());
-}
-
-function shouldOpenSidebarWithFullscreenUi() {
-  return window.innerWidth >= 769 && !document.body.classList.contains("mobile-mode");
 }
 
 function setupDateSlicer() {
