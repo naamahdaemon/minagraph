@@ -5110,10 +5110,26 @@ function renderTransactionDeleteButton(edgeId) {
     aria-label="Delete this transfer from the graph" title="Delete this transfer from the graph">&times;</button>`;
 }
 
-function renderTransactionActionHeader() {
-  return `<th class="transaction-action-column" aria-label="Delete transfer">
-    <span class="transaction-action-header" aria-hidden="true">&times;</span>
+function renderTransactionActionHeader(nodeId) {
+  const encodedNodeId = encodeURIComponent(String(nodeId)).replaceAll("'", "%27");
+  return `<th class="transaction-action-column" aria-label="Delete node">
+    <button class="transaction-action-header" type="button"
+      onclick="deleteNodeFromTransactionHeader('${encodedNodeId}'); return false;"
+      aria-label="Delete this node and all its interactions"
+      title="Delete this node and all its interactions">&times;</button>
   </th>`;
+}
+
+function deleteNodeFromTransactionHeader(encodedNodeId) {
+  let nodeId;
+  try {
+    nodeId = decodeURIComponent(encodedNodeId);
+  } catch (_) {
+    nodeId = String(encodedNodeId || "");
+  }
+  const panelNode = selectedNode;
+  deleteSelectedNode(nodeId);
+  if (panelNode && graph.hasNode(panelNode)) showNodePanel(panelNode, false);
 }
 
 function deleteTransactionFromGraph(encodedEdgeId) {
@@ -5909,7 +5925,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
       <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
         <thead>
           <tr>
-            ${renderTransactionActionHeader()}
+            ${renderTransactionActionHeader(node)}
             ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
             ${renderSortableTransactionHeader("linkedNode", "Linked Node", "left")}
             ${renderSortableTransactionHeader("blockchain", "Chain")}
@@ -6122,7 +6138,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
           <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
             <thead>
               <tr>
-                ${renderTransactionActionHeader()}
+                ${renderTransactionActionHeader(n)}
                 ${renderSortableTransactionHeader("blockchain", "Chain")}
                 ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
                 ${renderSortableTransactionHeader("block", "Block")}
