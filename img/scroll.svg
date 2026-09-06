@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
   <title id="title">Scroll</title>
-  <circle cx="32" cy="32" r="30" fill="#ffeeda"/>
-  <path fill="#9b6b45" d="M20 15h25c5 0 9 4 9 9v24H26c-7 0-12-5-12-12V21c0-3.3 2.7-6 6-6Zm1 6c-.6 0-1 .4-1 1v14c0 3.3 2.7 6 6 6h22V24c0-1.7-1.3-3-3-3H21Zm7 7h13v5H28v-5Zm0 8h17v4H28v-4Z"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="11" fill="#050505" stroke="#fff" stroke-width="2"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="8.5" fill="none" stroke="#fff" stroke-width="1.25"/>
+  <circle cx="32" cy="32" r="22.5" fill="#ffeeda"/>
+  <path fill="#9b6b45" d="M23 20h17c4 0 7 3 7 7v18H27c-5 0-9-4-9-9V25c0-2.8 2.2-5 5-5Zm1 5v11c0 2 1 3 3 3h14V27c0-1.1-.9-2-2-2H24Zm6 5h8v4h-8v-4Z"/>
 </svg>
