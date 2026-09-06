@@ -5112,11 +5112,11 @@ function renderTransactionDeleteButton(edgeId) {
 
 function renderTransactionActionHeader(nodeId) {
   const encodedNodeId = encodeURIComponent(String(nodeId)).replaceAll("'", "%27");
-  return `<th class="transaction-action-column" aria-label="Delete node">
+  return `<th class="transaction-action-column" aria-label="Delete visible interactions">
     <button class="transaction-action-header" type="button"
       onclick="deleteNodeFromTransactionHeader('${encodedNodeId}'); return false;"
-      aria-label="Delete this node and all its interactions"
-      title="Delete this node and all its interactions">&times;</button>
+      aria-label="Delete this node's visible interactions"
+      title="Delete this node's interactions matching the active filters">&times;</button>
   </th>`;
 }
 
@@ -5127,9 +5127,45 @@ function deleteNodeFromTransactionHeader(encodedNodeId) {
   } catch (_) {
     nodeId = String(encodedNodeId || "");
   }
-  const panelNode = selectedNode;
-  deleteSelectedNode(nodeId);
-  if (panelNode && graph.hasNode(panelNode)) showNodePanel(panelNode, false);
+  deleteVisibleNodeInteractions(nodeId);
+}
+
+function deleteVisibleNodeInteractions(nodeId) {
+  if (!graph?.hasNode(nodeId)) return;
+
+  if (isLayoutRunning) {
+    stopLayoutInWorker();
+    isLayoutRunning = false;
+    setLayoutUiState("stopped");
+  }
+
+  const visibleEdges = graph.edges(nodeId).filter(edge =>
+    edgeMatchesActiveView(graph.getEdgeAttributes(edge))
+  );
+  const affectedNodes = new Set([nodeId]);
+
+  visibleEdges.forEach(edge => {
+    affectedNodes.add(graph.source(edge));
+    affectedNodes.add(graph.target(edge));
+    graph.dropEdge(edge);
+  });
+
+  affectedNodes.forEach(affectedNode => {
+    if (!graph.hasNode(affectedNode) || graph.degree(affectedNode) > 0) return;
+    if (selectedNode === affectedNode) selectedNode = null;
+    if (hoveredNode === affectedNode) hoveredNode = null;
+    graph.dropNode(affectedNode);
+  });
+
+  rebuildTransactionsByNeighbor();
+  rebuildEdgeVisualSizes();
+
+  if (selectedNode && graph.hasNode(selectedNode)) {
+    showNodePanel(selectedNode, false);
+  } else {
+    setNodePanelOpen(false);
+  }
+  renderer.refresh();
 }
 
 function deleteTransactionFromGraph(encodedEdgeId) {
