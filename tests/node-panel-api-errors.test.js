@@ -39,10 +39,15 @@ assert.match(script, /if \(previouslySelectedNode !== node\) details\.scrollTop 
 assert.match(script, /function summarizeNativeMovements\(transactions, node\)/);
 assert.match(script, /const nativeMovementSummary = includeBalanceRowsForVisibleChains\(/);
 assert.match(script, /Filtered native asset movements/);
+assert.match(script, /renderNativeMovementSummary\(rows, node\)[\s\S]*?getExplorerURL\("account", node, row\.chain\)/);
+assert.match(script, /function getNodeExplorerChains\([\s\S]*?getDominantNodeChain\(node, data\)/);
+assert.match(script, /function renderNodeExplorerTitle\([\s\S]*?node-explorer-selector[\s\S]*?node-explorer-options/);
+assert.doesNotMatch(script, /getExplorerURL\('account', node, selectedBlockchain\)/);
 assert.match(script, /function updateNativeMovementUsdValues\(rows, node\)/);
 assert.match(script, /api\.coingecko\.com\/api\/v3\/simple\/price/);
 assert.match(script, /ambiguousOutgoingExcluded/);
 assert.match(css, /\.native-movement-summary\s*\{/);
+assert.match(css, /\.node-explorer-options\s*\{[\s\S]*?width: min\(250px, calc\(100vw - 40px\)\);[\s\S]*?max-height: min\(320px, 55vh\);/);
 assert.match(script, /Current balance is live and independent of filters/);
 assert.match(script, /<span>Visible net<\/span>/);
 assert.match(script, /async function fetchNativeAccountBalance\(chain, address\)/);
