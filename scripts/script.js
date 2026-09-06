@@ -8,6 +8,7 @@ let DEPTH = 2;
 let FETCH_START_TIMESTAMP = null;
 let FETCH_END_TIMESTAMP = null;
 const fetchBlockRangeCache = new Map();
+const alchemyBlockTimestampCache = new Map();
 const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
@@ -80,6 +81,37 @@ const chainFilter = new Set();
 let showAllLabels = true;
 let selectedBlockchain = "mina"; // 👈 default value
 
+// Shared metadata for every EVM-compatible network. Keeping these values in
+// one place prevents a newly supported chain from being fetchable while being
+// absent from balances, colors, explorers or cross-chain expansion.
+const EVM_CHAIN_CONFIG = Object.freeze({
+  ethereum: { label: "Ethereum", endpoint: "https://eth-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://etherscan.io", color: [230, 70, 60], categories: ["external", "internal", "erc20", "erc721", "erc1155"] },
+  polygon: { label: "Polygon", endpoint: "https://polygon-mainnet.g.alchemy.com/v2/", nativeSymbol: "POL", priceId: "polygon-ecosystem-token", explorer: "https://polygonscan.com", color: [270, 60, 60], categories: ["external", "internal", "erc20", "erc721", "erc1155"] },
+  bsc: { label: "BNB Smart Chain", endpoint: "https://bnb-mainnet.g.alchemy.com/v2/", nativeSymbol: "BNB", priceId: "binancecoin", explorer: "https://bscscan.com", color: [45, 100, 50], categories: ["external", "erc20", "erc721", "erc1155"] },
+  zksync: { label: "zkSync Era", endpoint: "https://zksync-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://explorer.zksync.io", color: [330, 100, 70], categories: ["external", "erc20", "erc721", "erc1155"] },
+  optimism: { label: "Optimism", endpoint: "https://opt-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://optimistic.etherscan.io", color: [20, 100, 60], categories: ["external", "erc20", "erc721", "erc1155"] },
+  arbitrum: { label: "Arbitrum", endpoint: "https://arb-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://arbiscan.io", color: [190, 70, 60], categories: ["external", "erc20", "erc721", "erc1155"] },
+  base: { label: "Base", endpoint: "https://base-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://basescan.org", color: [200, 100, 60], categories: ["external", "erc20", "erc721", "erc1155"] },
+  avalanche: { label: "Avalanche C-Chain", endpoint: "https://avax-mainnet.g.alchemy.com/v2/", nativeSymbol: "AVAX", priceId: "avalanche-2", explorer: "https://snowtrace.io", color: [354, 83, 57], categories: ["external", "erc20", "erc721", "erc1155"], watchSupported: false },
+  linea: { label: "Linea", endpoint: "https://linea-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://lineascan.build", color: [190, 68, 54], categories: ["external", "erc20", "erc721", "erc1155"], watchSupported: false },
+  scroll: { label: "Scroll", endpoint: "https://scroll-mainnet.g.alchemy.com/v2/", nativeSymbol: "ETH", priceId: "ethereum", explorer: "https://scrollscan.com", color: [30, 76, 70], categories: ["external", "erc20", "erc721", "erc1155"], watchSupported: false },
+  cronos: { label: "Cronos", endpoint: null, nativeSymbol: "CRO", priceId: "crypto-com-chain", explorer: "https://cronoscan.com", color: [0, 85, 50], categories: ["external", "erc20", "erc721", "erc1155"] }
+});
+const EVM_CHAINS = Object.freeze(Object.keys(EVM_CHAIN_CONFIG));
+const ALCHEMY_EVM_CHAINS = Object.freeze(EVM_CHAINS.filter(chain => EVM_CHAIN_CONFIG[chain].endpoint));
+
+function isEvmChain(chain) {
+  return Object.hasOwn(EVM_CHAIN_CONFIG, chain);
+}
+
+function isAlchemyEvmChain(chain) {
+  return ALCHEMY_EVM_CHAINS.includes(chain);
+}
+
+function normalizeAddressForChain(address, chain) {
+  return isEvmChain(chain) ? String(address).toLowerCase() : address;
+}
+
 const delayByBlockchain = {
   mina: 0,
   ethereum: 300,
@@ -93,6 +125,9 @@ const delayByBlockchain = {
   tezos: 300,
   base: 300,
   bitcoin: 200,
+  avalanche: 300,
+  linea: 300,
+  scroll: 300,
 };
 
 let cancelRequested = false;
@@ -172,6 +207,14 @@ function transactionMatchesActiveLegendFilters(transaction) {
   const typeMatch = visibleTypes.size === 0 || visibleTypes.has(command);
   const chainMatch = chainFilter.size === 0 || chainFilter.has(transaction?.blockchain);
   return typeMatch && chainMatch;
+}
+
+// Date filtering is materialized on each edge by applyDateFilter. Consumers
+// such as the renderer and the details panel must read that shared state rather
+// than independently reinterpreting the slider bounds, otherwise an edge can
+// remain visible on the graph while disappearing from the node details.
+function edgeMatchesActiveView(attributes) {
+  return attributes?.hidden !== true && transactionMatchesActiveLegendFilters(attributes);
 }
 
 function refreshLegendFilteredViews() {
@@ -2076,16 +2119,8 @@ function getContrastingLabelColor(bgColor) {
 }
 
 function getDecimalsForBlockchain(chain) {
+  if (isEvmChain(chain)) return 18;
   switch (chain) {
-    case "ethereum":
-    case "polygon":
-    case "bsc":
-    case "zksync":
-    case "optimism":
-    case "arbitrum":
-    case "cronos":
-    case "base":
-      return 18;
     case "solana":      
     case "mina":
       return 9;
@@ -2157,19 +2192,12 @@ function getBrightColorByName(name) {
 
 function getColorByDegree(degree, minDeg, maxDeg, chain) {
   const chainBaseHSL = {
-    ethereum: [230, 70, 60],
-    polygon: [270, 60, 60],
-    bsc: [45, 100, 50],
     solana: [280, 100, 70],
-    zksync: [330, 100, 70],
-    optimism: [20, 100, 60],
-    arbitrum: [190, 70, 60],
-    cronos: [0, 85, 50],
     tezos: [215, 100, 55],
     starknet: [260, 100, 55],
     mina: [180, 50, 45],
-    base: [200, 100, 60],
-    bitcoin: [34, 93, 54]
+    bitcoin: [34, 93, 54],
+    ...Object.fromEntries(EVM_CHAINS.map(chainName => [chainName, EVM_CHAIN_CONFIG[chainName].color]))
   };
 
   const [baseHue, baseSat, baseLight] = chainBaseHSL[chain] || [300, 100, 50];
@@ -3664,6 +3692,230 @@ async function callAlchemyRpc(url, headers, method, params = []) {
   return json.result;
 }
 
+function parseAlchemyBlockTimestamp(value) {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+async function resolveAlchemyTransferTimestamps(transfers, blockchain, url, headers) {
+  const timestampByBlock = new Map();
+
+  for (const transfer of transfers) {
+    const blockNumber = transfer.blockNum;
+    if (!blockNumber) continue;
+    const metadataTimestamp = parseAlchemyBlockTimestamp(transfer.metadata?.blockTimestamp);
+    if (metadataTimestamp !== null) {
+      timestampByBlock.set(blockNumber, metadataTimestamp);
+      alchemyBlockTimestampCache.set(`${blockchain}:${blockNumber}`, metadataTimestamp);
+    }
+  }
+
+  const missingBlocks = [...new Set(transfers
+    .map(transfer => transfer.blockNum)
+    .filter(blockNumber => blockNumber && !timestampByBlock.has(blockNumber)))]
+    .filter(blockNumber => {
+      const cached = alchemyBlockTimestampCache.get(`${blockchain}:${blockNumber}`);
+      if (cached !== undefined) timestampByBlock.set(blockNumber, cached);
+      return cached === undefined;
+    });
+
+  // Some Alchemy networks omit metadata.blockTimestamp from asset transfers.
+  // Resolve the missing values through batched standard JSON-RPC block calls.
+  const batchSize = 50;
+  for (let offset = 0; offset < missingBlocks.length; offset += batchSize) {
+    const blockBatch = missingBlocks.slice(offset, offset + batchSize);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(blockBatch.map((blockNumber, index) => ({
+        jsonrpc: "2.0",
+        id: index + 1,
+        method: "eth_getBlockByNumber",
+        params: [blockNumber, false]
+      })))
+    });
+    await assertApiResponse(response, `Alchemy ${blockchain} block timestamps`);
+    const payload = await response.json();
+    if (!Array.isArray(payload)) {
+      throw new Error(payload?.error?.message || `Alchemy ${blockchain} block timestamp batch failed`);
+    }
+    payload.forEach(item => {
+      if (item?.error) throw new Error(item.error.message || `Alchemy ${blockchain} block timestamp lookup failed`);
+      const blockNumber = blockBatch[Number(item.id) - 1];
+      const rawTimestamp = item?.result?.timestamp;
+      if (!blockNumber || !rawTimestamp) return;
+      const timestamp = Number(BigInt(rawTimestamp)) * 1000;
+      if (!Number.isFinite(timestamp)) return;
+      timestampByBlock.set(blockNumber, timestamp);
+      alchemyBlockTimestampCache.set(`${blockchain}:${blockNumber}`, timestamp);
+    });
+  }
+
+  return timestampByBlock;
+}
+
+function normalizeAlchemyTransferRawValue(transfer) {
+  const value = transfer?.rawContract?.value ?? transfer?.value ?? "";
+  if (typeof value === "string" && /^0x[0-9a-f]+$/i.test(value)) {
+    try {
+      return BigInt(value).toString();
+    } catch (_) {
+      // Keep the original representation if a provider returns malformed hex.
+    }
+  }
+  return String(value);
+}
+
+function getAlchemyTokenDecimals(transfer) {
+  const value = transfer?.rawContract?.decimals ?? transfer?.rawContract?.decimal;
+  if (value === null || value === undefined || value === "") return null;
+  try {
+    const parsed = typeof value === "string" && value.startsWith("0x")
+      ? Number(BigInt(value))
+      : Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getAlchemyTransferIdentity(transfer) {
+  // A transaction hash identifies the transaction, not an individual asset
+  // movement. Swaps commonly contain one outgoing and one incoming ERC-20
+  // transfer (and sometimes several intermediary movements). Some newer
+  // Alchemy networks omit uniqueId or reuse a coarse value, so include the
+  // movement fields while still collapsing the same result returned by both
+  // the fromAddress and toAddress queries, or reconstructed from its receipt.
+  return [
+    transfer.hash || "",
+    transfer.category || "",
+    String(transfer.from || "").toLowerCase(),
+    String(transfer.to || "").toLowerCase(),
+    String(transfer.rawContract?.address || "").toLowerCase(),
+    normalizeAlchemyTransferRawValue(transfer),
+    transfer.tokenId ?? transfer.erc721TokenId ?? "",
+    transfer.receiptLogIndex ?? "",
+    JSON.stringify(transfer.erc1155Metadata || null)
+  ].join(":");
+}
+
+async function recoverAlchemyCounterpartTransfers(transfers, publicKey, blockchain, url, headers, baseParams) {
+  const wallet = String(publicKey || "").toLowerCase();
+  const requests = [];
+  const requestKeys = new Set();
+
+  const addRequest = (transfer, addressField) => {
+    if (!transfer?.blockNum || !transfer?.hash) return;
+    const hash = transfer.hash.toLowerCase();
+    const key = `${transfer.blockNum}:${addressField}:${hash}`;
+    if (requestKeys.has(key)) return;
+    requestKeys.add(key);
+    requests.push({
+      hash,
+      params: {
+        ...baseParams,
+        fromBlock: transfer.blockNum,
+        toBlock: transfer.blockNum,
+        maxCount: "0x3e8",
+        ...(addressField === "toAddress"
+          ? { toAddress: publicKey }
+          : { fromAddress: publicKey })
+      }
+    });
+  };
+
+  for (const transfer of transfers) {
+    if (String(transfer.from || "").toLowerCase() === wallet) addRequest(transfer, "toAddress");
+    if (String(transfer.to || "").toLowerCase() === wallet) addRequest(transfer, "fromAddress");
+  }
+  if (!requests.length) return [];
+
+  const recovered = [];
+  const batchSize = 50;
+  for (let offset = 0; offset < requests.length; offset += batchSize) {
+    const requestBatch = requests.slice(offset, offset + batchSize);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(requestBatch.map((request, index) => ({
+        jsonrpc: "2.0",
+        id: index + 1,
+        method: "alchemy_getAssetTransfers",
+        params: [request.params]
+      })))
+    });
+    await assertApiResponse(response, `Alchemy ${blockchain} swap counterpart transfers`);
+    const payload = await response.json();
+    if (!Array.isArray(payload)) {
+      throw new Error(payload?.error?.message || `Alchemy ${blockchain} counterpart transfer batch failed`);
+    }
+    for (const item of payload) {
+      if (item?.error) throw new Error(item.error.message || `Alchemy ${blockchain} counterpart transfer lookup failed`);
+      const request = requestBatch[Number(item.id) - 1];
+      if (!request) continue;
+      for (const transfer of item?.result?.transfers || []) {
+        if (String(transfer.hash || "").toLowerCase() === request.hash) recovered.push(transfer);
+      }
+    }
+  }
+  return recovered;
+}
+
+async function recoverWalletErc20TransfersFromReceipts(transfers, publicKey, url, headers, getReceiptData) {
+  const wallet = String(publicKey || "").toLowerCase();
+  const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const hashes = [...new Set(transfers.map(transfer => transfer.hash).filter(Boolean))];
+  const metadataByContract = new Map();
+  const recovered = [];
+
+  const getMetadata = contract => {
+    const normalized = contract.toLowerCase();
+    if (!metadataByContract.has(normalized)) {
+      metadataByContract.set(normalized, callAlchemyRpc(url, headers, "alchemy_getTokenMetadata", [normalized])
+        .catch(error => {
+          console.warn(`Could not load token metadata for ${normalized}`, error);
+          return null;
+        }));
+    }
+    return metadataByContract.get(normalized);
+  };
+
+  await Promise.all(hashes.map(async hash => {
+    const receipt = await getReceiptData(hash);
+    if (!receipt) return;
+    for (const log of receipt.logs || []) {
+      if (String(log?.topics?.[0] || "").toLowerCase() !== transferTopic || log.topics.length !== 3) continue;
+      const from = `0x${String(log.topics[1]).slice(-40)}`.toLowerCase();
+      const to = `0x${String(log.topics[2]).slice(-40)}`.toLowerCase();
+      if (from !== wallet && to !== wallet) continue;
+      const contract = String(log.address || "").toLowerCase();
+      if (!contract || !log.data || log.data === "0x") continue;
+      const metadata = await getMetadata(contract);
+      const decimals = Number.isInteger(Number(metadata?.decimals)) ? Number(metadata.decimals) : null;
+      recovered.push({
+        uniqueId: `${hash}:receipt-log:${log.logIndex ?? recovered.length}`,
+        receiptLogIndex: log.logIndex ?? recovered.length,
+        hash,
+        blockNum: receipt.blockNumber,
+        category: "erc20",
+        from,
+        to,
+        value: null,
+        asset: metadata?.symbol || "ERC20",
+        rawContract: {
+          address: contract,
+          value: log.data,
+          decimals
+        },
+        metadata: null
+      });
+    }
+  }));
+
+  return recovered;
+}
+
 async function getAlchemyBlockRange(blockchain, url, headers) {
   if (FETCH_START_TIMESTAMP === null && FETCH_END_TIMESTAMP === null) {
     return { fromBlock: "0x0", toBlock: "latest" };
@@ -3709,23 +3961,29 @@ async function getAlchemyBlockRange(blockchain, url, headers) {
 
 async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
   const baseUrls = {
-    ethereum: `https://eth-mainnet.g.alchemy.com/v2/`,
-    polygon: `https://polygon-mainnet.g.alchemy.com/v2/`,
-    bsc: `https://bnb-mainnet.g.alchemy.com/v2/`,
     solana: `https://solana-mainnet.g.alchemy.com/v2/`,
-    zksync: `https://zksync-mainnet.g.alchemy.com/v2/`,
-    optimism: `https://opt-mainnet.g.alchemy.com/v2/`,
-    arbitrum: `https://arb-mainnet.g.alchemy.com/v2/`,
     cronos: `https://explorer-api.cronos.org/mainnet/api/v2`,
     tezos: `https://api.tzkt.io/v1`,
-    base: `https://base-mainnet.g.alchemy.com/v2/`
+    ...Object.fromEntries(ALCHEMY_EVM_CHAINS.map(chainName => [chainName, EVM_CHAIN_CONFIG[chainName].endpoint]))
   };
 
   const encodedTargetUrl = encodeURIComponent(`${baseUrls[blockchain]}`);
   const url = `https://www.akirion.com:4664/proxy?url=${encodedTargetUrl}`;
   const apiKeyHeader = { 'x-api-key': '2c57fa11-3463-47fa-802d-116c2dfff660' };
-  const toMillis = iso => iso ? new Date(iso).getTime().toString() : null;
-
+  const receiptPromises = new Map();
+  const getReceiptData = hash => {
+    const normalizedHash = String(hash || "").toLowerCase();
+    if (!receiptPromises.has(normalizedHash)) {
+      receiptPromises.set(normalizedHash, callAlchemyRpc(
+        url, apiKeyHeader, "eth_getTransactionReceipt", [hash]
+      ).catch(error => {
+        if (getApiErrorStatus(error) === 429) throw error;
+        console.warn(`Receipt fetch failed for tx ${hash}`, error.message);
+        return null;
+      }));
+    }
+    return receiptPromises.get(normalizedHash);
+  };
   console.log(`Calling ${blockchain.toUpperCase()}Scan API`);
 
   if (blockchain === 'solana') {
@@ -3747,18 +4005,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     category.push("erc721", "erc1155");
   }*/
 
-  const categoryByChain = {
-    ethereum:      ["external", "internal", "erc20", "erc721", "erc1155"],
-    polygon:       ["external", "internal", "erc20", "erc721", "erc1155"],
-    bsc:           ["external", "erc20", "erc721", "erc1155"],
-    optimism:      ["external", "erc20", "erc721", "erc1155"],
-    arbitrum:      ["external", "erc20", "erc721", "erc1155"],
-    zksync:        ["external", "erc20", "erc721", "erc1155"], // no "internal"
-    base:          ["external", "erc20", "erc721", "erc1155"], // no "internal"
-    cronos:        ["external", "erc20", "erc721", "erc1155"],                      // basic support
-  };
-
-  const category = categoryByChain[blockchain] || ["external"];
+  const category = EVM_CHAIN_CONFIG[blockchain]?.categories || ["external"];
   const blockRange = await getAlchemyBlockRange(blockchain, url, apiKeyHeader);
   if (blockRange.empty) return [];
 
@@ -3812,59 +4059,72 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
     error.status = Number(rpcError.code) === 429 ? 429 : undefined;
     throw error;
   }
-  const transfers = [...(toJson?.result?.transfers || []), ...(fromJson?.result?.transfers || [])];
+  const initialTransfers = [...(toJson?.result?.transfers || []), ...(fromJson?.result?.transfers || [])];
+  let counterpartTransfers = [];
+  try {
+    counterpartTransfers = await recoverAlchemyCounterpartTransfers(
+      initialTransfers, publicKey, blockchain, url, apiKeyHeader, baseParams
+    );
+  } catch (error) {
+    if (getApiErrorStatus(error) === 429) throw error;
+    console.warn(`Could not recover ${blockchain} swap counterpart transfers`, error);
+  }
+  let transfers = [...initialTransfers, ...counterpartTransfers];
 
-  // Deduplicate by tx.hash
+  // Asset Transfers can omit a swap leg when the directional result reaches
+  // its page limit. Transaction receipts remain authoritative for ERC-20
+  // Transfer logs, so recover any direct wallet movements still missing.
+  try {
+    const receiptTransfers = await recoverWalletErc20TransfersFromReceipts(
+      transfers, publicKey, url, apiKeyHeader, getReceiptData
+    );
+    // For hashes with standard wallet-facing Transfer logs, the receipt is
+    // authoritative. Replace the provider rows instead of appending to them:
+    // providers may encode the same raw amount differently.
+    const receiptHashes = new Set(receiptTransfers.map(transfer => transfer.hash?.toLowerCase()));
+    transfers = [
+      ...transfers.filter(transfer => !(
+        transfer.category === "erc20" &&
+        receiptHashes.has(String(transfer.hash || "").toLowerCase())
+      )),
+      ...receiptTransfers
+    ];
+  } catch (error) {
+    if (getApiErrorStatus(error) === 429) throw error;
+    console.warn(`Could not recover ${blockchain} ERC-20 receipt transfers`, error);
+  }
+
+  // Deduplicate movements, not whole transactions: a swap has several asset
+  // transfers sharing the same transaction hash.
   const seen = new Set();
   const uniqueTransfers = transfers.filter(tx => {
-    const id = tx.uniqueId || tx.hash;
+    const id = getAlchemyTransferIdentity(tx);
     if (!id || seen.has(id)) return false;
     seen.add(id);
     return true;
   });
 
+  const timestampByBlock = await resolveAlchemyTransferTimestamps(
+    uniqueTransfers, blockchain, url, apiKeyHeader
+  );
+  const unresolvedTimestamp = uniqueTransfers.find(transfer =>
+    parseAlchemyBlockTimestamp(transfer.metadata?.blockTimestamp) === null &&
+    !timestampByBlock.has(transfer.blockNum)
+  );
+  if (unresolvedTimestamp) {
+    throw new Error(`Alchemy ${blockchain} did not provide a timestamp for block ${unresolvedTimestamp.blockNum}`);
+  }
+
   // Enrich with contract creation / call info
   const enriched = await Promise.all(uniqueTransfers.map(async (tx) => {
-    const receiptBody = {
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_getTransactionReceipt",
-      params: [tx.hash]
-    };
-
-    let receiptData = null;
-    try {
-      const receiptRes = await fetch(url, {
-        method: "POST",
-        headers: { ...apiKeyHeader, "Content-Type": "application/json" },
-        body: JSON.stringify(receiptBody)
-      });
-      await assertApiResponse(receiptRes, `Alchemy ${blockchain} transaction receipt`);
-      const receiptJson = await receiptRes.json();
-      if (receiptJson?.error) {
-        const error = new Error(receiptJson.error.message || `Alchemy ${blockchain} transaction receipt failed`);
-        error.status = Number(receiptJson.error.code) === 429 ? 429 : undefined;
-        throw error;
-      }
-      receiptData = receiptJson?.result;
-    } catch (err) {
-      if (getApiErrorStatus(err) === 429) throw err;
-      console.warn(`Receipt fetch failed for tx ${tx.hash}`, err.message);
-    }
+    const receiptData = await getReceiptData(tx.hash);
 
     const contractFromLogs = receiptData?.logs?.[0]?.address?.toLowerCase() || null;
     const contractAddress = receiptData?.contractAddress?.toLowerCase() || contractFromLogs;
 
     const nativeAssets = {
-      ethereum: "ETH",
-      polygon: "MATIC",
-      bsc: "BNB",
-      zksync: "ETH",
-      optimism: "ETH",
-      arbitrum: "ETH",
-      cronos: "ETH",
       tezos: "XTZ",
-      base: "ETH",
+      ...Object.fromEntries(EVM_CHAINS.map(chainName => [chainName, EVM_CHAIN_CONFIG[chainName].nativeSymbol]))
     };
 
     const isNativeTransfer = (
@@ -3926,7 +4186,10 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       blockchain,
       block_id: parseInt(tx.blockNum, 16),
       height: parseInt(tx.blockNum, 16),
-      timestamp: toMillis(tx.metadata?.blockTimestamp),
+      timestamp: String(
+        parseAlchemyBlockTimestamp(tx.metadata?.blockTimestamp) ??
+        timestampByBlock.get(tx.blockNum)
+      ),
       timestamp_iso: tx.metadata?.blockTimestamp || null,
       hash: tx.hash,
       amount: tx.value ? (parseFloat(tx.value)).toString() : "0",
@@ -3943,7 +4206,7 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       token_receiver: tx.to?.toLowerCase() || null,
       token_amount: tokenAmount,
       token_name: tx.asset || null,
-      token_decimals: tx.category === "erc1155" || tx.category === "erc721" ? 0 : tx.rawContract?.decimals || null,
+      token_decimals: tx.category === "erc1155" || tx.category === "erc721" ? 0 : getAlchemyTokenDecimals(tx),
       token_id: tokenId,
       // 📦 Nouveaux champs enrichis depuis receipt :
       block_hash: receiptData?.blockHash || null,
@@ -3952,7 +4215,8 @@ async function fetchTransactionsFromAlchemy(publicKey, blockchain, limit) {
       receipt_from: receiptData?.from?.toLowerCase() || null,
       receipt_to: receiptData?.to?.toLowerCase() || null,
       receipt_contract_address: contractAddress,
-      receipt_logs: receiptData?.logs || []      
+      receipt_logs: receiptData?.logs || [],
+      transfer_id: getAlchemyTransferIdentity(tx)
     };
   }));
 
@@ -4494,9 +4758,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
 }
 
 async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchain, delay = 0) {
-    const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism","arbitrum","base"].includes(blockchain)
-      ? publicKey.toLowerCase()
-      : publicKey;    
+    const normalizedKey = normalizeAddressForChain(publicKey, blockchain);
       
     if (normalizedKey === "genesis") 
       return;
@@ -4560,7 +4822,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
           transactions = window.BitcoinAdapter.isBitcoinTxid(normalizedKey)
             ? await window.BitcoinAdapter.fetchTransaction(normalizedKey)
             : await window.BitcoinAdapter.fetchAddressTransactions(normalizedKey, limit);
-        } else if (["ethereum", "polygon", "bsc", "solana", "zksync", "optimism","arbitrum","cronos", "tezos", "base"].includes(blockchain)) {
+        } else if (isEvmChain(blockchain) || blockchain === "solana" || blockchain === "tezos") {
           transactions = await fetchTransactionsFromAlchemy(normalizedKey, blockchain, limit);
         }
 
@@ -4592,9 +4854,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null) {
   const chain = chainOverride || selectedBlockchain;
 
-  const normalizedKey = ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain)
-    ? publicKey.toLowerCase()
-    : publicKey;
+  const normalizedKey = normalizeAddressForChain(publicKey, chain);
     
   if (normalizedKey === "genesis") return;
   if (!window.initialPublicKey) window.initialPublicKey = normalizedKey;
@@ -4657,7 +4917,9 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
     addOrUpdateNode(sender, senderName, txChain);
     addOrUpdateNode(receiver, receiverName, txChain);
 
-    const edgeId = `${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.nonce}`;
+    const edgeId = tx.transfer_id
+      ? `${txChain}:${tx.transfer_id}`
+      : `${txChain}:${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.token_contract || "native"}-${tx.token_id ?? tx.nonce ?? ""}`;
     const edgeColor =
         tx.command_type === "token_transfer" || tx.command_type === "nft_transfer"
         ? "#f9a825" // 🟨 Dark Yellow for token transfers
@@ -4688,6 +4950,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         token_amount: tx.token_amount,        
         token_name: tx.token_name,
         token_decimals: tx.token_decimals,
+        transfer_id: tx.transfer_id || null,
         utxo_ambiguous: tx.utxo_ambiguous === true,
         color: edgeColor,
         hash: tx.hash 
@@ -4699,10 +4962,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   refreshNodeChainColors(chain);
 
   // Prepare next keys
-  const normalize = (key) =>
-    ["polygon", "ethereum", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain)
-      ? key?.toLowerCase()
-      : key;
+  const normalize = (key) => key ? normalizeAddressForChain(key, chain) : key;
 
   const nextKeys = [...new Set(
     transactions.flatMap(t => [
@@ -4932,6 +5192,10 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   // A cross-chain expansion is an explicit user action: honor every current
   // layout setting, including the iterations field, instead of using the
   // automatic incremental profile.
+  // The layout recomputes every node position. Refit the camera when it ends
+  // so clusters from the previously loaded chains cannot move off-screen and
+  // appear to have been deleted.
+  recenterAfterLayout = true;
   animateLayout(null, "initial");
 
   BASE_KEY = previousInitialKey;
@@ -5046,8 +5310,7 @@ function parseNodeTransactionNumber(value) {
 
 function getSortableNodeTransactionAmount(tx, field) {
   const value = parseNodeTransactionNumber(tx[field]);
-  const alchemyChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"];
-  if (field === "amount" && alchemyChains.includes(tx.blockchain)) return value;
+  if (field === "amount" && isAlchemyEvmChain(tx.blockchain)) return value;
   if (field === "token_amount") {
     const decimals = tx.token_decimals ?? getKnownTokenInfo(tx.token_contract)?.decimals ?? 18;
     return value / Math.pow(10, decimals);
@@ -5097,7 +5360,7 @@ function rebuildEdgeVisualSizes() {
 
   const visibleEdges = [];
   graph.forEachEdge((edge, attributes, source, target) => {
-    if (attributes.hidden || !transactionMatchesActiveLegendFilters(attributes)) return;
+    if (!edgeMatchesActiveView(attributes)) return;
     visibleEdges.push({ edge, attributes, relation: getEdgeRelationKey(source, target) });
   });
 
@@ -5184,17 +5447,13 @@ function formatSignedNodeTransactionAmount(tx, node) {
 
 const NATIVE_ASSET_BY_CHAIN = Object.freeze({
   mina: { symbol: "MINA", priceId: "mina-protocol" },
-  ethereum: { symbol: "ETH", priceId: "ethereum" },
-  polygon: { symbol: "POL", priceId: "polygon-ecosystem-token" },
-  bsc: { symbol: "BNB", priceId: "binancecoin" },
   solana: { symbol: "SOL", priceId: "solana" },
-  zksync: { symbol: "ETH", priceId: "ethereum" },
-  optimism: { symbol: "ETH", priceId: "ethereum" },
-  arbitrum: { symbol: "ETH", priceId: "ethereum" },
-  cronos: { symbol: "CRO", priceId: "crypto-com-chain" },
   tezos: { symbol: "XTZ", priceId: "tezos" },
-  base: { symbol: "ETH", priceId: "ethereum" },
-  bitcoin: { symbol: "BTC", priceId: "bitcoin" }
+  bitcoin: { symbol: "BTC", priceId: "bitcoin" },
+  ...Object.fromEntries(EVM_CHAINS.map(chain => [chain, {
+    symbol: EVM_CHAIN_CONFIG[chain].nativeSymbol,
+    priceId: EVM_CHAIN_CONFIG[chain].priceId
+  }]))
 });
 const nativeUsdPriceCache = new Map();
 const NATIVE_USD_PRICE_TTL = 60 * 1000;
@@ -5284,7 +5543,8 @@ function renderNativeMovementSummary(rows, node) {
 }
 
 function supportsAddressWatch(chain) {
-  return ["mina", "tezos", "solana", "ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"].includes(chain);
+  if (isEvmChain(chain)) return EVM_CHAIN_CONFIG[chain].watchSupported !== false;
+  return ["mina", "tezos", "solana"].includes(chain);
 }
 
 function initializeNativeMovementActions(rows, node) {
@@ -5319,7 +5579,7 @@ const ALCHEMY_PROXY_API_KEY = "2c57fa11-3463-47fa-802d-116c2dfff660";
 const GENERAL_PROXY_API_KEY = "755beb7f-24bc-4ead-924c-031e89af6d89";
 
 function getNativeBalanceProxyApiKey(chain) {
-  return ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base", "solana"].includes(chain)
+  return isAlchemyEvmChain(chain) || chain === "solana"
     ? ALCHEMY_PROXY_API_KEY
     : GENERAL_PROXY_API_KEY;
 }
@@ -5350,15 +5610,9 @@ async function fetchNativeAccountBalance(chain, address) {
     value = Number(data) / 1e6;
   } else {
     const rpcTargets = {
-      ethereum: "https://eth-mainnet.g.alchemy.com/v2/",
-      polygon: "https://polygon-mainnet.g.alchemy.com/v2/",
-      bsc: "https://bnb-mainnet.g.alchemy.com/v2/",
-      zksync: "https://zksync-mainnet.g.alchemy.com/v2/",
-      optimism: "https://opt-mainnet.g.alchemy.com/v2/",
-      arbitrum: "https://arb-mainnet.g.alchemy.com/v2/",
-      base: "https://base-mainnet.g.alchemy.com/v2/",
       solana: "https://solana-mainnet.g.alchemy.com/v2/",
-      cronos: "https://evm.cronos.org"
+      cronos: "https://evm.cronos.org",
+      ...Object.fromEntries(ALCHEMY_EVM_CHAINS.map(chainName => [chainName, EVM_CHAIN_CONFIG[chainName].endpoint]))
     };
     const target = chain === "mina"
       ? "https://api.minascan.io/node/mainnet/v1/graphql"
@@ -5480,7 +5734,7 @@ function sortNodeTransactions(items, node) {
 }
 
 function formatNodeTransactionAmount(tx) {
-  const isAlchemyChain = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(tx.blockchain);
+  const isAlchemyChain = isAlchemyEvmChain(tx.blockchain);
   if (!["token_transfer", "nft_transfer"].includes(tx.label)) {
     return isAlchemyChain
       ? parseFloat(tx.amount || 0).toFixed(2)
@@ -5621,7 +5875,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
               ? getExplorerURL("transaction", tx.hash, tx.blockchain)
               : getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain);
             const typeLabel = `${tx.label || "-"}${tx.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ""}`;
-            const isAlchemyChain = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(tx.blockchain);
+            const isAlchemyChain = isAlchemyEvmChain(tx.blockchain);
             const fee = isAlchemyChain
               ? parseFloat(tx.fee || 0).toFixed(2)
               : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain));
@@ -5655,11 +5909,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
   const currentWatchIcon = document.querySelector("#watch-status > span");
   const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
-  const visibleEdges = graph.edges(node).filter(edge => {
-    const attributes = graph.getEdgeAttributes(edge);
-    return isTimestampInCurrentRange(attributes.timestamp) &&
-      transactionMatchesActiveLegendFilters(attributes);
-  });
+  const visibleEdges = graph.edges(node).filter(edge =>
+    edgeMatchesActiveView(graph.getEdgeAttributes(edge))
+  );
   resetNodeTransactionPaginationIfNeeded(node);
   const neighbors = [...new Set(visibleEdges.map(edge => {
     const source = graph.source(edge);
@@ -5700,7 +5952,6 @@ function showNodePanel(node, refreshExternalStatus = true) {
   });
 
 
-  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
   const compatibleChains = getCompatibleChainsForNode(node);
 
   const chainsToFetch = compatibleChains.filter(chain => {
@@ -5830,7 +6081,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
             </thead>
             <tbody>
               ${sortedInteractions.map(tx => {
-                  const isAlchemyChain = (chain) => ["ethereum", "polygon", "bsc","zksync","optimism","arbitrum", "base"].includes(chain);
+                  const isAlchemyChain = (chain) => isAlchemyEvmChain(chain);
                 return `
                 <tr ${getTransactionMemoAttributes(tx.memo)}>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
@@ -5945,7 +6196,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   details.querySelector(".node-key-copy")?.addEventListener("click", event => copyNodeKey(node, event.currentTarget));
   if (previouslySelectedNode !== node) details.scrollTop = 0;
   
-  if (evmChains.includes(selectedBlockchain) || selectedBlockchain==="tezos" || selectedBlockchain==="mina" || selectedBlockchain==="solana") {
+  if (supportsAddressWatch(selectedBlockchain)) {
     const watchSpan = document.getElementById("watch-status");
     if (!watchSpan) return;
 
@@ -6719,7 +6970,10 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     graph = new Graph({ multi: true });
     window.initialPublicKey = "";
   }
-  visitedKeysByChain.clear();
+  // Preserve the per-chain history when extending an existing graph. Clearing
+  // it here made an incremental multichain fetch behave partly like a fresh
+  // graph and allowed already-loaded networks to be treated as stale.
+  if (wipeGraph) visitedKeysByChain.clear();
   
   await buildGraphRecursively(BASE_KEY, depth, 0, chainOverride);
 
@@ -7014,6 +7268,11 @@ function loadLayoutSettings(algorithm) {
 
 function getExplorerURL(type, value, blockchain) {
   const chain = blockchain?.toLowerCase?.();
+  const configuredEvmExplorer = EVM_CHAIN_CONFIG[chain]?.explorer;
+  if (configuredEvmExplorer) {
+    const resource = type === "transaction" ? "tx" : type === "account" ? "address" : "block";
+    return `${configuredEvmExplorer}/${resource}/${value}`;
+  }
   const explorerMap = {
     mina: {
       block: (val) => `https://minascan.io/mainnet/block/${val}/txs`,
@@ -7087,6 +7346,8 @@ function getExplorerURL(type, value, blockchain) {
 }
 
 function getExplorerChainLabel(chain) {
+  const evmLabel = EVM_CHAIN_CONFIG[String(chain || "").toLowerCase()]?.label;
+  if (evmLabel) return evmLabel;
   const labels = {
     mina: "Mina", ethereum: "Ethereum", polygon: "Polygon", bsc: "BNB Smart Chain",
     solana: "Solana", zksync: "zkSync Era", optimism: "Optimism", arbitrum: "Arbitrum",
@@ -7137,11 +7398,11 @@ function initializeNodeExplorerMenuDismissal() {
 }
 
 function getChainIconPath(chain) {
-  return chain === "bitcoin" ? "img/bitcoin.svg" : `img/${chain}.png`;
+  if (["bitcoin", "avalanche", "linea", "scroll"].includes(chain)) return `img/${chain}.svg`;
+  return `img/${chain}.png`;
 }
 
 function getCompatibleChainsForNode(node) {
-  const evmChains = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "cronos", "base"];
   const isEvmAddress = /^0x[a-fA-F0-9]{40}$/.test(node);
   const isTezosAddress = /^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(node);
   const isMinaAddress = /^B62[a-zA-Z0-9]{52}$/.test(node);
@@ -7153,7 +7414,7 @@ function getCompatibleChainsForNode(node) {
   if (isMinaAddress) return ["mina"];
   if (isTezosAddress) return ["tezos"];
   if (isSolanaAddress) return ["solana"];
-  if (isEvmAddress) return evmChains;
+  if (isEvmAddress) return EVM_CHAINS;
   return [];
 }
 
@@ -7161,9 +7422,7 @@ function areAllCompatibleNetworksFetched(node) {
   const compatibleChains = getCompatibleChainsForNode(node);
   if (compatibleChains.length === 0) return false;
   return compatibleChains.every(chain => {
-    const normalizedNode = ["ethereum", "polygon", "bsc", "zksync", "optimism", "arbitrum", "base"].includes(chain)
-      ? node.toLowerCase()
-      : node;
+    const normalizedNode = normalizeAddressForChain(node, chain);
     return visitedKeysByChain.get(chain)?.has(normalizedNode) === true;
   });
 }
@@ -8706,10 +8965,10 @@ function showFavoritesAddressesModal() {
     addressInput.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";
 
     const chainSelect = document.createElement("select");
-    ["ethereum", "polygon", "bsc", "solana", "mina", "tezos"].forEach(chain => {
+    [...EVM_CHAINS, "solana", "mina", "tezos", "bitcoin"].forEach(chain => {
       const opt = document.createElement("option");
       opt.value = chain;
-      opt.textContent = chain;
+      opt.textContent = getExplorerChainLabel(chain);
       chainSelect.appendChild(opt);
     });
     chainSelect.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";

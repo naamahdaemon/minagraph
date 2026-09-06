@@ -20,9 +20,15 @@ const functions = names.map(name => {
 }).join("\n");
 const assets = source.match(/const NATIVE_ASSET_BY_CHAIN = Object\.freeze\(\{[^]*?\n\}\);/)?.[0];
 assert.ok(assets, "native asset map should exist");
+const evmConfig = source.match(/const EVM_CHAIN_CONFIG = Object\.freeze\(\{[^]*?\n\}\);/)?.[0];
+const evmChains = source.match(/const EVM_CHAINS = Object\.freeze\([^;]+;/)?.[0];
+const alchemyEvmChains = source.match(/const ALCHEMY_EVM_CHAINS = Object\.freeze\([^;]+;/)?.[0];
+const isEvmChain = source.match(/function isEvmChain\([^]*?\n\}/)?.[0];
+const isAlchemyEvmChain = source.match(/function isAlchemyEvmChain\([^]*?\n\}/)?.[0];
+assert.ok(evmConfig && evmChains && alchemyEvmChains && isEvmChain && isAlchemyEvmChain, "shared EVM chain configuration should exist");
 
 const context = {};
-vm.runInNewContext(`${functions}\n${assets}\nresult = summarizeNativeMovements;`, context);
+vm.runInNewContext(`${evmConfig}\n${evmChains}\n${alchemyEvmChains}\n${isEvmChain}\n${isAlchemyEvmChain}\n${functions}\n${assets}\nresult = summarizeNativeMovements;`, context);
 const summarize = context.result;
 const evmNode = "0x1111111111111111111111111111111111111111";
 const otherEvm = "0x2222222222222222222222222222222222222222";
