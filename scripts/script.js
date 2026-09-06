@@ -5103,6 +5103,56 @@ function deleteSelectedNode(nodeId) {
   renderer.refresh();
 }
 
+function renderTransactionDeleteButton(edgeId) {
+  const encodedEdgeId = encodeURIComponent(String(edgeId)).replaceAll("'", "%27");
+  return `<button class="transaction-delete-button" type="button"
+    onclick="deleteTransactionFromGraph('${encodedEdgeId}'); return false;"
+    aria-label="Delete this transfer from the graph" title="Delete this transfer from the graph">&times;</button>`;
+}
+
+function renderTransactionActionHeader() {
+  return `<th class="transaction-action-column" aria-label="Delete transfer">
+    <span class="transaction-action-header" aria-hidden="true">&times;</span>
+  </th>`;
+}
+
+function deleteTransactionFromGraph(encodedEdgeId) {
+  let edgeId;
+  try {
+    edgeId = decodeURIComponent(encodedEdgeId);
+  } catch (_) {
+    edgeId = String(encodedEdgeId || "");
+  }
+  if (!graph?.hasEdge(edgeId)) return;
+
+  if (isLayoutRunning) {
+    stopLayoutInWorker();
+    isLayoutRunning = false;
+    setLayoutUiState("stopped");
+  }
+
+  const source = graph.source(edgeId);
+  const target = graph.target(edgeId);
+  graph.dropEdge(edgeId);
+
+  [source, target].forEach(nodeId => {
+    if (!graph.hasNode(nodeId) || graph.degree(nodeId) > 0) return;
+    if (selectedNode === nodeId) selectedNode = null;
+    if (hoveredNode === nodeId) hoveredNode = null;
+    graph.dropNode(nodeId);
+  });
+
+  rebuildTransactionsByNeighbor();
+  rebuildEdgeVisualSizes();
+
+  if (selectedNode && graph.hasNode(selectedNode)) {
+    showNodePanel(selectedNode, false);
+  } else {
+    setNodePanelOpen(false);
+  }
+  renderer.refresh();
+}
+
 function updateProgressBar(step, max) {
   const bar = document.getElementById("progress-bar");
   const text = document.getElementById("progress-text");
@@ -5846,6 +5896,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
     const target = graph.target(edge);
     const linkedNode = source === node ? target : source;
     return {
+      edge,
       tx: graph.getEdgeAttributes(edge),
       linkedNode,
       linkedNodeLabel: graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode
@@ -5858,6 +5909,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
       <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
         <thead>
           <tr>
+            ${renderTransactionActionHeader()}
             ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
             ${renderSortableTransactionHeader("linkedNode", "Linked Node", "left")}
             ${renderSortableTransactionHeader("blockchain", "Chain")}
@@ -5869,7 +5921,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
           </tr>
         </thead>
         <tbody>
-          ${renderedOperations.map(({ tx, linkedNode }) => {
+          ${renderedOperations.map(({ edge, tx, linkedNode }) => {
             const linkedLabel = graph.hasNode(linkedNode) ? graph.getNodeAttribute(linkedNode, "label") : linkedNode;
             const transactionLink = tx.hash
               ? getExplorerURL("transaction", tx.hash, tx.blockchain)
@@ -5881,6 +5933,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
               : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain));
             return `
               <tr ${getTransactionMemoAttributes(tx.memo)}>
+                <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
                 <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
                 <td>
                   <a href="#" onclick="showNodePanel('${linkedNode}'); return false;" style="color:#4fc3f7; text-decoration:none;">
@@ -6069,6 +6122,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
           <table style="width:100%; border-collapse: collapse; font-size: 8px; margin-bottom: 20px;">
             <thead>
               <tr>
+                ${renderTransactionActionHeader()}
                 ${renderSortableTransactionHeader("blockchain", "Chain")}
                 ${renderSortableTransactionHeader("timestamp", "Timestamp", "left")}
                 ${renderSortableTransactionHeader("block", "Block")}
@@ -6080,10 +6134,11 @@ function showNodePanel(node, refreshExternalStatus = true) {
               </tr>
             </thead>
             <tbody>
-              ${sortedInteractions.map(tx => {
+              ${sortNodeTransactions(directEdges.map(edge => ({ edge, tx: graph.getEdgeAttributes(edge) })), node).map(({ edge, tx }) => {
                   const isAlchemyChain = (chain) => isAlchemyEvmChain(chain);
                 return `
                 <tr ${getTransactionMemoAttributes(tx.memo)}>
+                  <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
                   <td>
@@ -6120,6 +6175,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                 </tr>
                   ${tx.label === "token_transfer" || tx.label === "nft_transfer" ? `
                   <tr style="opacity: 0.7;">
+                    <td class="transaction-action-column"></td>
                     <td colspan="2" style="text-align: right;">
                       Receiver: ${(tx.token_receiver ? `${tx.token_receiver.slice(0,6)}...${tx.token_receiver.slice(-6)}` : "unknown")}
                     </td>

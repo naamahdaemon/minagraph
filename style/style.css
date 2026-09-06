@@ -1191,6 +1191,81 @@
       outline-offset: 2px;
     }
 
+    .transaction-delete-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--node-panel-muted);
+      cursor: pointer;
+      font-size: 0;
+      touch-action: manipulation;
+      transform: translate(-50%, -50%);
+    }
+
+    .transaction-delete-button:hover,
+    .transaction-delete-button:focus-visible {
+      background: rgba(229, 57, 53, 0.16);
+      color: #ef5350;
+      outline: none;
+    }
+
+    .transaction-delete-button::before,
+    .transaction-delete-button::after,
+    .transaction-action-header::before,
+    .transaction-action-header::after {
+      position: absolute;
+      width: 11px;
+      height: 1.5px;
+      border-radius: 1px;
+      background: currentColor;
+      content: "";
+    }
+
+    .transaction-delete-button::before,
+    .transaction-action-header::before {
+      transform: rotate(45deg);
+    }
+
+    .transaction-delete-button::after,
+    .transaction-action-header::after {
+      transform: rotate(-45deg);
+    }
+
+    #node-details .mono th.transaction-action-column,
+    #node-details .mono td.transaction-action-column {
+      position: relative;
+      box-sizing: border-box;
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      padding: 5px 4px;
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    .transaction-action-header {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 30px;
+      color: var(--node-panel-muted);
+      font-size: 0;
+      transform: translate(-50%, -50%);
+    }
+
     .node-key {
       margin: 0 0 14px;
       padding: 10px 12px;
