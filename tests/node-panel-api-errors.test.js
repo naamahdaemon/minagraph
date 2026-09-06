@@ -31,7 +31,7 @@ assert.match(script, /dateSlicer\.classList\.toggle\("on-left", fitsBesidePanel\
 assert.match(css, /right: var\(--node-panel-offset, 530px\) !important;/);
 assert.match(script, /function hideNodePanel\(options = \{\}\)/);
 assert.match(script, /class="chain-fetch-icon\$\{chain === "bitcoin" \? " chain-fetch-icon--bitcoin" : ""\}"/);
-assert.match(script, /return chain === "bitcoin" \? "img\/bitcoin\.svg" : `img\/\$\{chain\}\.png`/);
+assert.match(script, /\["bitcoin", "avalanche", "linea", "scroll"\]\.includes\(chain\).*`img\/\$\{chain\}\.svg`/);
 assert.match(css, /\.chain-fetch-icon\s*\{[\s\S]*?background: #050505;/);
 assert.match(css, /body\[data-theme="dark"\] \.chain-fetch-icon--bitcoin\s*\{[\s\S]*?background: #050505;/);
 assert.match(css, /body\[data-theme="light"\] \.chain-fetch-icon--bitcoin\s*\{[\s\S]*?background: #fff;/);
@@ -100,7 +100,7 @@ assert.equal(context.result(new Error('Network failure')), null);
 assert.match(script, /Reduce the number of nodes or transactions requested, wait a few minutes, then try again\./);
 assert.match(script, /await assertApiResponse\(res, "Minataur API"\)/);
 assert.match(script, /assertApiResponse\(toRes, `Alchemy \$\{blockchain\} transfers`\)/);
-assert.match(script, /await assertApiResponse\(receiptRes, `Alchemy \$\{blockchain\} transaction receipt`\)/);
+assert.match(script, /callAlchemyRpc\(\s*url, apiKeyHeader, "eth_getTransactionReceipt", \[hash\]/);
 assert.match(script, /if \(!receiptData \|\| receiptData\.from == null \|\| receiptData\.to == null\)/);
 assert.doesNotMatch(script, /receiptData\.from == null \|\| receiptData\.to == null \|\| true/);
 assert.match(script, /await assertApiResponse\(txRes, "TzKT transactions API"\)/);
