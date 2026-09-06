@@ -7075,7 +7075,8 @@ function renderNodeExplorerTitle(node, data) {
     <summary title="Choose a blockchain explorer">${data.label}<span aria-hidden="true">▾</span></summary>
     <div class="node-explorer-options" role="menu">
       ${chains.map(chain => `<a href="${getExplorerURL("account", node, chain)}" target="_blank" rel="noopener noreferrer"
-        role="menuitem"><img src="${getChainIconPath(chain)}" alt="">${getExplorerChainLabel(chain)}</a>`).join("")}
+        role="menuitem"><img class="node-explorer-chain-icon node-explorer-chain-icon--${chain}"
+        src="${getChainIconPath(chain)}" alt="">${getExplorerChainLabel(chain)}</a>`).join("")}
     </div>
   </details>`;
 }
