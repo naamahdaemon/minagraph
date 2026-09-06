@@ -36,6 +36,9 @@ for (const [chain, config] of Object.entries(expected)) {
   assert.match(html, new RegExp(`class="legend-chain" data-chain="${chain}"`), `${chain} should be filterable`);
   assert.match(worker, new RegExp(`/img/${chain}\\.svg`), `${chain} icon should be available offline`);
   assert.ok(fs.existsSync(path.join(root, "img", `${chain}.svg`)), `${chain} icon should exist`);
+  const icon = fs.readFileSync(path.join(root, "img", `${chain}.svg`), "utf8");
+  assert.equal((icon.match(/<rect /g) || []).length, 2, `${chain} icon should use the shared double frame`);
+  assert.match(icon, /fill="#050505" stroke="#fff"/, `${chain} icon frame should remain legible in both themes`);
 }
 
 assert.match(source, /const EVM_CHAINS = Object\.freeze\(Object\.keys\(EVM_CHAIN_CONFIG\)\)/);
