@@ -2744,6 +2744,9 @@
     padding: 7px 9px;
     border-radius: 6px;
     color: var(--node-panel-text);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.25;
     text-decoration: none;
   }
 
@@ -2753,12 +2756,25 @@
     outline: 1px solid rgba(79, 195, 247, 0.65);
   }
 
-  .node-explorer-options img {
+  .node-explorer-chain-icon {
     width: 22px;
     height: 22px;
     flex: 0 0 22px;
+    padding: 2px;
+    border: 1px solid transparent;
     border-radius: 5px;
+    box-sizing: border-box;
     object-fit: contain;
+  }
+
+  body[data-theme="dark"] .node-explorer-chain-icon {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: #050505;
+  }
+
+  body[data-theme="light"] .node-explorer-chain-icon {
+    border-color: rgba(0, 0, 0, 0.35);
+    background: #17191c;
   }
 
   .native-movement-row > div {
