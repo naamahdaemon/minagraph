@@ -28,6 +28,17 @@ assert.match(source, /Showing \$\{shown\.toLocaleString\(\)\} of \$\{total\.toLo
 assert.match(source, /renderNodeTransactionLoadMore\(visibleEdges\.length\)/);
 assert.doesNotMatch(source, /console\.log\("Tx Hash:/);
 assert.match(source, /Linked Node/);
+assert.match(source, /function deleteTransactionFromGraph\(encodedEdgeId\)/);
+assert.match(source, /graph\.dropEdge\(edgeId\)/);
+assert.match(source, /graph\.degree\(nodeId\) > 0/);
+assert.match(source, /renderTransactionDeleteButton\(edge\)/);
+assert.match(source, /function renderTransactionActionHeader\(nodeId\)/);
+assert.match(source, /function deleteNodeFromTransactionHeader\(encodedNodeId\)/);
+assert.match(source, /if \(panelNode && graph\.hasNode\(panelNode\)\) showNodePanel\(panelNode, false\)/);
+assert.match(source, /renderTransactionActionHeader\(node\)/);
+assert.match(source, /renderTransactionActionHeader\(n\)/);
+assert.match(source, /<tr \$\{getTransactionMemoAttributes\(tx\.memo\)\}>\s*<td class="transaction-action-column">\$\{renderTransactionDeleteButton\(edge\)\}<\/td>/);
+assert.match(css, /\.transaction-delete-button\s*\{/);
 assert.match(html, /id="transaction-memo-popup"[\s\S]*?id="transaction-memo-content"/);
 assert.match(source, /function setupTransactionMemoTouch\(\)/);
 assert.match(source, /event\.pointerType !== "touch"/);
