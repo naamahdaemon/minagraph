@@ -5998,6 +5998,13 @@ function setupTransactionMemoTouch() {
   details.addEventListener("pointerdown", event => {
     if (event.pointerType !== "touch") return;
     if (dismissingPointerId === event.pointerId) return;
+    // Interactive content embedded in a memo-enabled cell keeps its native
+    // action. Opening the modal on pointerup would otherwise cover the target
+    // before the synthetic click can navigate (notably Mina token links).
+    if (event.target.closest("a, button, input, select, textarea, [role='button']")) {
+      touchStart = null;
+      return;
+    }
     const cell = event.target.closest(".transaction-memo-trigger");
     touchStart = cell
       ? { cell, pointerId: event.pointerId, x: event.clientX, y: event.clientY }
