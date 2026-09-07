@@ -46,6 +46,7 @@ assert.match(css, /\.transaction-delete-button\s*\{/);
 assert.match(html, /id="transaction-memo-popup"[\s\S]*?id="transaction-memo-content"/);
 assert.match(source, /function setupTransactionMemoTouch\(\)/);
 assert.match(source, /event\.pointerType !== "touch"/);
+assert.match(source, /event\.target\.closest\("a, button, input, select, textarea, \[role='button'\]"\)/);
 assert.match(source, /\.transaction-memo-trigger/);
 assert.match(source, /Math\.hypot\(event\.clientX - x, event\.clientY - y\) > 10/);
 assert.match(source, /document\.addEventListener\("pointerdown"[\s\S]*?closeTransactionMemoPopup\(\);[\s\S]*?}, true\);/);
