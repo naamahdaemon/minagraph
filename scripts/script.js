@@ -193,8 +193,10 @@ const commandTypeAliases = {
   payment: ["payment", "transfer"],
   zkapp: ["zkapp", "contract_call","contract_creation"],
   delegation: ["delegation","stake","delegate"],
-  token_transfer: ["token_transfer", "nft_transfer"],
+  token_transfer: ["token_transfer", "nft_transfer", "token_mint", "token_burn"],
 };  
+const TOKEN_MOVEMENT_TYPES = Object.freeze(commandTypeAliases.token_transfer);
+const isTokenMovement = command => TOKEN_MOVEMENT_TYPES.includes(command);
 // Reverse map: actual command types → legend alias(es)
 const expandedCommandTypeFilter = () => {
   const expanded = new Set();
@@ -4980,7 +4982,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
       ? `${txChain}:${tx.transfer_id}`
       : `${txChain}:${tx.hash}-${tx.command_type}-${sender}-${receiver}-${tx.token_contract || "native"}-${tx.token_id ?? tx.nonce ?? ""}`;
     const edgeColor =
-        tx.command_type === "token_transfer" || tx.command_type === "nft_transfer"
+        isTokenMovement(tx.command_type)
         ? "#f9a825" // 🟨 Dark Yellow for token transfers
         : tx.status === "applied"
           ? "#ccc"  // Light grey for normal applied tx
@@ -5500,8 +5502,8 @@ function getEdgeRelationKey(source, target) {
 function getEdgeAssetKey(attributes) {
   const chain = attributes.blockchain || "unknown";
   const command = attributes.command_type || attributes.label;
-  if (["token_transfer", "nft_transfer"].includes(command)) {
-    const token = attributes.token_contract || attributes.token_name || "unknown-token";
+  if (isTokenMovement(command)) {
+    const token = attributes.token_contract || attributes.token_id || attributes.token_name || "unknown-token";
     return `${chain}:token:${String(token).toLowerCase()}`;
   }
   return `${chain}:native`;
@@ -5509,7 +5511,7 @@ function getEdgeAssetKey(attributes) {
 
 function getEdgeTransferredAmount(attributes) {
   const command = attributes.command_type || attributes.label;
-  if (["token_transfer", "nft_transfer"].includes(command)) {
+  if (isTokenMovement(command)) {
     return getSortableNodeTransactionAmount(attributes, "token_amount");
   }
   // Contract values are execution fields, not necessarily asset movements.
@@ -5592,6 +5594,8 @@ function addressesMatchForTransaction(left, right) {
 function getNodeTransactionDirection(tx, node) {
   const isSender = addressesMatchForTransaction(tx.sender_key, node);
   const isReceiver = addressesMatchForTransaction(tx.receiver_key || tx.token_receiver, node);
+  if (tx.label === "token_mint") return isReceiver ? 1 : null;
+  if (tx.label === "token_burn") return isSender ? -1 : null;
   if (isSender && isReceiver) return 0;
   if (isSender) return -1;
   if (isReceiver) return 1;
@@ -5618,7 +5622,7 @@ function getTokenExplorerURL(tx) {
 
 function renderSignedNodeTransactionAmount(tx, node) {
   const amount = formatSignedNodeTransactionAmount(tx, node);
-  if (!["token_transfer", "nft_transfer"].includes(tx.label)) return amount;
+  if (!isTokenMovement(tx.label)) return amount;
   const tokenLink = getTokenExplorerURL(tx);
   return tokenLink
     ? `<a href="${tokenLink}" target="_blank" rel="noopener noreferrer" style="color:#f9a825; text-decoration:none;">${amount}</a>`
@@ -5902,7 +5906,7 @@ function getNodeTransactionSortValue(item, column, node) {
     case "amount": {
       const amount = getSortableNodeTransactionAmount(
         tx,
-        ["token_transfer", "nft_transfer"].includes(tx.label) ? "token_amount" : "amount"
+        isTokenMovement(tx.label) ? "token_amount" : "amount"
       );
       const direction = getNodeTransactionDirection(tx, node);
       return direction === null ? amount : amount * direction;
@@ -5927,7 +5931,7 @@ function sortNodeTransactions(items, node) {
 
 function formatNodeTransactionAmount(tx) {
   const isAlchemyChain = isAlchemyEvmChain(tx.blockchain);
-  if (!["token_transfer", "nft_transfer"].includes(tx.label)) {
+  if (!isTokenMovement(tx.label)) {
     return isAlchemyChain
       ? parseFloat(tx.amount || 0).toFixed(2)
       : formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain));
@@ -6144,7 +6148,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
         else if (attr.command_type === "stake" || attr.command_type === "delegate") del++;
         else if (attr.command_type === "payment" || attr.command_type === "transfer") tx++;
         else if (attr.command_type === "contract_call" || attr.command_type === "zkapp" || attr.command_type === "contract_creation") sc++;
-        else if (attr.command_type === "token_transfer" || attr.command_type === "nft_transfer") tt++;
+        else if (isTokenMovement(attr.command_type)) tt++;
   });
 
 
@@ -6297,7 +6301,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                   </td>                    
                   <td>
                     ${(() => {
-                        const isTokenTransfer = ["token_transfer", "nft_transfer"].includes(tx.label);
+                        const isTokenTransfer = isTokenMovement(tx.label);
                       //const link = isTokenTransfer
                       //  ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
                       //  : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
@@ -6319,7 +6323,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                          : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.status || "-"}</td>
                 </tr>
-                  ${tx.label === "token_transfer" || tx.label === "nft_transfer" ? `
+                  ${isTokenMovement(tx.label) ? `
                   <tr style="opacity: 0.7;">
                     <td class="transaction-action-column"></td>
                     <td colspan="2" style="text-align: right;">
@@ -6657,6 +6661,8 @@ function setupReducers() {
       case "contract_call": baseColor = "#ff57c1"; break;
       case "contract_creation": baseColor = "#ff57c1"; break;
       case "token_transfer": baseColor = "#f9a825"; break;
+      case "token_mint": baseColor = "#f9a825"; break;
+      case "token_burn": baseColor = "#f9a825"; break;
       case "nft_transfer": baseColor = "#f9a825"; break;
     }
 
