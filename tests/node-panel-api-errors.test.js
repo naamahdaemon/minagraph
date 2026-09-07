@@ -31,6 +31,8 @@ assert.match(script, /dateSlicer\.classList\.toggle\("on-left", fitsBesidePanel\
 assert.match(css, /right: var\(--node-panel-offset, 530px\) !important;/);
 assert.match(script, /function hideNodePanel\(options = \{\}\)/);
 assert.match(script, /class="chain-fetch-icon\$\{chain === "bitcoin" \? " chain-fetch-icon--bitcoin" : ""\}"/);
+assert.match(script, /chain === "mina-devnet"[\s\S]*?chain-fetch-testnet-badge/);
+assert.match(css, /\.chain-fetch-testnet-badge\s*\{[\s\S]*?background: #d32f2f;/);
 assert.match(script, /\["bitcoin", "avalanche", "linea", "scroll"\]\.includes\(chain\).*`img\/\$\{chain\}\.svg`/);
 assert.match(css, /\.chain-fetch-icon\s*\{[\s\S]*?background: #050505;/);
 assert.match(css, /body\[data-theme="dark"\] \.chain-fetch-icon--bitcoin\s*\{[\s\S]*?background: #050505;/);
