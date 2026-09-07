@@ -203,6 +203,8 @@
     const isCancelled = options?.isCancelled || (() => false);
     const collected = [];
     const seen = new Set();
+    const sourceTransactionLimit = Math.max(1, Number(limit) || 10);
+    let sourceTransactionsRead = 0;
     let offset = 0;
     let pageCount = 0;
 
@@ -210,12 +212,14 @@
     // be smaller than the returned result set). Follow next_offset instead and
     // process every page exactly once.
     while (!isCancelled() && pageCount < MAX_PAGES) {
-      const pageLimit = PAGE_SIZE;
+      const pageLimit = Math.min(PAGE_SIZE, sourceTransactionLimit - sourceTransactionsRead);
+      if (pageLimit <= 0) break;
       const response = await request("/search/transactions", {
         network_identifier: NETWORK_IDENTIFIER, address, limit: pageLimit, offset
       });
       const page = Array.isArray(response?.transactions) ? response.transactions : [];
       if (!page.length) break;
+      sourceTransactionsRead += page.length;
 
       const blockKeys = [...new Map(page.map(entry => {
         const block = entry.block_identifier || {};
@@ -243,6 +247,7 @@
         }
       }
 
+      if (sourceTransactionsRead >= sourceTransactionLimit) break;
       const nextOffset = Number(response?.next_offset);
       if (!Number.isFinite(nextOffset) || nextOffset <= offset) break;
       offset = nextOffset;
