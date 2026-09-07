@@ -9,6 +9,9 @@ let FETCH_START_TIMESTAMP = null;
 let FETCH_END_TIMESTAMP = null;
 const fetchBlockRangeCache = new Map();
 const alchemyBlockTimestampCache = new Map();
+const minaRosettaBlockTimestampCache = new Map();
+const MINA_ROSETTA_PROXY_KEY = "755beb7f-24bc-4ead-924c-031e89af6d89";
+const MINA_DEVNET_ROSETTA_URL = "https://devnet-rosetta.naamahdaemon.eu";
 const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
@@ -114,6 +117,7 @@ function normalizeAddressForChain(address, chain) {
 
 const delayByBlockchain = {
   mina: 0,
+  "mina-devnet": 0,
   ethereum: 300,
   zksync: 300,
   optimism: 300,
@@ -2123,6 +2127,7 @@ function getDecimalsForBlockchain(chain) {
   switch (chain) {
     case "solana":      
     case "mina":
+    case "mina-devnet":
       return 9;
     case "tezos": 
       return 6;
@@ -2196,6 +2201,7 @@ function getColorByDegree(degree, minDeg, maxDeg, chain) {
     tezos: [215, 100, 55],
     starknet: [260, 100, 55],
     mina: [180, 50, 45],
+    "mina-devnet": [174, 58, 54],
     bitcoin: [34, 93, 54],
     ...Object.fromEntries(EVM_CHAINS.map(chainName => [chainName, EVM_CHAIN_CONFIG[chainName].color]))
   };
@@ -2253,7 +2259,7 @@ function refreshNodeChainColors(fallbackChain = selectedBlockchain) {
   graph.forEachNode((node, data) => {
     const chains = getNodeChains(node, data);
     const dominantChain = getDominantNodeChain(node, data, fallbackChain);
-    const color = dominantChain === "mina"
+    const color = ["mina", "mina-devnet"].includes(dominantChain)
       ? getBrightColorByName(data.name || "noname")
       : getColorByDegree(graph.degree(node), minDegree, maxDegree, dominantChain);
     graph.setNodeAttribute(node, "chains", chains.length ? chains : [dominantChain]);
@@ -4263,6 +4269,49 @@ async function fetchMinaTransactions(publicKey, limit) {
   return collected.slice(0, limit);
 }
 
+async function requestMinaDevnetRosetta(path, body) {
+  const target = `${MINA_DEVNET_ROSETTA_URL}${path}`;
+  const response = await fetch(`https://www.akirion.com:4664/proxy?url=${encodeURIComponent(target)}`, {
+    method: "POST",
+    headers: { "x-api-key": MINA_ROSETTA_PROXY_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  await assertApiResponse(response, `Mina Devnet Rosetta ${path}`);
+  const json = await response.json();
+  if (json?.code !== undefined && json?.message) throw new Error(`Rosetta: ${json.message}`);
+  return json;
+}
+
+async function getMinaDevnetBlockTimestamp(blockIdentifier) {
+  const key = `${blockIdentifier?.index}:${blockIdentifier?.hash || ""}`;
+  if (!minaRosettaBlockTimestampCache.has(key)) {
+    const pending = requestMinaDevnetRosetta("/block", {
+      network_identifier: window.MinaRosettaAdapter.NETWORK_IDENTIFIER,
+      block_identifier: blockIdentifier
+    }).then(result => {
+      const timestamp = Number(result?.block?.timestamp);
+      if (!Number.isFinite(timestamp)) throw new Error(`Missing Rosetta timestamp for block ${blockIdentifier?.index}`);
+      return timestamp < 1e12 ? timestamp * 1000 : timestamp;
+    }).catch(error => {
+      minaRosettaBlockTimestampCache.delete(key);
+      throw error;
+    });
+    minaRosettaBlockTimestampCache.set(key, pending);
+  }
+  return minaRosettaBlockTimestampCache.get(key);
+}
+
+async function fetchMinaDevnetTransactions(publicKey, limit) {
+  if (!window.MinaRosettaAdapter) throw new Error("Mina Devnet Rosetta adapter is unavailable");
+  return window.MinaRosettaAdapter.fetchAddressTransactions(publicKey, limit, {
+    request: requestMinaDevnetRosetta,
+    getBlockTimestamp: getMinaDevnetBlockTimestamp,
+    fromTimestamp: FETCH_START_TIMESTAMP,
+    toTimestamp: FETCH_END_TIMESTAMP,
+    isCancelled: () => cancelRequested
+  });
+}
+
 
 
 async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockchain, delay = 0) {
@@ -4778,7 +4827,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
   let limit;
 
-  if (blockchain === "mina" || blockchain === "bitcoin") {
+  if (["mina", "mina-devnet", "bitcoin"].includes(blockchain)) {
     limit = (normalizedKey.toLowerCase() === BASE_KEY.toLowerCase())
       ? FIRST_ITERATION_LIMIT
       : LIMIT;
@@ -4817,6 +4866,9 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
             });
 
 
+        } else if (blockchain === "mina-devnet") {
+          console.log("Calling Mina Devnet Rosetta API");
+          transactions = await fetchMinaDevnetTransactions(normalizedKey, limit);
         } else if (blockchain === "bitcoin") {
           if (!window.BitcoinAdapter) throw new Error("Bitcoin adapter is unavailable");
           transactions = window.BitcoinAdapter.isBitcoinTxid(normalizedKey)
@@ -4950,6 +5002,8 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         token_amount: tx.token_amount,        
         token_name: tx.token_name,
         token_decimals: tx.token_decimals,
+        token_id: tx.token_id || null,
+        token_symbol: tx.token_symbol || null,
         transfer_id: tx.transfer_id || null,
         utxo_ambiguous: tx.utxo_ambiguous === true,
         color: edgeColor,
@@ -5549,6 +5603,7 @@ function formatSignedNodeTransactionAmount(tx, node) {
 
 const NATIVE_ASSET_BY_CHAIN = Object.freeze({
   mina: { symbol: "MINA", priceId: "mina-protocol" },
+  "mina-devnet": { symbol: "MINA", priceId: "mina-protocol" },
   solana: { symbol: "SOL", priceId: "solana" },
   tezos: { symbol: "XTZ", priceId: "tezos" },
   bitcoin: { symbol: "BTC", priceId: "bitcoin" },
@@ -5710,6 +5765,17 @@ async function fetchNativeAccountBalance(chain, address) {
       `https://api.tzkt.io/v1/accounts/${encodeURIComponent(address)}/balance`, {}, "TzKT balance API"
     );
     value = Number(data) / 1e6;
+  } else if (chain === "mina-devnet") {
+    if (!window.MinaRosettaAdapter) throw new Error("Mina Devnet Rosetta adapter is unavailable");
+    const data = await requestMinaDevnetRosetta("/account/balance", {
+      network_identifier: window.MinaRosettaAdapter.NETWORK_IDENTIFIER,
+      account_identifier: {
+        address,
+        metadata: { token_id: window.MinaRosettaAdapter.DEFAULT_TOKEN_ID }
+      }
+    });
+    const balance = (data?.balances || []).find(item => item?.currency?.symbol === "MINA") || data?.balances?.[0];
+    value = Number(balance?.value) / 1e9;
   } else {
     const rpcTargets = {
       solana: "https://solana-mainnet.g.alchemy.com/v2/",
@@ -5851,7 +5917,8 @@ function formatNodeTransactionAmount(tx) {
     ? BigInt(tx.token_amount).toString()
     : tx.token_amount.toString();
   const tokenInfo = getKnownTokenInfo(tx.token_contract);
-  const tokenLabel = tx.token_name || tx.token_symbol || tokenInfo?.symbol || "token";
+  const tokenLabel = tx.token_name || tx.token_symbol || tokenInfo?.symbol ||
+    (tx.token_id ? `Token ${String(tx.token_id).slice(0, 6)}…${String(tx.token_id).slice(-6)}` : "token");
   return `${formatTokenAmount(normalizedAmount, decimals)} ${tokenLabel}`;
 }
 
@@ -6072,8 +6139,11 @@ function showNodePanel(node, refreshExternalStatus = true) {
     const links = chainsToFetch.map(chain => `
       <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
          title="Fetch from ${capitalize(chain)}">
-        <img class="chain-fetch-icon${chain === "bitcoin" ? " chain-fetch-icon--bitcoin" : ""}"
-          src="${getChainIconPath(chain)}" alt="${chain} icon" />
+        <span class="chain-fetch-icon-wrap">
+          <img class="chain-fetch-icon${chain === "bitcoin" ? " chain-fetch-icon--bitcoin" : ""}"
+            src="${getChainIconPath(chain)}" alt="${chain} icon" />
+          ${chain === "mina-devnet" ? '<span class="chain-fetch-testnet-badge" aria-hidden="true">T</span>' : ''}
+        </span>
       </a>`).join("");
 
     fetchButtonsHTML = `
@@ -6257,7 +6327,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                         return formatTokenAmount(normalizedAmount, decimals);
                       })()} 
                       ${(() => {
-                        const tokenLink = tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#";
+                        const tokenLink = tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : null;
                         let tokenLabel = "UnknownToken";
 
                         if (tx.token_name) {
@@ -6268,14 +6338,16 @@ function showNodePanel(node, refreshExternalStatus = true) {
                             tokenLabel = tokenInfo.symbol;
                           } else if (tx.token_contract) {
                             tokenLabel = tx.token_contract.slice(0, 6) + "..." + tx.token_contract.slice(-6);
+                          } else if (tx.token_id) {
+                            tokenLabel = `Token ${String(tx.token_id).slice(0, 6)}…${String(tx.token_id).slice(-6)}`;
                           }
                         }
 
-                        return `
+                        return tokenLink ? `
                           <a href="${tokenLink}" target="_blank" rel="noopener noreferrer" style="color: #f9a825; text-decoration: none;">
                             ${tokenLabel} 🔗
                           </a>
-                        `;
+                        ` : `<span title="${tx.token_id || tokenLabel}" style="color: #f9a825;">${tokenLabel}</span>`;
                       })()}
                     </td>
                   </tr>` : ""}
@@ -6395,7 +6467,7 @@ function setupReducers() {
 
     if (node === window.initialPublicKey) {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
-    } else if (primaryChain === "mina") {
+    } else if (["mina", "mina-devnet"].includes(primaryChain)) {
       glowColor = getBrightColorByName(data.name || "noname");
     } else {
       glowColor = getColorByDegree(graph.degree(node), minDegree, maxDegree, primaryChain);
@@ -7387,6 +7459,11 @@ function getExplorerURL(type, value, blockchain) {
       transaction: (val) => `https://minascan.io/mainnet/tx/${val}/txInfo`,
       account: (val) => `https://minascan.io/mainnet/account/${val}`,
     },
+    "mina-devnet": {
+      block: (val) => `https://minascan.io/devnet/block/${val}/txs`,
+      transaction: (val) => `https://minascan.io/devnet/tx/${val}/txInfo`,
+      account: (val) => `https://minascan.io/devnet/account/${val}`,
+    },
     ethereum: {
       block: (val) => `https://etherscan.io/block/${val}`,
       transaction: (val) => `https://etherscan.io/tx/${val}`,
@@ -7457,7 +7534,7 @@ function getExplorerChainLabel(chain) {
   const evmLabel = EVM_CHAIN_CONFIG[String(chain || "").toLowerCase()]?.label;
   if (evmLabel) return evmLabel;
   const labels = {
-    mina: "Mina", ethereum: "Ethereum", polygon: "Polygon", bsc: "BNB Smart Chain",
+    mina: "Mina", "mina-devnet": "Mina Devnet", ethereum: "Ethereum", polygon: "Polygon", bsc: "BNB Smart Chain",
     solana: "Solana", zksync: "zkSync Era", optimism: "Optimism", arbitrum: "Arbitrum",
     cronos: "Cronos", tezos: "Tezos", starknet: "Starknet", base: "Base", bitcoin: "Bitcoin"
   };
@@ -7506,6 +7583,7 @@ function initializeNodeExplorerMenuDismissal() {
 }
 
 function getChainIconPath(chain) {
+  if (chain === "mina-devnet") return "img/mina.png";
   if (["bitcoin", "avalanche", "linea", "scroll"].includes(chain)) return `img/${chain}.svg`;
   return `img/${chain}.png`;
 }
@@ -7519,7 +7597,7 @@ function getCompatibleChainsForNode(node) {
     !isTezosAddress && !isMinaAddress && !isEvmAddress && !isBitcoinAddress;
 
   if (isBitcoinAddress) return ["bitcoin"];
-  if (isMinaAddress) return ["mina"];
+  if (isMinaAddress) return ["mina", "mina-devnet"];
   if (isTezosAddress) return ["tezos"];
   if (isSolanaAddress) return ["solana"];
   if (isEvmAddress) return EVM_CHAINS;
@@ -9073,7 +9151,7 @@ function showFavoritesAddressesModal() {
     addressInput.style.cssText = "width:100%;background:#1a1a1a;color:#fff;";
 
     const chainSelect = document.createElement("select");
-    [...EVM_CHAINS, "solana", "mina", "tezos", "bitcoin"].forEach(chain => {
+    [...EVM_CHAINS, "solana", "mina", "mina-devnet", "tezos", "bitcoin"].forEach(chain => {
       const opt = document.createElement("option");
       opt.value = chain;
       opt.textContent = getExplorerChainLabel(chain);
