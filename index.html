@@ -30,6 +30,7 @@
   <script src="./scripts/donations.js"></script>
   <script src="./scripts/walletconnect-donations.bundle.js"></script>
   <script src="./scripts/bitcoin-adapter.js"></script>
+  <script src="./scripts/mina-rosetta-adapter.js"></script>
 
   <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
@@ -136,7 +137,8 @@
         <div class="foldable-content open">      
           <label for="blockchain-select">Select Blockchain</label>
           <select id="blockchain-select" style="margin-bottom: 20px;">
-            <option value="mina" selected>Mina Protocol</option>
+             <option value="mina" selected>Mina Protocol</option>
+             <option value="mina-devnet">Mina Devnet</option>
             <option value="ethereum">Ethereum</option>
             <option value="polygon">Polygon</option>
             <option value="bsc">Binance Smart Chain</option>
@@ -911,6 +913,7 @@
     <div class="legend-toggle" data-target="#blockchain-types" style="cursor:pointer;"><em>▶ Blockchain</em></div>
     <div id="blockchain-types" style="display: none;">
       <div class="legend-chain" data-chain="mina" style="color:#009688;">● Mina</div>
+      <div class="legend-chain" data-chain="mina-devnet" style="color:#26a69a;">● Mina Devnet</div>
       <div class="legend-chain" data-chain="ethereum" style="color:#627eea;">● Ethereum</div>
       <div class="legend-chain" data-chain="polygon" style="color:#8247e5;">● Polygon</div>
       <div class="legend-chain" data-chain="bsc" style="color:#f0b90b;">● BSC</div>
