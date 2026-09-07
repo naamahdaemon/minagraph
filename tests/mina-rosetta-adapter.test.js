@@ -92,6 +92,25 @@ assert.equal(tokenTransfer.token_id, customTokenId);
 assert.equal(tokenTransfer.token_decimals, 9);
 assert.equal(tokenTransfer.token_symbol, "CUSTOM");
 
+const mintEntry = {
+  block_identifier: { index: 46, hash: "mint-block" },
+  transaction: {
+    transaction_identifier: { hash: "mint-hash" },
+    operations: [
+      { type: "zkapp_fee_payer_dec", status: "Success", account: { address: "real-fee-payer" }, amount: { value: "-10000000" } },
+      { type: "zkapp_balance_update", status: "Success", operation_identifier: { index: 1 }, account: { address: "mint-recipient", metadata: { token_id: customTokenId } }, amount: { value: "100000000000000", currency: { symbol: "MINA+", decimals: 9 } } }
+    ]
+  }
+};
+const mintResults = adapter.normalizeSearchTransaction(mintEntry, 1_700_000_400_000);
+const mint = mintResults.find(tx => tx.command_type === "token_mint");
+assert.ok(mint, "an unmatched custom-token credit must be represented as a mint");
+assert.equal(mint.sender_key, "real-fee-payer");
+assert.equal(mint.receiver_key, "mint-recipient");
+assert.equal(mint.token_amount, "100000000000000");
+assert.equal(mintResults.some(tx => tx.sender_key === "genesis" || tx.receiver_key === "genesis"), false,
+  "Mina token events must never create a fictitious genesis address");
+
 (async () => {
   const offsets = [];
   const transactions = await adapter.fetchAddressTransactions("wallet", 2, {

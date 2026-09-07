@@ -104,16 +104,16 @@
       let creditIndex = 0;
       let transferIndex = 0;
 
-      const emitTransfer = (sender, receiver, amount, operation) => {
+      const emitTokenMovement = (sender, receiver, amount, operation, commandType = "token_transfer") => {
         const currency = operation?.amount?.currency || {};
-        normalized.push(baseTransaction(entry, timestamp, sender, receiver, "token_transfer", "0", "0", {
-          token_receiver: receiver,
+        normalized.push(baseTransaction(entry, timestamp, sender, receiver, commandType, "0", "0", {
+          token_receiver: commandType === "token_burn" ? null : receiver,
           token_amount: amount.toString(),
           token_name: tokenLabel(currency, tokenId),
           token_symbol: String(currency.symbol || "").toUpperCase() === "MINA" ? null : (currency.symbol || null),
           token_decimals: Number.isFinite(Number(currency.decimals)) ? Number(currency.decimals) : 9,
           token_id: tokenId,
-          transfer_id: `${hash}:token:${tokenId}:${transferIndex++}`
+          transfer_id: `${hash}:${commandType}:${tokenId}:${transferIndex++}`
         }));
       };
 
@@ -121,7 +121,7 @@
         const debit = debits[debitIndex];
         const credit = credits[creditIndex];
         const amount = debit.remaining < credit.remaining ? debit.remaining : credit.remaining;
-        emitTransfer(debit.operation.account.address, credit.operation.account.address, amount, credit.operation);
+        emitTokenMovement(debit.operation.account.address, credit.operation.account.address, amount, credit.operation);
         debit.remaining -= amount;
         credit.remaining -= amount;
         if (debit.remaining === 0n) debitIndex++;
@@ -129,11 +129,15 @@
       }
       for (; debitIndex < debits.length; debitIndex++) {
         const debit = debits[debitIndex];
-        if (debit.remaining > 0n) emitTransfer(debit.operation.account.address, "genesis", debit.remaining, debit.operation);
+        if (debit.remaining > 0n && feePayer) {
+          emitTokenMovement(debit.operation.account.address, feePayer, debit.remaining, debit.operation, "token_burn");
+        }
       }
       for (; creditIndex < credits.length; creditIndex++) {
         const credit = credits[creditIndex];
-        if (credit.remaining > 0n) emitTransfer("genesis", credit.operation.account.address, credit.remaining, credit.operation);
+        if (credit.remaining > 0n && feePayer) {
+          emitTokenMovement(feePayer, credit.operation.account.address, credit.remaining, credit.operation, "token_mint");
+        }
       }
     }
     return normalized;
