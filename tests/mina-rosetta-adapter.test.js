@@ -101,7 +101,7 @@ assert.equal(tokenTransfer.token_symbol, "CUSTOM");
       assert.equal(body.account_identifier, undefined);
       offsets.push(body.offset);
       if (body.offset === 0) {
-        assert.equal(body.limit, 100);
+        assert.equal(body.limit, 2);
         return { total_count: 1, next_offset: 2, transactions: [paymentEntry] };
       }
       return { total_count: 12, transactions: [paymentEntry, delegationEntry] };
@@ -112,6 +112,29 @@ assert.equal(tokenTransfer.token_symbol, "CUSTOM");
   assert.equal(transactions.length, 2);
   assert.equal(transactions[0].hash, "delegation-hash");
   console.log("Mina Rosetta adapter tests passed");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+(async () => {
+  let calls = 0;
+  const page = Array.from({ length: 100 }, (_, index) => ({
+    ...paymentEntry,
+    transaction: {
+      ...paymentEntry.transaction,
+      transaction_identifier: { hash: `bounded-${index}` }
+    }
+  }));
+  await adapter.fetchAddressTransactions("busy-wallet", 100, {
+    request: async () => {
+      calls++;
+      if (calls > 1) throw new Error("next_offset must not be followed after reaching the requested limit");
+      return { total_count: 110, next_offset: 100, transactions: page };
+    },
+    getBlockTimestamp: async () => 1_700_000_000_000
+  });
+  assert.equal(calls, 1, "a full first page must satisfy a limit of 100");
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
