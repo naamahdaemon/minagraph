@@ -37,6 +37,8 @@ assert.match(script, /\["bitcoin", "avalanche", "linea", "scroll"\]\.includes\(c
 assert.match(css, /\.chain-fetch-icon\s*\{[\s\S]*?background: #050505;/);
 assert.match(css, /body\[data-theme="dark"\] \.chain-fetch-icon--bitcoin\s*\{[\s\S]*?background: #050505;/);
 assert.match(css, /body\[data-theme="light"\] \.chain-fetch-icon--bitcoin\s*\{[\s\S]*?background: #fff;/);
+assert.match(script, /function getTokenExplorerURL\(tx\)[\s\S]*?minascan\.io\/\$\{network\}\/token\/\$\{encodeURIComponent\(tx\.token_id\)\}\/zk-txs/);
+assert.match(script, /function renderSignedNodeTransactionAmount\(tx, node\)[\s\S]*?getTokenExplorerURL\(tx\)/);
 assert.match(script, /if \(previouslySelectedNode !== node\) details\.scrollTop = 0/);
 assert.match(script, /function summarizeNativeMovements\(transactions, node\)/);
 assert.match(script, /const nativeMovementSummary = includeBalanceRowsForVisibleChains\(/);

@@ -15,6 +15,11 @@ assert.match(script, /layout:[\s\S]*?iterations:[\s\S]*?width:[\s\S]*?height:/);
 assert.match(script, /navigator\.share\(\{/);
 assert.match(script, /navigator\.clipboard\?\.writeText/);
 assert.match(script, /applySharedLayoutParams\(sharedLayoutParams\)/);
+assert.match(script, /if \(param_chain && param_address\)[\s\S]*?selectedBlockchain = param_chain;/);
+assert.match(script, /if \(param_chain && param_address\)[\s\S]*?FIRST_ITERATION_LIMIT = parseInt/);
+assert.match(script, /if \(param_chain && param_address\)[\s\S]*?LIMIT = parseInt/);
+assert.match(script, /if \(param_chain && param_address\)[\s\S]*?DEPTH = parseInt/);
+assert.match(script, /main\(DEPTH, true, selectedBlockchain\)/);
 assert.doesNotMatch(script.slice(script.indexOf("function getGraphShareUrl"), script.indexOf("function setGraphShareStatus")), /api-token|API_TOKEN/);
 
 console.log("Graph sharing tests passed");

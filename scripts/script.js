@@ -1356,6 +1356,10 @@ document.addEventListener("DOMContentLoaded", () => {
   
   if (param_chain && param_address) {
     document.getElementById("blockchain-select").value = param_chain;
+    selectedBlockchain = param_chain;
+    localStorage.setItem("selectedBlockchain", param_chain);
+    API_TOKEN = getApiToken(param_chain) || "";
+    apiTokenInput.value = API_TOKEN;
     updateStartKeyPlaceholder(param_chain);
     document.getElementById("param-base-key").value = param_address;
 
@@ -1370,6 +1374,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (param_startDate) document.getElementById("param-start-date").value = param_startDate;
     if (param_endDate) document.getElementById("param-end-date").value = param_endDate;
+    FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);
+    LIMIT = parseInt(document.getElementById("param-limit").value, 10);
+    DEPTH = parseInt(document.getElementById("param-depth").value, 10);
     applySharedLayoutParams(sharedLayoutParams);
     syncFetchDateRangeFromInputs();
 
@@ -1377,7 +1384,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
       // Safer version: call main() directly
       BASE_KEY = param_address;
-      main(parseInt(param_depth || "2"), true, param_chain);
+      main(DEPTH, true, selectedBlockchain);
       history.replaceState(null, '', window.location.pathname);
     }, 600);
   } else {  
@@ -5601,6 +5608,23 @@ function formatSignedNodeTransactionAmount(tx, node) {
   return formattedAmount;
 }
 
+function getTokenExplorerURL(tx) {
+  if (tx?.token_id && ["mina", "mina-devnet"].includes(tx.blockchain)) {
+    const network = tx.blockchain === "mina-devnet" ? "devnet" : "mainnet";
+    return `https://minascan.io/${network}/token/${encodeURIComponent(tx.token_id)}/zk-txs`;
+  }
+  return tx?.token_contract ? getExplorerURL("account", tx.token_contract, tx.blockchain) : null;
+}
+
+function renderSignedNodeTransactionAmount(tx, node) {
+  const amount = formatSignedNodeTransactionAmount(tx, node);
+  if (!["token_transfer", "nft_transfer"].includes(tx.label)) return amount;
+  const tokenLink = getTokenExplorerURL(tx);
+  return tokenLink
+    ? `<a href="${tokenLink}" target="_blank" rel="noopener noreferrer" style="color:#f9a825; text-decoration:none;">${amount}</a>`
+    : amount;
+}
+
 const NATIVE_ASSET_BY_CHAIN = Object.freeze({
   mina: { symbol: "MINA", priceId: "mina-protocol" },
   "mina-devnet": { symbol: "MINA", priceId: "mina-protocol" },
@@ -6064,7 +6088,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
                   ? `<a href="${getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain)}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${tx.block_id || tx.block_hash}</a>`
                   : "-"}</td>
                 <td><a href="${transactionLink}" target="_blank" rel="noopener noreferrer" style="color:white; text-decoration:none;">${typeLabel}</a></td>
-                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatSignedNodeTransactionAmount(tx, node)}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${renderSignedNodeTransactionAmount(tx, node)}</td>
                 <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${fee}</td>
                 <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.status || "-"}</td>
               </tr>`;
@@ -6289,7 +6313,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                       `;
                     })()}
                   </td>
-                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatSignedNodeTransactionAmount(tx, node)}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${renderSignedNodeTransactionAmount(tx, node)}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${isAlchemyChain(tx.blockchain)
                          ? parseFloat(tx.fee || 0).toFixed(2)
                          : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
@@ -6327,7 +6351,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                         return formatTokenAmount(normalizedAmount, decimals);
                       })()} 
                       ${(() => {
-                        const tokenLink = tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : null;
+                        const tokenLink = getTokenExplorerURL(tx);
                         let tokenLabel = "UnknownToken";
 
                         if (tx.token_name) {
