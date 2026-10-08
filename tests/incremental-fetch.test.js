@@ -47,5 +47,12 @@ assert.match(fetchFunction, /visitedForChain\.add\(normalizedKey\)/);
 assert.match(source, /hasFetchProfile\(chain, normalizedKey, profileSignature\)/);
 assert.match(source, /buildGraphRecursively\(k, depth - 1, level \+ 1, chain, profileSignature\)/);
 assert.match(source, /fetchProfilesByChain\.clear\(\)/);
+assert.match(source, /let nodeFetchCoverageByChain = new Map\(\)/);
+assert.match(source, /function getNodeFetchCoverageSignature\(chain, limit\)/);
+assert.match(source, /addNodeFetchCoverage\([\s\S]*?getNodeFetchCoverageSignature\(chain, limit\)/);
+assert.match(source, /const chainsToFetch = compatibleChains\.filter\(chain =>/);
+assert.match(source, /return !hasNodeFetchCoverage\(chain, normalizedNode, coverageSignature\)/);
+assert.match(source, /nodeFetchCoverageByChain\.clear\(\)/);
+assert.match(source, /const refreshNodeFetchAvailability = \(\) =>/);
 
 console.log('Incremental fetch profile tests passed');

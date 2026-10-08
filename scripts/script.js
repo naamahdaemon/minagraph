@@ -17,6 +17,7 @@ const HEIGHT = 2000;
 const visitedKeys = new Set();
 let visitedKeysByChain = new Map();
 let fetchProfilesByChain = new Map();
+let nodeFetchCoverageByChain = new Map();
 const nameColorMap = new Map();
 let transactionsByNeighbor = {};
 
@@ -116,6 +117,35 @@ function removeFetchProfile(chain, normalizedKey, signature) {
   if (!signatures) return;
   signatures.delete(signature);
   if (signatures.size === 0) profiles.delete(normalizedKey);
+}
+
+function getNodeFetchCoverageSignature(chain, limit) {
+  return JSON.stringify({
+    chain,
+    limit: Math.max(1, Math.floor(Number(limit) || 1)),
+    startTimestamp: FETCH_START_TIMESTAMP,
+    endTimestamp: FETCH_END_TIMESTAMP
+  });
+}
+
+function getNodeFetchCoverageForChain(chain) {
+  if (!nodeFetchCoverageByChain.has(chain)) nodeFetchCoverageByChain.set(chain, new Map());
+  return nodeFetchCoverageByChain.get(chain);
+}
+
+function hasNodeFetchCoverage(chain, normalizedKey, signature) {
+  return getNodeFetchCoverageForChain(chain).get(normalizedKey)?.has(signature) === true;
+}
+
+function addNodeFetchCoverage(chain, normalizedKey, signature) {
+  const coverage = getNodeFetchCoverageForChain(chain);
+  if (!coverage.has(normalizedKey)) coverage.set(normalizedKey, new Set());
+  coverage.get(normalizedKey).add(signature);
+}
+
+function getRequestedNodeFetchLimit() {
+  const inputValue = document.getElementById("param-first-iteration")?.value;
+  return Math.max(1, Math.floor(Number(inputValue ?? FIRST_ITERATION_LIMIT) || 1));
 }
 
 let showAllLabels = true;
@@ -4993,6 +5023,11 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
         transactions = filterTransactionsByFetchDateRange(transactions);
 
         visitedForChain.add(normalizedKey);
+        addNodeFetchCoverage(
+          chain,
+          normalizedKey,
+          getNodeFetchCoverageSignature(chain, limit)
+        );
 
         console.log(transactions);
 
@@ -5446,7 +5481,7 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   const initialLimit = LIMIT;
   
   BASE_KEY = key;
-  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);;
+  FIRST_ITERATION_LIMIT = getRequestedNodeFetchLimit();
   LIMIT = 0;
   showOverlaySpinner(chain, FIRST_ITERATION_LIMIT);  // ⬅️ Show fullscreen spinner
   //showLoader();
@@ -6273,7 +6308,15 @@ function showNodePanel(node, refreshExternalStatus = true) {
 
   const compatibleChains = getCompatibleChainsForNode(node);
 
-  const chainsToFetch = compatibleChains;
+  const requestedNodeLimit = getRequestedNodeFetchLimit();
+  const chainsToFetch = compatibleChains.filter(chain => {
+    const normalizedNode = normalizeAddressForChain(node, chain);
+    const effectiveLimit = ["mina", "mina-devnet", "bitcoin"].includes(chain)
+      ? requestedNodeLimit
+      : Math.max(1, Math.floor(requestedNodeLimit / 2));
+    const coverageSignature = getNodeFetchCoverageSignature(chain, effectiveLimit);
+    return !hasNodeFetchCoverage(chain, normalizedNode, coverageSignature);
+  });
 
   let fetchButtonsHTML = "";
 
@@ -7308,6 +7351,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   if (wipeGraph) {
     visitedKeysByChain.clear();
     fetchProfilesByChain.clear();
+    nodeFetchCoverageByChain.clear();
   }
   
   const fetchChain = chainOverride || selectedBlockchain;
@@ -7849,6 +7893,9 @@ function loadFetchParams() {
 }
 
 function setupFetchParamListeners() {
+  const refreshNodeFetchAvailability = () => {
+    if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+  };
   document.getElementById("param-depth").addEventListener("input", e => {
     localStorage.setItem("param-depth", e.target.value);
   });
@@ -7857,14 +7904,17 @@ function setupFetchParamListeners() {
   });
   document.getElementById("param-first-iteration").addEventListener("input", e => {
     localStorage.setItem("param-first-iteration", e.target.value);
+    refreshNodeFetchAvailability();
   });
   document.getElementById("param-start-date").addEventListener("input", e => {
     localStorage.setItem("param-start-date", e.target.value);
     syncFetchDateRangeFromInputs();
+    refreshNodeFetchAvailability();
   });
   document.getElementById("param-end-date").addEventListener("input", e => {
     localStorage.setItem("param-end-date", e.target.value);
     syncFetchDateRangeFromInputs();
+    refreshNodeFetchAvailability();
   });
   document.querySelectorAll(".fetch-date-clear").forEach(button => {
     button.addEventListener("click", event => {
