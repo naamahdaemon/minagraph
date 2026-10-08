@@ -35,7 +35,7 @@ assert.match(source, /renderTransactionDeleteButton\(edge\)/);
 assert.match(source, /function renderTransactionActionHeader\(nodeId\)/);
 assert.match(source, /function deleteNodeFromTransactionHeader\(encodedNodeId\)/);
 assert.match(source, /function deleteVisibleNodeInteractions\(nodeId\)/);
-assert.match(source, /graph\.edges\(nodeId\)\.filter\(edge =>\s*edgeMatchesActiveView\(graph\.getEdgeAttributes\(edge\)\)\s*\)/);
+assert.match(source, /graph\.edges\(nodeId\)\.filter\(edge =>\s*graphEdgeMatchesActiveView\(edge, nodeId\)\s*\)/);
 assert.match(source, /visibleEdges\.forEach\(edge =>/);
 assert.match(source, /affectedNodes\.forEach\(affectedNode =>/);
 assert.match(source, /graph\.degree\(affectedNode\) > 0/);
