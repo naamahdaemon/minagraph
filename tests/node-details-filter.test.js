@@ -5,11 +5,13 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
 const helper = source.match(/function transactionMatchesActiveLegendFilters\(transaction\) \{[\s\S]*?\n\}/)?.[0];
-const activeViewHelper = source.match(/function edgeMatchesActiveView\(attributes\) \{[\s\S]*?\n\}/)?.[0];
+const directionHelper = source.match(/function edgeMatchesSelectedNodeDirection\(source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
+const activeViewHelper = source.match(/function edgeMatchesActiveView\(attributes, source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
 
 assert.ok(helper, 'Shared legend filter helper should exist');
+assert.ok(directionHelper, 'Shared selected-node direction helper should exist');
 assert.ok(activeViewHelper, 'Shared edge visibility helper should exist');
-assert.match(source, /graph\.edges\(node\)\.filter\(edge =>\s*edgeMatchesActiveView\(graph\.getEdgeAttributes\(edge\)\)/);
+assert.match(source, /graph\.edges\(node\)\.filter\(edge =>\s*graphEdgeMatchesActiveView\(edge, node\)/);
 assert.match(source, /function refreshLegendFilteredViews\(\)/);
 assert.match(source, /showNodePanel\(selectedNode, false\)/);
 
@@ -30,11 +32,21 @@ assert.equal(context.result({ command_type: 'payment', blockchain: 'mina' }), tr
 assert.equal(context.result({ command_type: 'payment', blockchain: 'ethereum' }), false);
 
 const activeViewContext = {
-  transactionMatchesActiveLegendFilters: () => true
+  transactionMatchesActiveLegendFilters: () => true,
+  selectedNode: 'selected',
+  selectedNodeDirectionFilter: 'all'
 };
-vm.runInNewContext(`${activeViewHelper}; result = edgeMatchesActiveView;`, activeViewContext);
-assert.equal(activeViewContext.result({ hidden: false, blockchain: 'avalanche' }), true);
-assert.equal(activeViewContext.result({ blockchain: 'linea' }), true);
-assert.equal(activeViewContext.result({ hidden: true, blockchain: 'scroll' }), false);
+vm.runInNewContext(`${directionHelper}; ${activeViewHelper}; result = edgeMatchesActiveView;`, activeViewContext);
+assert.equal(activeViewContext.result({ hidden: false, blockchain: 'avalanche' }, 'sender', 'selected'), true);
+assert.equal(activeViewContext.result({ blockchain: 'linea' }, 'selected', 'receiver'), true);
+assert.equal(activeViewContext.result({ hidden: true, blockchain: 'scroll' }, 'sender', 'selected'), false);
+
+activeViewContext.selectedNodeDirectionFilter = 'incoming';
+assert.equal(activeViewContext.result({ hidden: false }, 'sender', 'selected'), true);
+assert.equal(activeViewContext.result({ hidden: false }, 'selected', 'receiver'), false);
+
+activeViewContext.selectedNodeDirectionFilter = 'outgoing';
+assert.equal(activeViewContext.result({ hidden: false }, 'selected', 'receiver'), true);
+assert.equal(activeViewContext.result({ hidden: false }, 'sender', 'selected'), false);
 
 console.log('Node details legend filter tests passed');

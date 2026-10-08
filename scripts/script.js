@@ -72,6 +72,7 @@ let graph, renderer;
 let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
+let selectedNodeDirectionFilter = "all";
 let showNodeTransactionsChronologically = false;
 const NODE_TRANSACTION_PAGE_SIZE = 100;
 let nodeTransactionRenderLimit = NODE_TRANSACTION_PAGE_SIZE;
@@ -221,8 +222,62 @@ function transactionMatchesActiveLegendFilters(transaction) {
 // such as the renderer and the details panel must read that shared state rather
 // than independently reinterpreting the slider bounds, otherwise an edge can
 // remain visible on the graph while disappearing from the node details.
-function edgeMatchesActiveView(attributes) {
-  return attributes?.hidden !== true && transactionMatchesActiveLegendFilters(attributes);
+function edgeMatchesSelectedNodeDirection(source, target, referenceNode = selectedNode) {
+  if (!referenceNode || selectedNodeDirectionFilter === "all") return true;
+  if (selectedNodeDirectionFilter === "incoming") return target === referenceNode;
+  if (selectedNodeDirectionFilter === "outgoing") return source === referenceNode;
+  return true;
+}
+
+function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
+  return attributes?.hidden !== true &&
+    transactionMatchesActiveLegendFilters(attributes) &&
+    edgeMatchesSelectedNodeDirection(source, target, referenceNode);
+}
+
+function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
+  if (!graph?.hasEdge(edge)) return false;
+  return edgeMatchesActiveView(
+    graph.getEdgeAttributes(edge),
+    graph.source(edge),
+    graph.target(edge),
+    referenceNode
+  );
+}
+
+function nodeMatchesSelectedNodeDirection(node) {
+  if (!selectedNode || selectedNodeDirectionFilter === "all" || !graph?.hasNode(selectedNode)) return true;
+  if (node === selectedNode) return true;
+  return graph.edges(selectedNode).some(edge => {
+    if (!graphEdgeMatchesActiveView(edge)) return false;
+    return graph.source(edge) === node || graph.target(edge) === node;
+  });
+}
+
+function syncNodeDirectionFilterControls() {
+  const hasSelection = Boolean(selectedNode && graph?.hasNode(selectedNode));
+  if (!hasSelection) selectedNodeDirectionFilter = "all";
+  document.querySelectorAll("[data-node-direction]").forEach(button => {
+    const mode = button.dataset.nodeDirection;
+    const isActive = mode === selectedNodeDirectionFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+    button.disabled = !hasSelection && mode !== "all";
+  });
+  const hint = document.getElementById("node-direction-filter-hint");
+  if (hint) {
+    hint.textContent = hasSelection
+      ? "Show links relative to the selected node."
+      : "Select a node to enable incoming or outgoing links.";
+  }
+}
+
+function setSelectedNodeDirectionFilter(mode) {
+  if (!["all", "incoming", "outgoing"].includes(mode)) return;
+  if (mode !== "all" && (!selectedNode || !graph?.hasNode(selectedNode))) return;
+  selectedNodeDirectionFilter = mode;
+  syncNodeDirectionFilterControls();
+  refreshLegendFilteredViews();
 }
 
 function refreshLegendFilteredViews() {
@@ -1411,11 +1466,13 @@ document.addEventListener("DOMContentLoaded", () => {
         // Reset both filters
         commandTypeFilter.clear();
         chainFilter.clear();
+        selectedNodeDirectionFilter = "all";
         console.log("🔄 All filters reset");
 
         // Visually reset all items
         document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.legend-chain').forEach(el => el.classList.remove('active'));
+        syncNodeDirectionFilterControls();
 
         refreshLegendFilteredViews();
         return; // Exit early, no further processing needed for reset
@@ -1490,6 +1547,14 @@ document.addEventListener("DOMContentLoaded", () => {
     showAllLabels = e.target.checked;
     renderer.refresh();
   });
+
+  document.querySelectorAll('[data-node-direction]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      setSelectedNodeDirectionFilter(button.dataset.nodeDirection);
+    });
+  });
+  syncNodeDirectionFilterControls();
 
   document.getElementById("toggle-edge-directions").addEventListener("change", (e) => {
     showEdgeDirections = e.target.checked;
@@ -5171,6 +5236,7 @@ function deleteSelectedNode(nodeId) {
   });
 
   setNodePanelOpen(false);
+  syncNodeDirectionFilterControls();
   renderer.refresh();
 }
 
@@ -5211,7 +5277,7 @@ function deleteVisibleNodeInteractions(nodeId) {
   }
 
   const visibleEdges = graph.edges(nodeId).filter(edge =>
-    edgeMatchesActiveView(graph.getEdgeAttributes(edge))
+    graphEdgeMatchesActiveView(edge, nodeId)
   );
   const affectedNodes = new Set([nodeId]);
 
@@ -5533,7 +5599,7 @@ function rebuildEdgeVisualSizes() {
 
   const visibleEdges = [];
   graph.forEachEdge((edge, attributes, source, target) => {
-    if (!edgeMatchesActiveView(attributes)) return;
+    if (!edgeMatchesActiveView(attributes, source, target)) return;
     visibleEdges.push({ edge, attributes, relation: getEdgeRelationKey(source, target) });
   });
 
@@ -6125,7 +6191,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
   const visibleEdges = graph.edges(node).filter(edge =>
-    edgeMatchesActiveView(graph.getEdgeAttributes(edge))
+    graphEdgeMatchesActiveView(edge, node)
   );
   resetNodeTransactionPaginationIfNeeded(node);
   const neighbors = [...new Set(visibleEdges.map(edge => {
@@ -6154,6 +6220,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   setNodePanelOpen(true);
   
   selectedNode = node;
+  syncNodeDirectionFilterControls();
 
   let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
   visibleEdges.forEach(edge => {
@@ -6485,6 +6552,7 @@ function setupReducers() {
   
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
+    if (!nodeMatchesSelectedNodeDirection(node)) return { ...data, hidden: true };
 
     const focusCandidate = hoveredNode || selectedNode;
     const focusNode = focusCandidate && graph.hasNode(focusCandidate) ? focusCandidate : null;
@@ -6691,6 +6759,7 @@ function setupReducers() {
         zIndex: 0
       };
 
+    if (!edgeMatchesSelectedNodeDirection(source, target)) return { ...data, hidden: true };
     if (!transactionMatchesActiveLegendFilters(data)) return fadedStyle;
 
     if (focusNode) {
@@ -6848,6 +6917,7 @@ function setupInteractions() {
       } else {
         setNodePanelOpen(false);
         selectedNode = node;
+        syncNodeDirectionFilterControls();
       }
       renderer.refresh();
       return;
@@ -6993,6 +7063,7 @@ function setupSearch_old() {
   clearBtn.addEventListener("click", () => {
     searchInput.value = "";
     selectedNode = null;
+    syncNodeDirectionFilterControls();
     clearBtn.style.display = "none";
     setNodePanelOpen(false);
     renderer.refresh();
@@ -8620,6 +8691,8 @@ function applyDateFilter() {
 function hideNodePanel(options = {}) {
   setNodePanelOpen(false, options);
   selectedNode = null;
+  selectedNodeDirectionFilter = "all";
+  syncNodeDirectionFilterControls();
   renderer?.refresh();
 }
 

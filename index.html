@@ -933,7 +933,21 @@
     </div>
   </div>
 
-  <hr style="margin: 8px 0;">  
+  <hr style="margin: 8px 0;">
+
+  <div class="legend-section">
+    <div class="legend-toggle" data-target="#node-direction-types" style="cursor:pointer;"><em>▶ Selected Node Links</em></div>
+    <div id="node-direction-types" style="display: none;">
+      <p id="node-direction-filter-hint" class="node-direction-filter-hint">Select a node to enable incoming or outgoing links.</p>
+      <div class="node-direction-filter" role="group" aria-label="Filter links relative to the selected node">
+        <button type="button" data-node-direction="all" class="active" aria-pressed="true">All</button>
+        <button type="button" data-node-direction="incoming" aria-pressed="false" disabled>Incoming</button>
+        <button type="button" data-node-direction="outgoing" aria-pressed="false" disabled>Outgoing</button>
+      </div>
+    </div>
+  </div>
+
+  <hr style="margin: 8px 0;">
 
   <!-- Reset -->
     <div class="legend-item" data-command-type="" style="color:#aaa; cursor:pointer; margin-top: 6px;">✖ Reset</div>
