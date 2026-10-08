@@ -24,6 +24,7 @@ assert.match(interactions, /selectedNode = node;\s*showNodePanel\(node\);/);
 assert.match(interactions, /touchCompatibilityClick &&[\s\S]*?lastTouchNodeClick\.source === "native"[\s\S]*?now - lastTouchNodeClick\.time < 250/);
 assert.match(interactions, /const isSecondTouchTap =[\s\S]*?lastTouchNodeClick\.node === node &&[\s\S]*?now - lastTouchNodeClick\.time < 1200/);
 assert.match(interactions, /if \(isSecondTouchTap\) \{\s*showNodePanel\(node\);\s*\} else \{\s*setNodePanelOpen\(false\);\s*selectedNode = node;/);
+assert.match(interactions, /setNodePanelOpen\(false\);\s*selectedNode = node;\s*syncNodeDirectionFilterControls\(\);/);
 assert.doesNotMatch(interactions, /if \(selectedNode === node\) \{\s*showNodePanel\(node\)/);
 assert.match(interactions, /if \(getTouchCount\(event\) > 1\) \{\s*cancelDrag\(\);\s*return;\s*\}\s*if \(!isDragging/);
 assert.doesNotMatch(interactions, /renderer\.on\("downNode"[\s\S]*?dragStartPos = \{ x: event\.x, y: event\.y \};\s*graph\.setNodeAttribute\(node, "highlighted", true\)/);

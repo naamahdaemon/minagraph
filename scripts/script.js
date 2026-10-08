@@ -256,25 +256,22 @@ function nodeMatchesSelectedNodeDirection(node) {
 
 function syncNodeDirectionFilterControls() {
   const hasSelection = Boolean(selectedNode && graph?.hasNode(selectedNode));
-  if (!hasSelection) selectedNodeDirectionFilter = "all";
   document.querySelectorAll("[data-node-direction]").forEach(button => {
     const mode = button.dataset.nodeDirection;
     const isActive = mode === selectedNodeDirectionFilter;
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
-    button.disabled = !hasSelection && mode !== "all";
   });
   const hint = document.getElementById("node-direction-filter-hint");
   if (hint) {
     hint.textContent = hasSelection
-      ? "Show links relative to the selected node."
-      : "Select a node to enable incoming or outgoing links.";
+      ? "Filtering links relative to the selected node."
+      : "Choose a direction now; it will apply when a node is selected.";
   }
 }
 
 function setSelectedNodeDirectionFilter(mode) {
   if (!["all", "incoming", "outgoing"].includes(mode)) return;
-  if (mode !== "all" && (!selectedNode || !graph?.hasNode(selectedNode))) return;
   selectedNodeDirectionFilter = mode;
   syncNodeDirectionFilterControls();
   refreshLegendFilteredViews();
@@ -8691,7 +8688,6 @@ function applyDateFilter() {
 function hideNodePanel(options = {}) {
   setNodePanelOpen(false, options);
   selectedNode = null;
-  selectedNodeDirectionFilter = "all";
   syncNodeDirectionFilterControls();
   renderer?.refresh();
 }
