@@ -82,6 +82,7 @@ const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
 
 let showAllLabels = true;
+let showEdgeDirections = true;
 let selectedBlockchain = "mina"; // 👈 default value
 
 // Shared metadata for every EVM-compatible network. Keeping these values in
@@ -166,6 +167,7 @@ const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-gravity": "Pulls nodes toward the center in every layout. Higher values reduce remote branches and produce a more compact graph.",
   "layout-scale": "Controls repulsion in every layout. Higher values generally spread nodes farther apart; lower values produce a tighter graph.",
   "toggle-labels": "Shows or hides node labels. This is a rendering option only and never changes node positions or spatialization.",
+  "toggle-edge-directions": "Shows or hides arrowheads indicating transaction direction from sender to receiver. This changes rendering only and never changes graph data or spatialization.",
   "edge-thickness-mode": "Changes link thickness using a uniform size, transaction count, or transferred amount. This is visual only: link thickness never influences spatialization or edge weight."
 });
 let activeLayoutHelpAnchor = null;
@@ -1257,6 +1259,7 @@ document.addEventListener("DOMContentLoaded", () => {
     gravity: params.get("gravity"),
     scale: params.get("scale"),
     labels: params.get("labels"),
+    directions: params.get("directions"),
     linlog: params.get("linlog"),
     outbound: params.get("outbound"),
     strongGravity: params.get("stronggravity"),
@@ -1486,6 +1489,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("toggle-labels").addEventListener("change", (e) => {
     showAllLabels = e.target.checked;
     renderer.refresh();
+  });
+
+  document.getElementById("toggle-edge-directions").addEventListener("change", (e) => {
+    showEdgeDirections = e.target.checked;
+    renderer?.refresh();
   });
   
   document.getElementById("stop-loading-btn").addEventListener("click", () => {
@@ -6645,6 +6653,8 @@ function setupReducers() {
     // disappeared from the graph.
     if (!graph.hasEdge(edge)) return { ...data, hidden: true };
 
+    data = { ...data, type: showEdgeDirections ? "arrow" : "line" };
+
     const focusNode = hoveredNode || selectedNode;
     const command = data.command_type || data.label;
     const visualSize = edgeThicknessMode === "uniform"
@@ -8114,6 +8124,7 @@ function getGraphShareUrl() {
     gravity: document.getElementById("layout-gravity")?.value,
     scale: document.getElementById("layout-scale")?.value,
     labels: document.getElementById("toggle-labels")?.checked ? "1" : "0",
+    directions: document.getElementById("toggle-edge-directions")?.checked ? "1" : "0",
     linlog: document.getElementById("layout-linlog")?.checked ? "1" : "0",
     outbound: document.getElementById("layout-outbound")?.checked ? "1" : "0",
     stronggravity: document.getElementById("layout-strong-gravity")?.checked ? "1" : "0",
@@ -8222,11 +8233,13 @@ function applySharedLayoutParams(shared) {
   setValue("layout-attraction", shared.attraction);
   setValue("layout-repulsion", shared.repulsion);
   setChecked("toggle-labels", shared.labels);
+  setChecked("toggle-edge-directions", shared.directions);
   setChecked("layout-linlog", shared.linlog);
   setChecked("layout-outbound", shared.outbound);
   setChecked("layout-strong-gravity", shared.strongGravity);
   setChecked("layout-prevent-overlap", shared.preventOverlap);
   showAllLabels = document.getElementById("toggle-labels")?.checked !== false;
+  showEdgeDirections = document.getElementById("toggle-edge-directions")?.checked !== false;
 }
 
 function setFullscreenMode(active) {

@@ -11,7 +11,7 @@ const parameterIds = [
   "layout-algorithm", "layout-linlog", "layout-outbound", "layout-strong-gravity",
   "layout-prevent-overlap", "layout-ewi", "layout-cooling", "layout-attraction",
   "layout-repulsion", "layout-iterations", "layout-width", "layout-height",
-  "layout-gravity", "layout-scale", "toggle-labels", "edge-thickness-mode"
+  "layout-gravity", "layout-scale", "toggle-labels", "toggle-edge-directions", "edge-thickness-mode"
 ];
 
 for (const id of parameterIds) {
