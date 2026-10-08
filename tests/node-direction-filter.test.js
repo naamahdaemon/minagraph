@@ -12,6 +12,7 @@ assert.match(html, /id="node-direction-types"/);
 assert.match(html, /data-node-direction="all"/);
 assert.match(html, /data-node-direction="incoming"/);
 assert.match(html, /data-node-direction="outgoing"/);
+assert.doesNotMatch(html, /data-node-direction="(?:incoming|outgoing)"[^>]*disabled/);
 assert.match(css, /\.node-direction-filter\s*\{/);
 assert.match(source, /let selectedNodeDirectionFilter = "all"/);
 assert.match(source, /function edgeMatchesSelectedNodeDirection\(source, target, referenceNode = selectedNode\)/);
@@ -21,6 +22,8 @@ assert.match(source, /if \(!nodeMatchesSelectedNodeDirection\(node\)\) return \{
 assert.match(source, /if \(!edgeMatchesSelectedNodeDirection\(source, target\)\) return \{ \.\.\.data, hidden: true \}/);
 assert.match(source, /graphEdgeMatchesActiveView\(edge, node\)/);
 assert.match(source, /selectedNodeDirectionFilter = "all";[\s\S]*?syncNodeDirectionFilterControls\(\)/);
-assert.match(worker, /mina-graph-explorer-v116/);
+assert.doesNotMatch(source, /if \(mode !== "all" && \(!selectedNode/);
+assert.match(source, /if \(!referenceNode \|\| selectedNodeDirectionFilter === "all"\) return true/);
+assert.match(worker, /mina-graph-explorer-v117/);
 
 console.log('Selected-node direction filter tests passed');
