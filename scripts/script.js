@@ -16,6 +16,7 @@ const WIDTH = 2000;
 const HEIGHT = 2000;
 const visitedKeys = new Set();
 let visitedKeysByChain = new Map();
+let fetchProfilesByChain = new Map();
 const nameColorMap = new Map();
 let transactionsByNeighbor = {};
 
@@ -81,6 +82,41 @@ let nodeTransactionRenderContext = "";
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
+
+function getFetchProfileSignature(chain, rootKey, depth) {
+  return JSON.stringify({
+    chain,
+    rootKey: normalizeAddressForChain(rootKey, chain),
+    firstIterationLimit: Math.max(1, Math.floor(Number(FIRST_ITERATION_LIMIT) || 1)),
+    iterationLimit: Math.max(0, Math.floor(Number(LIMIT) || 0)),
+    depth: Math.max(0, Math.floor(Number(depth) || 0)),
+    startTimestamp: FETCH_START_TIMESTAMP,
+    endTimestamp: FETCH_END_TIMESTAMP
+  });
+}
+
+function getFetchProfilesForChain(chain) {
+  if (!fetchProfilesByChain.has(chain)) fetchProfilesByChain.set(chain, new Map());
+  return fetchProfilesByChain.get(chain);
+}
+
+function hasFetchProfile(chain, normalizedKey, signature) {
+  return getFetchProfilesForChain(chain).get(normalizedKey)?.has(signature) === true;
+}
+
+function addFetchProfile(chain, normalizedKey, signature) {
+  const profiles = getFetchProfilesForChain(chain);
+  if (!profiles.has(normalizedKey)) profiles.set(normalizedKey, new Set());
+  profiles.get(normalizedKey).add(signature);
+}
+
+function removeFetchProfile(chain, normalizedKey, signature) {
+  const profiles = getFetchProfilesForChain(chain);
+  const signatures = profiles.get(normalizedKey);
+  if (!signatures) return;
+  signatures.delete(signature);
+  if (signatures.size === 0) profiles.delete(normalizedKey);
+}
 
 let showAllLabels = true;
 let showEdgeDirections = true;
@@ -4901,9 +4937,6 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
   }
   const visitedForChain = visitedKeysByChain.get(chain);
 
-  if (visitedForChain.has(normalizedKey)) return [];
-  visitedForChain.add(normalizedKey);
-
   let limit;
 
   if (["mina", "mina-devnet", "bitcoin"].includes(blockchain)) {
@@ -4959,6 +4992,8 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
 
         transactions = filterTransactionsByFetchDateRange(transactions);
 
+        visitedForChain.add(normalizedKey);
+
         console.log(transactions);
 
         currentStep++;
@@ -4982,7 +5017,7 @@ async function fetchTransactionsForKey(publicKey, blockchain = selectedBlockchai
     }
 }
 
-async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null) {
+async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride = null, fetchProfileSignature = null) {
   const chain = chainOverride || selectedBlockchain;
 
   const normalizedKey = normalizeAddressForChain(publicKey, chain);
@@ -4997,13 +5032,24 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
     visitedKeysByChain.set(chain, new Set());
   }
   const visitedForChain = visitedKeysByChain.get(chain);
-  
-  if (visitedForChain.has(normalizedKey)) return;  
+  const profileSignature = fetchProfileSignature || getFetchProfileSignature(chain, BASE_KEY, depth);
+
+  if (hasFetchProfile(chain, normalizedKey, profileSignature)) return;
+  // Mark before recursion so cycles in the graph cannot trigger the same API
+  // request repeatedly during one incremental fetch run.
+  addFetchProfile(chain, normalizedKey, profileSignature);
 
   log_api_call(chain);
     
   while (pause) await new Promise(r => setTimeout(r, 100));
   const transactions = await fetchTransactionsForKey(normalizedKey, chain, 1000);
+
+  // fetchTransactionsForKey only records the address as visited after a
+  // successful API response. Failed requests must remain retryable.
+  if (!visitedForChain.has(normalizedKey)) {
+    removeFetchProfile(chain, normalizedKey, profileSignature);
+    return;
+  }
 
   transactionsByNeighbor[normalizedKey] = transactions; // ✅ ici
 
@@ -5129,7 +5175,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
   
   for (const k of nextKeys) {
     if (cancelRequested) break;
-    await buildGraphRecursively(k, depth - 1, level + 1, chain);
+    await buildGraphRecursively(k, depth - 1, level + 1, chain, profileSignature);
   }  
   
 }
@@ -5393,14 +5439,7 @@ function formatTokenAmount(amount, decimals = 18) {
 }
 
 async function fetchMoreForNode(key, chain = selectedBlockchain) {
-  const visitedSet = visitedKeysByChain.get(chain) || new Set();
-  
   cancelRequested = false;
-  
-  if (visitedSet.has(key)) {
-    alert(`This node was already fetched for ${capitalize(chain)}.`);
-    return;
-  }
 
   const previousInitialKey = BASE_KEY;
   const initialFirstLimit = FIRST_ITERATION_LIMIT;
@@ -5411,7 +5450,8 @@ async function fetchMoreForNode(key, chain = selectedBlockchain) {
   LIMIT = 0;
   showOverlaySpinner(chain, FIRST_ITERATION_LIMIT);  // ⬅️ Show fullscreen spinner
   //showLoader();
-  await buildGraphRecursively(key, 0, 0, chain); // 👉 passe `chain`
+  const fetchProfileSignature = getFetchProfileSignature(chain, key, 0);
+  await buildGraphRecursively(key, 0, 0, chain, fetchProfileSignature); // 👉 passe `chain`
   applyNodeSizesByDegree();
   setupReducers();
   rebuildTransactionsByNeighbor();
@@ -6233,10 +6273,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
 
   const compatibleChains = getCompatibleChainsForNode(node);
 
-  const chainsToFetch = compatibleChains.filter(chain => {
-    const visitedSet = visitedKeysByChain.get(chain) || new Set();
-    return !visitedSet.has(node);
-  });
+  const chainsToFetch = compatibleChains;
 
   let fetchButtonsHTML = "";
 
@@ -6245,7 +6282,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   } else {
     const links = chainsToFetch.map(chain => `
       <a class="chain-fetch-link" href="#" onclick="fetchMoreForNode('${node}', '${chain}'); return false;"
-         title="Fetch from ${capitalize(chain)}">
+         title="Fetch with the current parameters from ${capitalize(chain)}">
         <span class="chain-fetch-icon-wrap">
           <img class="chain-fetch-icon${chain === "bitcoin" ? " chain-fetch-icon--bitcoin" : ""}"
             src="${getChainIconPath(chain)}" alt="${chain} icon" />
@@ -7268,9 +7305,14 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
   // Preserve the per-chain history when extending an existing graph. Clearing
   // it here made an incremental multichain fetch behave partly like a fresh
   // graph and allowed already-loaded networks to be treated as stale.
-  if (wipeGraph) visitedKeysByChain.clear();
+  if (wipeGraph) {
+    visitedKeysByChain.clear();
+    fetchProfilesByChain.clear();
+  }
   
-  await buildGraphRecursively(BASE_KEY, depth, 0, chainOverride);
+  const fetchChain = chainOverride || selectedBlockchain;
+  const fetchProfileSignature = getFetchProfileSignature(fetchChain, BASE_KEY, depth);
+  await buildGraphRecursively(BASE_KEY, depth, 0, chainOverride, fetchProfileSignature);
 
   applyNodeSizesByDegree();
   //fruchtermanReingold(graph);

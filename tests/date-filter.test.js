@@ -26,7 +26,7 @@ assert.match(source, /function getDateWindowShiftConfig\(globalMin, globalMax, r
 assert.match(source, /function shiftSelectedDateWindow\(pageIndex\)/);
 assert.match(source, /slider\.noUiSlider\.set\(shiftedRange, true, true\)/);
 assert.match(source, /function moveDateWindowByOnePeriod\(direction\)/);
-assert.match(source, /if \(wipeGraph\) visitedKeysByChain\.clear\(\)/);
+assert.match(source, /if \(wipeGraph\) \{[\s\S]*?visitedKeysByChain\.clear\(\);[\s\S]*?fetchProfilesByChain\.clear\(\);/);
 assert.match(source, /recenterAfterLayout = true;\s*animateLayout\(null, "initial"\)/);
 
 const shiftHelperMatch = source.match(/function getDateWindowShiftConfig\(globalMin, globalMax, rangeStart, rangeEnd\) \{[\s\S]*?\n\}/);
