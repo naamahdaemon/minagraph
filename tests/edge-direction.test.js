@@ -7,7 +7,7 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const script = fs.readFileSync(path.join(root, "scripts", "script.js"), "utf8");
 
 assert.match(html, /id="toggle-edge-directions" checked/);
-assert.match(html, /for="toggle-edge-directions"[^>]*>SHOW TRANSACTION DIRECTION<\/label>/);
+assert.match(html, /for="toggle-edge-directions"[^>]*>DIRECTION ARROWS<\/label>/);
 assert.match(script, /let showEdgeDirections = true;/);
 assert.match(script, /data = \{ \.\.\.data, type: showEdgeDirections \? "arrow" : "line" \};/);
 assert.match(script, /document\.getElementById\("toggle-edge-directions"\)\.addEventListener\("change"/);

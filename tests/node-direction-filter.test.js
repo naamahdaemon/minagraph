@@ -24,6 +24,6 @@ assert.match(source, /graphEdgeMatchesActiveView\(edge, node\)/);
 assert.match(source, /selectedNodeDirectionFilter = "all";[\s\S]*?syncNodeDirectionFilterControls\(\)/);
 assert.doesNotMatch(source, /if \(mode !== "all" && \(!selectedNode/);
 assert.match(source, /if \(!referenceNode \|\| selectedNodeDirectionFilter === "all"\) return true/);
-assert.match(worker, /mina-graph-explorer-v117/);
+assert.match(worker, /mina-graph-explorer-v118/);
 
 console.log('Selected-node direction filter tests passed');
