@@ -75,6 +75,7 @@ let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
 let selectedNodeDirectionFilter = "all";
+let nodeColorMenuNode = null;
 let showNodeTransactionsChronologically = false;
 const NODE_TRANSACTION_PAGE_SIZE = 100;
 let nodeTransactionRenderLimit = NODE_TRANSACTION_PAGE_SIZE;
@@ -83,6 +84,76 @@ let nodeTransactionRenderContext = "";
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
+const NODE_CUSTOM_COLORS = Object.freeze([
+  { value: "#ff1744", label: "Flash red" },
+  { value: "#ffea00", label: "Flash yellow" },
+  { value: "#00e676", label: "Flash green" },
+  { value: "#00e5ff", label: "Flash cyan" },
+  { value: "#d500f9", label: "Flash magenta" }
+]);
+
+function ensureNodeColorMenu() {
+  let menu = document.getElementById("node-color-menu");
+  if (menu) return menu;
+  menu = document.createElement("div");
+  menu.id = "node-color-menu";
+  menu.className = "node-color-menu";
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", "Node color");
+  menu.innerHTML = `
+    <div class="node-color-menu-title">Node color</div>
+    <div class="node-color-swatches">
+      ${NODE_CUSTOM_COLORS.map(color => `<button type="button" role="menuitem" data-node-color="${color.value}"
+        aria-label="${color.label}" title="${color.label}" style="--node-swatch:${color.value}"></button>`).join("")}
+    </div>
+    <button type="button" class="node-color-reset" role="menuitem" data-node-color-reset>Reset color</button>`;
+  document.body.appendChild(menu);
+
+  menu.addEventListener("click", event => {
+    const colorButton = event.target.closest("[data-node-color]");
+    const resetButton = event.target.closest("[data-node-color-reset]");
+    if (!nodeColorMenuNode || !graph?.hasNode(nodeColorMenuNode) || (!colorButton && !resetButton)) return;
+    if (colorButton) {
+      const color = colorButton.dataset.nodeColor;
+      graph.setNodeAttribute(nodeColorMenuNode, "customColor", color);
+      graph.setNodeAttribute(nodeColorMenuNode, "color", color);
+    } else {
+      const originalColor = graph.getNodeAttribute(nodeColorMenuNode, "originalColor");
+      graph.removeNodeAttribute(nodeColorMenuNode, "customColor");
+      if (originalColor) graph.setNodeAttribute(nodeColorMenuNode, "color", originalColor);
+    }
+    hideNodeColorMenu();
+    renderer?.refresh();
+  });
+
+  document.addEventListener("pointerdown", event => {
+    if (!menu.hidden && !menu.contains(event.target)) hideNodeColorMenu();
+  }, true);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !menu.hidden) hideNodeColorMenu();
+  });
+  return menu;
+}
+
+function showNodeColorMenu(node, clientX, clientY) {
+  if (!graph?.hasNode(node)) return;
+  const menu = ensureNodeColorMenu();
+  nodeColorMenuNode = node;
+  menu.hidden = false;
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  const rect = menu.getBoundingClientRect();
+  const margin = 8;
+  menu.style.left = `${Math.max(margin, Math.min(clientX, window.innerWidth - rect.width - margin))}px`;
+  menu.style.top = `${Math.max(margin, Math.min(clientY, window.innerHeight - rect.height - margin))}px`;
+}
+
+function hideNodeColorMenu() {
+  const menu = document.getElementById("node-color-menu");
+  if (menu) menu.hidden = true;
+  nodeColorMenuNode = null;
+}
 
 function getFetchProfileSignature(chain, rootKey, depth) {
   return JSON.stringify({
@@ -2411,7 +2482,7 @@ function refreshNodeChainColors(fallbackChain = selectedBlockchain) {
     graph.setNodeAttribute(node, "dominantChain", dominantChain);
     graph.setNodeAttribute(node, "colorByDegree", color);
     graph.setNodeAttribute(node, "originalColor", color);
-    graph.setNodeAttribute(node, "color", color);
+    graph.setNodeAttribute(node, "color", data.customColor || color);
   });
 }
 
@@ -6653,7 +6724,9 @@ function setupReducers() {
     const favName = getFavoriteName(node, primaryChain);
     const renderedLabel = `${allNetworksFetched ? "✓ " : ""}${data.label}${isFav ? ` ⭐ (${favName})` : ""}`;
 
-    if (node === window.initialPublicKey) {
+    if (data.customColor) {
+      glowColor = data.customColor;
+    } else if (node === window.initialPublicKey) {
       glowColor = "#FF0000"; // 🔥 Red for the initial key
     } else if (["mina", "mina-devnet"].includes(primaryChain)) {
       glowColor = getBrightColorByName(data.name || "noname");
@@ -6879,6 +6952,7 @@ function setupInteractions() {
   let hasMoved = false;
   let dragOwnsCustomBBox = false;
   let suppressNodeClick = false;
+  let nodeLongPressTimer = null;
   let ignoreStageClickUntil = 0;
   let lastTouchNodeClick = { node: null, time: 0, source: null };
   let dragStartPos = { x: 0, y: 0 };
@@ -6893,8 +6967,21 @@ function setupInteractions() {
   const isTouchInteraction = event =>
     isNativeTouchInteraction(event) || isTouchCompatibilityClick(event);
   const getTouchCount = event => event?.original?.touches?.length || 0;
+  const getEventClientPosition = event => {
+    const original = event?.original;
+    const touch = original?.touches?.[0] || original?.changedTouches?.[0];
+    return {
+      x: touch?.clientX ?? original?.clientX ?? event?.x ?? window.innerWidth / 2,
+      y: touch?.clientY ?? original?.clientY ?? event?.y ?? window.innerHeight / 2
+    };
+  };
+  const cancelNodeLongPress = () => {
+    if (nodeLongPressTimer !== null) clearTimeout(nodeLongPressTimer);
+    nodeLongPressTimer = null;
+  };
 
   const cancelDrag = () => {
+    cancelNodeLongPress();
     if (draggedNode && graph.hasNode(draggedNode)) {
       graph.removeNodeAttribute(draggedNode, "highlighted");
     }
@@ -7005,6 +7092,19 @@ function setupInteractions() {
     renderer.refresh();
   });
 
+  renderer.on("rightClickNode", ({ node, event }) => {
+    if (!graph.hasNode(node)) return;
+    event.preventSigmaDefault?.();
+    event.original?.preventDefault?.();
+    const position = getEventClientPosition(event);
+    showNodeColorMenu(node, position.x, position.y);
+  });
+
+  if (interactionContainer.dataset.nodeColorContextInitialized !== "true") {
+    interactionContainer.dataset.nodeColorContextInitialized = "true";
+    interactionContainer.addEventListener("contextmenu", event => event.preventDefault());
+  }
+
   // Keep tooltip following pointer. The container survives WebGL renderer
   // rebuilds, so this DOM listener must only be installed once.
   if (interactionContainer.dataset.minagraphTooltipTracking !== "true") {
@@ -7025,6 +7125,18 @@ function setupInteractions() {
       isDragging = true;
       hasMoved = false;
       dragStartPos = { x: event.x, y: event.y };
+      cancelNodeLongPress();
+      if (isNativeTouchInteraction(event)) {
+        const position = getEventClientPosition(event);
+        nodeLongPressTimer = setTimeout(() => {
+          nodeLongPressTimer = null;
+          suppressNodeClick = true;
+          lastTouchNodeClick = { node: null, time: 0, source: null };
+          cancelDrag();
+          showNodeColorMenu(node, position.x, position.y);
+          setTimeout(() => { suppressNodeClick = false; }, 800);
+        }, 600);
+      }
     });
 
   // During drag, move the node and detect “real” drag vs click
@@ -7040,6 +7152,7 @@ function setupInteractions() {
     const dx = event.x - dragStartPos.x,
           dy = event.y - dragStartPos.y;
     if (!hasMoved && Math.hypot(dx, dy) > 5) {
+      cancelNodeLongPress();
       hasMoved = true;
       graph.setNodeAttribute(draggedNode, "highlighted", true);
       if (!renderer.getCustomBBox()) {
@@ -7062,6 +7175,7 @@ function setupInteractions() {
 
   // End drag (mouse-up or touch-end) — handle as click if no real drag
   const endDrag = ({ node }) => {
+    cancelNodeLongPress();
     // clear highlighting
       if (draggedNode) {
         graph.removeNodeAttribute(draggedNode, "highlighted");
@@ -7195,7 +7309,7 @@ function handleSearch(query) {
 
     renderer.setSetting("nodeReducer", (node, attr) => ({
       ...attr,
-      color: attr.originalColor || attr.color,
+      color: attr.customColor || attr.originalColor || attr.color,
       zIndex: 1
     }));
 
@@ -7306,7 +7420,7 @@ function handleSearch(query) {
 
     return {
       ...attr,
-      color: attr.originalColor || attr.color,
+      color: attr.customColor || attr.originalColor || attr.color,
       zIndex: 1,
       size: attr.size || 6
     };
