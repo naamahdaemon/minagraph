@@ -17,12 +17,13 @@ assert.match(source, /graph\.setNodeAttribute\(node, "color", data\.customColor 
 assert.match(source, /color: attr\.customColor \|\| attr\.originalColor \|\| attr\.color/);
 assert.match(source, /if \(data\.customColor\) \{\s*glowColor = data\.customColor/);
 assert.match(source, /renderer\.on\("rightClickNode"/);
+assert.match(source, /if \(!isNativeTouchInteraction\(event\) && Number\.isInteger\(originalButton\) && originalButton !== 0\) \{\s*cancelDrag\(\);\s*return;/);
 assert.match(source, /nodeLongPressTimer = setTimeout\([\s\S]*?showNodeColorMenu\(node, position\.x, position\.y\);[\s\S]*?}, 600\)/);
 assert.match(source, /cancelNodeLongPress\(\);\s*hasMoved = true/);
 assert.match(source, /suppressNodeClick = true;[\s\S]*?setTimeout\(\(\) => \{ suppressNodeClick = false; \}, 800\)/);
 assert.match(css, /\.node-color-menu\s*\{/);
 assert.match(css, /\.node-color-swatches\s*\{/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v120/);
+assert.match(worker, /mina-graph-explorer-v121/);
 
 console.log('Node color context menu tests passed');
