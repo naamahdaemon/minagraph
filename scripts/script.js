@@ -7117,6 +7117,11 @@ function setupInteractions() {
   
   // Start drag on downNode (mouse or touch)
     renderer.on("downNode", ({ node, event }) => {
+      const originalButton = event?.original?.button;
+      if (!isNativeTouchInteraction(event) && Number.isInteger(originalButton) && originalButton !== 0) {
+        cancelDrag();
+        return;
+      }
       if (getTouchCount(event) > 1) {
         cancelDrag();
         return;
