@@ -669,7 +669,7 @@
             <span id="date-window-shift-step">—</span>
           </summary>
           <div id="date-filter-content">
-            <div id="slicer-container" style="width: 100%; height: 140px;">
+            <div id="slicer-container" style="width: 100%; height: 120px;">
               <canvas id="slicer-chart" style="width: 100%; height: 100%; display: block;"></canvas>
             </div>
 
@@ -684,6 +684,59 @@
               <span id="date-window-shift-value">Select a shorter period to move it</span>
             </div>
 
+            <section id="date-playback-controls" aria-label="Advanced date playback">
+              <label class="date-playback-mode-toggle">
+                <input id="date-playback-enabled" type="checkbox">
+                <span>Advanced playback</span>
+              </label>
+              <div id="date-playback-settings" hidden>
+                <label>
+                  <span>Step</span>
+                  <span class="date-playback-input-group">
+                    <span class="date-playback-number-control">
+                      <input id="date-playback-step-value" type="number" min="1" step="1" value="1">
+                      <span class="date-playback-number-buttons">
+                        <button type="button" data-number-target="date-playback-step-value" data-number-delta="1" aria-label="Increase playback step">+</button>
+                        <button type="button" data-number-target="date-playback-step-value" data-number-delta="-1" aria-label="Decrease playback step">−</button>
+                      </span>
+                    </span>
+                    <select id="date-playback-step-unit" aria-label="Playback step unit">
+                      <option value="days">Days</option>
+                      <option value="hours">Hours</option>
+                      <option value="minutes">Minutes</option>
+                      <option value="seconds">Seconds</option>
+                    </select>
+                  </span>
+                </label>
+                <label>
+                  <span>Cadence</span>
+                  <span class="date-playback-input-group">
+                    <span class="date-playback-number-control">
+                      <input id="date-playback-cadence" type="number" min="0.1" step="0.1" value="1">
+                      <span class="date-playback-number-buttons">
+                        <button type="button" data-number-target="date-playback-cadence" data-number-delta="0.1" aria-label="Increase playback cadence">+</button>
+                        <button type="button" data-number-target="date-playback-cadence" data-number-delta="-0.1" aria-label="Decrease playback cadence">−</button>
+                      </span>
+                    </span>
+                    <span class="date-playback-unit">seconds</span>
+                  </span>
+                </label>
+                <label class="date-playback-mode-field">
+                  <span>Range mode</span>
+                  <select id="date-playback-range-mode" aria-label="Playback range mode">
+                    <option value="cumulative" selected>Cumulative</option>
+                    <option value="window">Sliding window</option>
+                  </select>
+                </label>
+                <div class="date-playback-actions" role="group" aria-label="Date playback controls">
+                  <button id="date-playback-reverse" type="button" title="Play backward" aria-label="Play backward"><span aria-hidden="true">◀</span></button>
+                  <button id="date-playback-pause" type="button" title="Pause" aria-label="Pause"><span class="date-playback-pause-icon" aria-hidden="true"></span></button>
+                  <button id="date-playback-forward" type="button" title="Play forward" aria-label="Play forward"><span aria-hidden="true">▶</span></button>
+                </div>
+                <div id="date-playback-status" aria-live="polite">Paused — manual controls enabled</div>
+              </div>
+            </section>
+
             <div id="date-filter-labels">
               <span id="slicer-start-label">From: --</span>
               <span id="slicer-end-label">To: --</span>
@@ -691,8 +744,24 @@
           </div>
         </details>
       </div>
-  </div>    
-  
+  </div>
+
+    <aside id="date-playback-feed" aria-label="Transactions entering the selected period" hidden>
+      <header>
+        <div>
+          <span>Timeline activity</span>
+          <strong id="date-playback-feed-title">New transactions</strong>
+        </div>
+        <div class="date-playback-feed-actions">
+          <button id="date-playback-clear-focus" type="button" title="Clear transaction focus" aria-label="Clear transaction focus" hidden>◎</button>
+          <button id="date-playback-reset-feed" type="button" title="Reset timeline" aria-label="Reset timeline">↺</button>
+          <button id="date-playback-close-feed" type="button" title="Close timeline activity" aria-label="Close timeline activity">×</button>
+        </div>
+      </header>
+      <div id="date-playback-feed-empty">Start playback to display transactions entering the period.</div>
+      <div id="date-playback-feed-list"></div>
+    </aside>
+
     <aside id="side-panel" role="dialog" aria-label="Node details" aria-hidden="true">
       <div id="node-panel-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize node details panel" tabindex="0"></div>
       <div class="node-panel-heading">

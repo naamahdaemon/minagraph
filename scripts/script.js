@@ -418,6 +418,7 @@ function refreshLegendFilteredViews() {
   rebuildEdgeVisualSizes();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
   if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+  refreshDatePlaybackFeedForCurrentRange();
 }
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
@@ -456,7 +457,16 @@ const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const DATE_WINDOW_PANEL_STORAGE_KEY = "minagraph-date-window-panel-open";
 let dateWindowShiftState = null;
 let updatingRangeFromWindowShift = false;
+let datePlaybackAdvancedEnabled = false;
+let datePlaybackDirection = 0;
+let datePlaybackTimer = null;
+const datePlaybackFocusedEdges = new Set();
+let datePlaybackVisibleEdges = new Set();
+let datePlaybackFeedPinnedTop = true;
+const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
+const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
 let histogramChart;
+let dateHistogramBins = [];
 let isFullscreen = false;
 let fullscreenUiVisible = false;
 let fullscreenUiSidebarRequested = false;
@@ -514,6 +524,7 @@ function toggleLeftSidebar() {
 function syncDateSlicerWithNodePanel() {
   const nodePanel = document.getElementById("side-panel");
   const dateSlicer = document.getElementById("date-slicer-container");
+  const playbackFeed = document.getElementById("date-playback-feed");
   if (!nodePanel || !dateSlicer) return;
   const panelOpen = nodePanel.classList.contains("open");
   const panelWidth = panelOpen ? nodePanel.getBoundingClientRect().width : 0;
@@ -523,6 +534,425 @@ function syncDateSlicerWithNodePanel() {
     window.innerWidth - panelWidth >= slicerWidth + gap * 2;
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
+  if (playbackFeed) {
+    const playbackRightOffset = panelOpen ? panelWidth + gap : 64;
+    playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
+    const slicerRect = dateSlicer.getBoundingClientRect();
+    const feedRect = playbackFeed.getBoundingClientRect();
+    if (!playbackFeed.hidden && slicerRect.height > 0 && feedRect.height > 0) {
+      const availableHeight = Math.floor(slicerRect.top - feedRect.top - 12);
+      playbackFeed.style.maxHeight = `${Math.max(64, Math.min(500, availableHeight))}px`;
+    } else {
+      playbackFeed.style.removeProperty("max-height");
+    }
+  }
+}
+
+function isDesktopDatePlayback() {
+  return window.innerWidth > 768;
+}
+
+function getDatePlaybackStepMilliseconds() {
+  const value = Math.max(1, Number(document.getElementById("date-playback-step-value")?.value) || 1);
+  const unit = document.getElementById("date-playback-step-unit")?.value || "days";
+  const factors = { seconds: 1000, minutes: 60000, hours: 3600000, days: DAY_IN_MILLISECONDS };
+  return value * (factors[unit] || DAY_IN_MILLISECONDS);
+}
+
+function getDatePlaybackCadenceMilliseconds() {
+  const seconds = Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1);
+  return seconds * 1000;
+}
+
+function getStoredDatePlaybackSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(DATE_PLAYBACK_STORAGE_KEY) || "null") || {};
+  } catch (error) {
+    console.warn("Could not restore advanced playback settings:", error);
+    return {};
+  }
+}
+
+function saveDatePlaybackSettings() {
+  try {
+    localStorage.setItem(DATE_PLAYBACK_STORAGE_KEY, JSON.stringify({
+      enabled: document.getElementById("date-playback-enabled")?.checked === true,
+      stepValue: Math.max(1, Number(document.getElementById("date-playback-step-value")?.value) || 1),
+      stepUnit: document.getElementById("date-playback-step-unit")?.value || "days",
+      cadence: Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1),
+      rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative"
+    }));
+  } catch (error) {
+    console.warn("Could not save advanced playback settings:", error);
+  }
+}
+
+function formatDatePlaybackTimestamp(timestamp) {
+  return new Date(timestamp).toLocaleString(undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  });
+}
+
+function formatDatePlaybackSliderValue(timestamp) {
+  if (!datePlaybackAdvancedEnabled) return new Date(timestamp).toLocaleDateString();
+  const unit = document.getElementById("date-playback-step-unit")?.value || "days";
+  const options = { year: "numeric", month: "2-digit", day: "2-digit" };
+  if (unit !== "days") Object.assign(options, { hour: "2-digit" });
+  if (["minutes", "seconds"].includes(unit)) Object.assign(options, { minute: "2-digit" });
+  if (unit === "seconds") Object.assign(options, { second: "2-digit" });
+  return new Date(timestamp).toLocaleString(undefined, options);
+}
+
+function updateDateSliderStep() {
+  const slider = document.getElementById("slicer-range");
+  if (!slider?.noUiSlider) return;
+  slider.noUiSlider.updateOptions({
+    step: datePlaybackAdvancedEnabled ? getDatePlaybackStepMilliseconds() : DAY_IN_MILLISECONDS
+  }, false);
+}
+
+function formatDatePlaybackParty(name, key) {
+  const address = String(key || "Unknown");
+  const shortAddress = address.length > 17 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
+  const cleanName = String(name || "").trim();
+  return cleanName && !["noname", "address", "unknown"].includes(cleanName.toLowerCase())
+    ? `${cleanName} (${shortAddress})`
+    : shortAddress;
+}
+
+function getDatePlaybackFocus() {
+  if (!graph || datePlaybackFocusedEdges.size === 0) return null;
+  const edges = new Set([...datePlaybackFocusedEdges].filter(edge => graph.hasEdge(edge)));
+  if (edges.size !== datePlaybackFocusedEdges.size) {
+    datePlaybackFocusedEdges.clear();
+    edges.forEach(edge => datePlaybackFocusedEdges.add(edge));
+  }
+  if (edges.size === 0) return null;
+  const nodes = new Set();
+  edges.forEach(edge => {
+    nodes.add(graph.source(edge));
+    nodes.add(graph.target(edge));
+  });
+  return { edges, nodes };
+}
+
+function clearDatePlaybackFocus({ refresh = true } = {}) {
+  datePlaybackFocusedEdges.clear();
+  document.querySelectorAll(".date-playback-transaction.active").forEach(item => item.classList.remove("active"));
+  const clearButton = document.getElementById("date-playback-clear-focus");
+  if (clearButton) clearButton.hidden = true;
+  if (refresh) renderer?.refresh?.();
+}
+
+function focusDatePlaybackTransaction(edge) {
+  if (!graph?.hasEdge(edge)) return;
+  if (datePlaybackFocusedEdges.has(edge)) datePlaybackFocusedEdges.delete(edge);
+  else datePlaybackFocusedEdges.add(edge);
+  document.querySelectorAll(".date-playback-transaction").forEach(item => {
+    item.classList.toggle("active", datePlaybackFocusedEdges.has(item.dataset.edgeId));
+  });
+  const clearButton = document.getElementById("date-playback-clear-focus");
+  if (clearButton) clearButton.hidden = datePlaybackFocusedEdges.size === 0;
+  renderer?.refresh?.();
+}
+
+function getTransactionsEnteringDateRange(previousRange, nextRange) {
+  if (!graph?.edges) return [];
+  const [previousMin, previousMax] = previousRange.map(Number);
+  const [nextMin, nextMax] = nextRange.map(Number);
+  return graph.edges().filter(edge => {
+    const timestamp = Number(graph.getEdgeAttribute(edge, "timestamp"));
+    const wasVisible = timestamp >= previousMin && timestamp <= previousMax;
+    const isVisible = timestamp >= nextMin && timestamp <= nextMax;
+    return Number.isFinite(timestamp) && isVisible && !wasVisible;
+  });
+}
+
+function getTransactionsVisibleInDateRange(range = currentRange) {
+  if (!graph?.edges) return [];
+  const [min, max] = range.map(Number);
+  return graph.edges().filter(edge => {
+    const timestamp = Number(graph.getEdgeAttribute(edge, "timestamp"));
+    const attrs = graph.getEdgeAttributes(edge);
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
+      transactionMatchesActiveLegendFilters(attrs) && edgeMatchesSelectedNodeDirection(source, target);
+  });
+}
+
+function resetDatePlaybackFeed(message = "Timeline reset") {
+  clearDatePlaybackFocus({ refresh: false });
+  datePlaybackVisibleEdges = new Set();
+  const list = document.getElementById("date-playback-feed-list");
+  const empty = document.getElementById("date-playback-feed-empty");
+  const title = document.getElementById("date-playback-feed-title");
+  list?.replaceChildren();
+  if (list) list.scrollTop = 0;
+  datePlaybackFeedPinnedTop = true;
+  if (empty) {
+    empty.hidden = false;
+    empty.textContent = message;
+  }
+  if (title) title.textContent = "No visible transactions";
+  renderer?.refresh?.();
+}
+
+function refreshDatePlaybackFeedForCurrentRange() {
+  const feed = document.getElementById("date-playback-feed");
+  if (!datePlaybackAdvancedEnabled || !feed || feed.hidden) return;
+  const visibleEdges = getTransactionsVisibleInDateRange(currentRange);
+  const newlyVisibleEdges = visibleEdges.filter(edge => !datePlaybackVisibleEdges.has(edge));
+  renderDatePlaybackFeed(
+    visibleEdges,
+    datePlaybackDirection || 1,
+    currentRange,
+    newlyVisibleEdges
+  );
+}
+
+function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
+  const feed = document.getElementById("date-playback-feed");
+  const list = document.getElementById("date-playback-feed-list");
+  const empty = document.getElementById("date-playback-feed-empty");
+  const title = document.getElementById("date-playback-feed-title");
+  if (!feed || !list || !empty || !title) return;
+
+  feed.hidden = false;
+  syncDateSlicerWithNodePanel();
+  title.textContent = `${edges.length} visible transaction${edges.length === 1 ? "" : "s"}`;
+  const previousScrollTop = list.scrollTop;
+  list.replaceChildren();
+  const visibleEdgeIds = new Set(edges);
+  const newEdgeIds = new Set(newEdges);
+  [...datePlaybackFocusedEdges].forEach(edge => {
+    if (!visibleEdgeIds.has(edge)) datePlaybackFocusedEdges.delete(edge);
+  });
+
+  const orderedEdges = [...edges].sort((left, right) => {
+    const delta = Number(graph.getEdgeAttribute(left, "timestamp")) - Number(graph.getEdgeAttribute(right, "timestamp"));
+    // Forward playback keeps the newest transaction first. Reverse playback
+    // mirrors the order so the oldest transaction remains first.
+    return direction < 0 ? delta : -delta;
+  });
+
+  orderedEdges.forEach(edge => {
+    if (!graph.hasEdge(edge)) return;
+    const attrs = graph.getEdgeAttributes(edge);
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "date-playback-transaction";
+    button.dataset.edgeId = edge;
+    button.classList.toggle("active", datePlaybackFocusedEdges.has(edge));
+    button.classList.toggle("is-new", newEdgeIds.has(edge));
+
+    const meta = document.createElement("span");
+    meta.className = "date-playback-transaction-meta";
+    meta.textContent = `${formatDatePlaybackTimestamp(Number(attrs.timestamp))} · ${attrs.blockchain || "unknown"}`;
+    const route = document.createElement("span");
+    route.className = "date-playback-transaction-route";
+    route.textContent = `${formatDatePlaybackParty(attrs.sender_name, source)} → ${formatDatePlaybackParty(attrs.receiver_name, target)}`;
+    const detailsLine = document.createElement("span");
+    detailsLine.className = "date-playback-transaction-data";
+    const type = attrs.command_type || attrs.label || "transaction";
+    let amount = "-";
+    try { amount = formatNodeTransactionAmount(attrs); } catch (_error) { amount = attrs.amount ?? "-"; }
+    detailsLine.textContent = `${type} · ${attrs.status || "unknown"} · ${amount}`;
+    button.append(meta, route, detailsLine);
+    button.addEventListener("click", () => focusDatePlaybackTransaction(edge));
+    list.append(button);
+  });
+
+  while (list.children.length > DATE_PLAYBACK_MAX_FEED_ITEMS) list.lastElementChild.remove();
+  list.scrollTop = datePlaybackFeedPinnedTop ? 0 : previousScrollTop;
+  empty.hidden = list.children.length > 0;
+  const clearButton = document.getElementById("date-playback-clear-focus");
+  if (clearButton) clearButton.hidden = datePlaybackFocusedEdges.size === 0;
+  datePlaybackVisibleEdges = visibleEdgeIds;
+  feed.dataset.range = `${range[0]}-${range[1]}`;
+  renderer?.refresh?.();
+}
+
+function setDatePlaybackStatus(message) {
+  const status = document.getElementById("date-playback-status");
+  if (status) status.textContent = message;
+}
+
+function updateDatePlaybackUi() {
+  const controls = document.getElementById("date-playback-controls");
+  const content = document.getElementById("date-filter-content");
+  const reverse = document.getElementById("date-playback-reverse");
+  const pause = document.getElementById("date-playback-pause");
+  const forward = document.getElementById("date-playback-forward");
+  const isPlaying = datePlaybackDirection !== 0;
+  controls?.classList.toggle("playing", isPlaying);
+  content?.classList.toggle("playing", isPlaying);
+  reverse?.classList.toggle("active", datePlaybackDirection < 0);
+  forward?.classList.toggle("active", datePlaybackDirection > 0);
+  pause?.classList.toggle("active", !isPlaying);
+  document.querySelectorAll("#slicer-range .noUi-handle").forEach(handle => {
+    handle.tabIndex = isPlaying ? -1 : 0;
+  });
+  configureDateWindowShiftControl(currentRange);
+}
+
+function pauseDatePlayback(message = "Paused — manual controls enabled") {
+  if (datePlaybackTimer) clearTimeout(datePlaybackTimer);
+  datePlaybackTimer = null;
+  datePlaybackDirection = 0;
+  updateDatePlaybackUi();
+  setDatePlaybackStatus(message);
+}
+
+function setDatePlaybackRange(range) {
+  const slider = document.getElementById("slicer-range");
+  if (!slider?.noUiSlider) return;
+  updatingRangeFromWindowShift = true;
+  slider.noUiSlider.set(range, true, true);
+  updatingRangeFromWindowShift = false;
+  configureDateWindowShiftControl(range);
+}
+
+function advanceDatePlayback(direction) {
+  if (!datePlaybackAdvancedEnabled || !isDesktopDatePlayback() || !allTimestamps.length) return false;
+  const previousRange = currentRange.map(Number);
+  const globalMin = allTimestamps[0];
+  const globalMax = allTimestamps[allTimestamps.length - 1];
+  const span = previousRange[1] - previousRange[0];
+  const step = getDatePlaybackStepMilliseconds();
+  const rangeMode = document.getElementById("date-playback-range-mode")?.value || "cumulative";
+  let nextRange;
+  if (rangeMode === "cumulative") {
+    nextRange = direction > 0
+      ? [previousRange[0], Math.min(globalMax, previousRange[1] + step)]
+      : [Math.max(globalMin, previousRange[0] - step), previousRange[1]];
+  } else {
+    nextRange = previousRange.map(value => value + direction * step);
+    if (nextRange[1] > globalMax) nextRange = [globalMax - span, globalMax];
+    if (nextRange[0] < globalMin) nextRange = [globalMin, globalMin + span];
+  }
+  nextRange = [Math.max(globalMin, nextRange[0]), Math.min(globalMax, nextRange[1])];
+  if (nextRange[0] === previousRange[0] && nextRange[1] === previousRange[1]) return false;
+
+  const enteringEdges = getTransactionsEnteringDateRange(previousRange, nextRange);
+  setDatePlaybackRange(nextRange);
+  renderDatePlaybackFeed(getTransactionsVisibleInDateRange(nextRange), direction, nextRange, enteringEdges);
+  return true;
+}
+
+function scheduleDatePlaybackTick() {
+  if (!datePlaybackDirection) return;
+  datePlaybackTimer = setTimeout(() => {
+    if (!advanceDatePlayback(datePlaybackDirection)) {
+      pauseDatePlayback(datePlaybackDirection > 0 ? "End of timeline reached" : "Start of timeline reached");
+      return;
+    }
+    scheduleDatePlaybackTick();
+  }, getDatePlaybackCadenceMilliseconds());
+}
+
+function startDatePlayback(direction) {
+  if (!datePlaybackAdvancedEnabled || !isDesktopDatePlayback()) return;
+  pauseDatePlayback();
+  datePlaybackDirection = direction < 0 ? -1 : 1;
+  updateDatePlaybackUi();
+  setDatePlaybackStatus(datePlaybackDirection > 0 ? "Playing forward" : "Playing backward");
+  document.getElementById("date-playback-feed")?.removeAttribute("hidden");
+  if (!advanceDatePlayback(datePlaybackDirection)) {
+    pauseDatePlayback(datePlaybackDirection > 0 ? "End of timeline reached" : "Start of timeline reached");
+    return;
+  }
+  scheduleDatePlaybackTick();
+}
+
+function initializeDatePlaybackControls() {
+  const enabled = document.getElementById("date-playback-enabled");
+  const settings = document.getElementById("date-playback-settings");
+  const feed = document.getElementById("date-playback-feed");
+  const feedList = document.getElementById("date-playback-feed-list");
+  if (!enabled || !settings || enabled.dataset.bound === "true") return;
+
+  feedList?.addEventListener("scroll", () => {
+    datePlaybackFeedPinnedTop = feedList.scrollTop <= 2;
+  }, { passive: true });
+
+  const storedSettings = getStoredDatePlaybackSettings();
+  const stepValue = document.getElementById("date-playback-step-value");
+  const stepUnit = document.getElementById("date-playback-step-unit");
+  const cadence = document.getElementById("date-playback-cadence");
+  const rangeMode = document.getElementById("date-playback-range-mode");
+  if (stepValue && Number(storedSettings.stepValue) >= 1) stepValue.value = String(storedSettings.stepValue);
+  if (stepUnit && ["days", "hours", "minutes", "seconds"].includes(storedSettings.stepUnit)) stepUnit.value = storedSettings.stepUnit;
+  if (cadence && Number(storedSettings.cadence) >= 0.1) cadence.value = String(storedSettings.cadence);
+  if (rangeMode) rangeMode.value = ["window", "cumulative"].includes(storedSettings.rangeMode)
+    ? storedSettings.rangeMode
+    : "cumulative";
+  enabled.checked = storedSettings.enabled === true && isDesktopDatePlayback();
+  datePlaybackAdvancedEnabled = enabled.checked;
+  settings.hidden = !datePlaybackAdvancedEnabled;
+
+  enabled.addEventListener("change", () => {
+    datePlaybackAdvancedEnabled = enabled.checked && isDesktopDatePlayback();
+    enabled.checked = datePlaybackAdvancedEnabled;
+    settings.hidden = !datePlaybackAdvancedEnabled;
+    pauseDatePlayback();
+    clearDatePlaybackFocus();
+    if (!datePlaybackAdvancedEnabled && feed) feed.hidden = true;
+    updateDateSliderStep();
+    applyDateFilter();
+    saveDatePlaybackSettings();
+    requestAnimationFrame(syncDateSlicerWithNodePanel);
+  });
+  document.getElementById("date-playback-reverse")?.addEventListener("click", () => startDatePlayback(-1));
+  document.getElementById("date-playback-pause")?.addEventListener("click", () => pauseDatePlayback());
+  document.getElementById("date-playback-forward")?.addEventListener("click", () => startDatePlayback(1));
+  document.getElementById("date-playback-clear-focus")?.addEventListener("click", () => clearDatePlaybackFocus());
+  document.getElementById("date-playback-reset-feed")?.addEventListener("click", () => resetDatePlaybackFeed());
+  document.getElementById("date-playback-close-feed")?.addEventListener("click", () => {
+    pauseDatePlayback();
+    clearDatePlaybackFocus();
+    if (feed) feed.hidden = true;
+  });
+  ["date-playback-step-value", "date-playback-step-unit", "date-playback-cadence", "date-playback-range-mode"].forEach(id => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      if (datePlaybackDirection) pauseDatePlayback("Settings changed — press play to resume");
+      if (["date-playback-step-value", "date-playback-step-unit"].includes(id)) updateDateSliderStep();
+      saveDatePlaybackSettings();
+    });
+  });
+  document.querySelectorAll("[data-number-target]").forEach(button => {
+    button.addEventListener("click", () => {
+      const input = document.getElementById(button.dataset.numberTarget);
+      if (!input) return;
+      const decimals = String(input.step).split(".")[1]?.length || 0;
+      const nextValue = Math.max(Number(input.min) || 0, Number(input.value || 0) + Number(button.dataset.numberDelta || 0));
+      input.value = nextValue.toFixed(decimals);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+  window.addEventListener("resize", () => {
+    if (!isDesktopDatePlayback() && datePlaybackAdvancedEnabled) {
+      enabled.checked = false;
+      datePlaybackAdvancedEnabled = false;
+      settings.hidden = true;
+      pauseDatePlayback();
+      clearDatePlaybackFocus();
+      if (feed) feed.hidden = true;
+      updateDateSliderStep();
+      applyDateFilter();
+    } else if (isDesktopDatePlayback() && !datePlaybackAdvancedEnabled && getStoredDatePlaybackSettings().enabled === true) {
+      enabled.checked = true;
+      datePlaybackAdvancedEnabled = true;
+      settings.hidden = false;
+      updateDateSliderStep();
+      applyDateFilter();
+    }
+    syncDateSlicerWithNodePanel();
+  });
+  enabled.dataset.bound = "true";
 }
 
 let nodePanelViewportSyncFrame = 0;
@@ -1397,6 +1827,7 @@ document.addEventListener("DOMContentLoaded", () => {
   donateBtn = document.getElementById("donate-btn");
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
+  initializeDatePlaybackControls();
 
   const technicalModal = document.getElementById('technical-info-modal');
   try {
@@ -5598,6 +6029,7 @@ function getChainIcon(chain) {
 function isTimestampInCurrentRange(timestamp) {
   const value = Number(timestamp);
   const [min, max] = currentRange;
+  if (typeof datePlaybackAdvancedEnabled !== "undefined" && datePlaybackAdvancedEnabled) return Number.isFinite(value) && value >= Number(min) && value <= Number(max);
   const lowerBound = new Date(min);
   const upperBound = new Date(max);
   lowerBound.setHours(0, 0, 0, 0);
@@ -6700,9 +7132,13 @@ function setupReducers() {
   
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
-    if (!nodeMatchesSelectedNodeDirection(node)) return { ...data, hidden: true };
+    const playbackFocus = getDatePlaybackFocus();
+    if (playbackFocus && !playbackFocus.nodes.has(node)) {
+      return { ...data, hidden: true };
+    }
+    if (!playbackFocus && !nodeMatchesSelectedNodeDirection(node)) return { ...data, hidden: true };
 
-    const focusCandidate = hoveredNode || selectedNode;
+    const focusCandidate = playbackFocus ? null : (hoveredNode || selectedNode);
     const focusNode = focusCandidate && graph.hasNode(focusCandidate) ? focusCandidate : null;
     const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
     const isFocus = focusNode === node;
@@ -6739,7 +7175,7 @@ function setupReducers() {
     //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
 
-    const hasActiveLegendFilters = commandTypeFilter.size > 0 || chainFilter.size > 0;
+    const hasActiveLegendFilters = !playbackFocus && (commandTypeFilter.size > 0 || chainFilter.size > 0);
     const matchesActiveFilters = !hasActiveLegendFilters || graph.edges(node).some(edge =>
       transactionMatchesActiveLegendFilters(graph.getEdgeAttributes(edge))
     );
@@ -6908,6 +7344,19 @@ function setupReducers() {
         opacity: 0.05,
         zIndex: 0
       };
+
+    const playbackFocus = getDatePlaybackFocus();
+    if (playbackFocus) {
+      if (!playbackFocus.edges.has(edge)) return { ...data, hidden: true };
+      return {
+        ...data,
+        hidden: false,
+        color: baseColor,
+        size: Math.max(2.4, visualSize * 1.7),
+        opacity: 1,
+        zIndex: 5
+      };
+    }
 
     if (!edgeMatchesSelectedNodeDirection(source, target)) return { ...data, hidden: true };
     if (!transactionMatchesActiveLegendFilters(data)) return fadedStyle;
@@ -8611,6 +9060,12 @@ function setFullscreenUiVisible(visible, { openSidebar = true } = {}) {
 function setupDateSlicer() {
   if (!graph || !graph.edges) return;
 
+  pauseDatePlayback("Paused — graph data changed");
+  clearDatePlaybackFocus({ refresh: false });
+  const playbackList = document.getElementById("date-playback-feed-list");
+  if (playbackList) playbackList.replaceChildren();
+  datePlaybackVisibleEdges = new Set();
+
   const timestamps = graph.edges().map(id => {
     const ts = graph.getEdgeAttribute(id, "timestamp");
     return typeof ts === "string" ? parseInt(ts) : ts;
@@ -8623,10 +9078,14 @@ function setupDateSlicer() {
   const minTimestamp = Math.min(...timestamps);
   const maxTimestamp = Math.max(...timestamps);
   const binCount = 20;
-  const binSize = Math.ceil((maxTimestamp - minTimestamp) / binCount);
+  const binSize = Math.max(1, Math.ceil((maxTimestamp - minTimestamp) / binCount));
   currentRange = [minTimestamp, maxTimestamp];
 
   const bins = new Array(binCount).fill(0);
+  dateHistogramBins = bins.map((_, index) => ({
+    start: minTimestamp + index * binSize,
+    end: minTimestamp + (index + 1) * binSize
+  }));
   timestamps.forEach(ts => {
     const index = Math.min(Math.floor((ts - minTimestamp) / binSize), binCount - 1);
     bins[index]++;
@@ -8645,7 +9104,7 @@ function setupDateSlicer() {
       datasets: [{
         label: 'Tx Count',
         data: bins,
-        backgroundColor: '#4fc3f7'
+        backgroundColor: bins.map(() => '#4fc3f7')
       }]
     },
     options: {
@@ -8699,7 +9158,7 @@ function setupDateSlicer() {
       min: minTimestamp,
       max: maxTimestamp
     },
-    step: 24 * 60 * 60 * 1000, // 1 day in ms
+    step: 1000, // advanced playback can move with one-second precision
     tooltips: [false, false], // start with no tooltip
     format: {
       to: value => Math.round(value),
@@ -8711,6 +9170,8 @@ function setupDateSlicer() {
 
   // On drag start: add tooltip divs
   slider.noUiSlider.on("start", () => {
+    clearDatePlaybackFocus();
+    resetDatePlaybackFeed("Move the range, then start playback");
     handles.forEach((handle, i) => {
       if (!handle.querySelector('.tooltip')) {
         const tooltip = document.createElement('div');
@@ -8737,7 +9198,7 @@ function setupDateSlicer() {
     handles.forEach((handle, i) => {
       const tooltip = handle.querySelector('.tooltip');
       if (tooltip) {
-        tooltip.textContent = new Date(+values[i]).toLocaleDateString();
+        tooltip.textContent = formatDatePlaybackSliderValue(+values[i]);
       }
     });
   });
@@ -8798,6 +9259,7 @@ function configureDateWindowShiftControl(range = currentRange) {
         : savedPanelState === "true";
       panel.addEventListener("toggle", () => {
         localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(panel.open));
+        requestAnimationFrame(syncDateSlicerWithNodePanel);
       });
     }
     control.dataset.shiftListenerBound = "true";
@@ -8812,7 +9274,7 @@ function configureDateWindowShiftControl(range = currentRange) {
   control.min = String(Math.min(0, config.minPage));
   control.max = String(Math.max(0, config.maxPage));
   control.value = "0";
-  control.disabled = config.minPage === 0 && config.maxPage === 0;
+  control.disabled = datePlaybackDirection !== 0 || (config.minPage === 0 && config.maxPage === 0);
   if (stepLabel) stepLabel.textContent = `${config.stepDays} day${config.stepDays > 1 ? "s" : ""}`;
   valueLabel.textContent = control.disabled
     ? `Selected period: ${config.stepDays} day${config.stepDays > 1 ? "s" : ""} (no complete adjacent period)`
@@ -8830,6 +9292,8 @@ function updateDateWindowShiftButtons(control = document.getElementById("date-wi
 }
 
 function moveDateWindowByOnePeriod(direction) {
+  if (datePlaybackDirection !== 0) return;
+  resetDatePlaybackFeed("Timeline reset after manual range change");
   const control = document.getElementById("date-window-shift");
   if (!control || control.disabled) return;
   const nextValue = Math.max(Number(control.min), Math.min(Number(control.max), Number(control.value) + direction));
@@ -8844,6 +9308,8 @@ function getShiftedDateRange(rangeStart, rangeEnd, stepMilliseconds, pageIndex) 
 }
 
 function shiftSelectedDateWindow(pageIndex) {
+  if (datePlaybackDirection !== 0) return;
+  resetDatePlaybackFeed("Timeline reset after manual range change");
   const slider = document.getElementById("slicer-range");
   const valueLabel = document.getElementById("date-window-shift-value");
   if (!slider?.noUiSlider || !dateWindowShiftState) return;
@@ -8866,7 +9332,9 @@ function shiftSelectedDateWindow(pageIndex) {
 function applyDateFilter() {
   const [min, max] = currentRange;
 
-  const formatter = ts => new Date(ts).toLocaleDateString();
+  const formatter = ts => datePlaybackAdvancedEnabled
+    ? formatDatePlaybackTimestamp(ts)
+    : new Date(ts).toLocaleDateString();
   document.getElementById("slicer-start-label").textContent = `From: ${formatter(min)}`;
   document.getElementById("slicer-end-label").textContent = `To: ${formatter(max)}`;
 
@@ -8887,6 +9355,8 @@ function applyDateFilter() {
     graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
   });
 
+  updateDateHistogramRange();
+
   rebuildEdgeVisualSizes();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
@@ -8894,6 +9364,16 @@ function applyDateFilter() {
   }
 
   renderer.refresh();
+}
+
+function updateDateHistogramRange() {
+  if (!histogramChart || !dateHistogramBins.length) return;
+  const [min, max] = currentRange.map(Number);
+  histogramChart.data.datasets[0].backgroundColor = dateHistogramBins.map(bin => {
+    const overlaps = bin.end >= min && bin.start <= max;
+    return overlaps ? "#4fc3f7" : "rgba(79, 195, 247, 0.18)";
+  });
+  histogramChart.update("none");
 }
 
 function hideNodePanel(options = {}) {
