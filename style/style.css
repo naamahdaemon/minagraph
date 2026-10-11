@@ -922,6 +922,34 @@
     #date-playback-feed-list {
       overflow-y: auto;
       overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: #607985 rgba(255, 255, 255, 0.035);
+    }
+
+    #date-playback-feed-list::-webkit-scrollbar {
+      width: 9px;
+    }
+
+    #date-playback-feed-list::-webkit-scrollbar-track {
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    #date-playback-feed-list::-webkit-scrollbar-thumb {
+      min-height: 36px;
+      border: 2px solid #181e22;
+      border-radius: 999px;
+      background: #607985;
+    }
+
+    #date-playback-feed-list::-webkit-scrollbar-thumb:hover {
+      background: #75a8bc;
+    }
+
+    #date-playback-feed-list::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
     }
 
     .date-playback-transaction {
@@ -1023,6 +1051,23 @@
     body[data-theme="light"] .date-playback-transaction-data {
       color: #405762;
       font-weight: 650;
+    }
+
+    body[data-theme="light"] #date-playback-feed-list {
+      scrollbar-color: #7895a3 rgba(23, 38, 46, 0.05);
+    }
+
+    body[data-theme="light"] #date-playback-feed-list::-webkit-scrollbar-track {
+      background: rgba(23, 38, 46, 0.05);
+    }
+
+    body[data-theme="light"] #date-playback-feed-list::-webkit-scrollbar-thumb {
+      border-color: #f5f9fb;
+      background: #7895a3;
+    }
+
+    body[data-theme="light"] #date-playback-feed-list::-webkit-scrollbar-thumb:hover {
+      background: #527889;
     }
 
     body[data-theme="light"] .date-playback-feed-actions button {
