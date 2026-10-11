@@ -20,12 +20,34 @@ assert.equal(context.result(new Date(2026, 0, 4, 23, 59, 59, 999).getTime()), fa
 assert.equal(context.result(new Date(2026, 0, 6, 0, 0, 0).getTime()), false, 'Following day should be excluded');
 assert.equal(context.result(null), false, 'Missing timestamps should be excluded');
 
+const exactContext = {
+  currentRange: [selectedDayAtNoon, selectedDayAtNoon + 1000],
+  datePlaybackAdvancedEnabled: true
+};
+vm.runInNewContext(`${helperMatch[0]}; result = isTimestampInCurrentRange;`, exactContext);
+assert.equal(exactContext.result(selectedDayAtNoon), true, 'Advanced playback should include its exact lower boundary');
+assert.equal(exactContext.result(selectedDayAtNoon + 1000), true, 'Advanced playback should include its exact upper boundary');
+assert.equal(exactContext.result(selectedDayAtNoon - 1), false, 'Advanced playback should exclude earlier milliseconds');
+assert.equal(exactContext.result(selectedDayAtNoon + 1001), false, 'Advanced playback should exclude later milliseconds');
+
 assert.match(source, /const visibleEdges = graph\.edges\(node\)\.filter/);
 assert.match(source, /showNodePanel\(selectedNode, false\)/);
 assert.match(source, /function getDateWindowShiftConfig\(globalMin, globalMax, rangeStart, rangeEnd\)/);
 assert.match(source, /function shiftSelectedDateWindow\(pageIndex\)/);
 assert.match(source, /slider\.noUiSlider\.set\(shiftedRange, true, true\)/);
 assert.match(source, /function moveDateWindowByOnePeriod\(direction\)/);
+assert.match(source, /function initializeDatePlaybackControls\(\)/);
+assert.match(source, /function advanceDatePlayback\(direction\)/);
+assert.match(source, /function getTransactionsEnteringDateRange\(previousRange, nextRange\)/);
+assert.match(source, /const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings"/);
+assert.match(source, /function saveDatePlaybackSettings\(\)/);
+assert.match(source, /rangeMode: document\.getElementById\("date-playback-range-mode"\)\?\.value \|\| "cumulative"/);
+assert.match(source, /return direction < 0 \? delta : -delta/);
+assert.match(source, /datePlaybackFeedPinnedTop = feedList\.scrollTop <= 2/);
+assert.match(source, /list\.scrollTop = datePlaybackFeedPinnedTop \? 0 : previousScrollTop/);
+assert.match(source, /step: 1000, \/\/ advanced playback can move with one-second precision/);
+assert.match(source, /if \(playbackFocus && !playbackFocus\.nodes\.has\(node\)\)/);
+assert.match(source, /if \(!playbackFocus\.edges\.has\(edge\)\) return \{ \.\.\.data, hidden: true \};/);
 assert.match(source, /if \(wipeGraph\) \{[\s\S]*?visitedKeysByChain\.clear\(\);[\s\S]*?fetchProfilesByChain\.clear\(\);/);
 assert.match(source, /recenterAfterLayout = true;\s*animateLayout\(null, "initial"\)/);
 
