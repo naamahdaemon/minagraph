@@ -466,7 +466,7 @@ let datePlaybackFeedPinnedTop = true;
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
 const LIVE_VIEW_FETCH_LIMIT = 10;
-const LIVE_VIEW_INITIAL_DELAY_MS = 3500;
+const LIVE_VIEW_INITIAL_DELAY_MS = 3 * 60 * 1000;
 const LIVE_VIEW_BETWEEN_FETCHES_MS = 2500;
 const liveViewQueue = [];
 const liveViewQueuedAddresses = new Set();
@@ -999,6 +999,42 @@ function clearLiveViewQueue() {
   liveViewQueuedAddresses.clear();
 }
 
+function parseLiveViewNotificationTimestamp(notification) {
+  const candidates = [
+    notification?.transaction_timestamp,
+    notification?.transactionTimestamp,
+    notification?.transaction_date,
+    notification?.transactionDate,
+    notification?.blockTime,
+    notification?.timestamp,
+    notification?.date,
+    String(notification?.message_id || "").split("-")[0]
+  ];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === "") continue;
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) {
+      const milliseconds = numeric < 1e12 ? numeric * 1000 : numeric;
+      if (Number.isFinite(new Date(milliseconds).getTime())) return milliseconds;
+    }
+    const parsed = Date.parse(String(candidate));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+function getUtcDayRange(timestamp) {
+  const date = new Date(timestamp);
+  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return [start, start + DAY_IN_MILLISECONDS - 1];
+}
+
+function scheduleLiveViewQueue() {
+  if (liveViewProcessing || liveViewQueueTimer || !liveViewQueue.length || !isLiveViewEnabled()) return;
+  const nextReadyAt = Math.min(...liveViewQueue.map(item => item.readyAt));
+  liveViewQueueTimer = setTimeout(processLiveViewQueue, Math.max(0, nextReadyAt - Date.now()));
+}
+
 function getLiveViewNotificationAddresses(notification) {
   const chain = String(notification?.chain || notification?.blockchain || "").toLowerCase();
   if (!chain) return { chain: "", addresses: [] };
@@ -1015,6 +1051,8 @@ function queueLiveViewNotification(notification) {
 
   const { chain, addresses } = getLiveViewNotificationAddresses(notification);
   if (!chain || addresses.length === 0 || !addresses.some(address => graph.hasNode(address))) return;
+  const transactionTimestamp = parseLiveViewNotificationTimestamp(notification);
+  const readyAt = Date.now() + LIVE_VIEW_INITIAL_DELAY_MS;
   if (messageId) {
     liveViewHandledMessages.add(messageId);
     if (liveViewHandledMessages.size > 500) {
@@ -1026,26 +1064,29 @@ function queueLiveViewNotification(notification) {
     const queueKey = `${chain}:${address}`;
     if (liveViewQueuedAddresses.has(queueKey)) return;
     liveViewQueuedAddresses.add(queueKey);
-    liveViewQueue.push({ chain, address, queueKey, messageId });
+    liveViewQueue.push({ chain, address, queueKey, messageId, transactionTimestamp, readyAt });
   });
 
-  if (!liveViewProcessing && !liveViewQueueTimer) {
-    setDatePlaybackStatus(`Live View queued ${addresses.length} address${addresses.length === 1 ? "" : "es"}`);
-    liveViewQueueTimer = setTimeout(processLiveViewQueue, LIVE_VIEW_INITIAL_DELAY_MS);
-  }
+  setDatePlaybackStatus(`Live View queued ${addresses.length} address${addresses.length === 1 ? "" : "es"} — refresh in 3 minutes`);
+  scheduleLiveViewQueue();
 }
 
 async function processLiveViewQueue() {
   liveViewQueueTimer = null;
   if (liveViewProcessing || !isLiveViewEnabled()) return;
+  liveViewQueue.sort((left, right) => left.readyAt - right.readyAt);
+  if (liveViewQueue[0]?.readyAt > Date.now()) {
+    scheduleLiveViewQueue();
+    return;
+  }
   liveViewProcessing = true;
   try {
-    while (liveViewQueue.length && isLiveViewEnabled()) {
+    while (liveViewQueue.length && liveViewQueue[0].readyAt <= Date.now() && isLiveViewEnabled()) {
       const item = liveViewQueue.shift();
       liveViewQueuedAddresses.delete(item.queueKey);
       setDatePlaybackStatus(`Live View refreshing ${item.address.slice(0, 7)}… on ${item.chain}`);
       try {
-        await fetchLiveViewAddress(item.address, item.chain, item.messageId);
+        await fetchLiveViewAddress(item.address, item.chain, item.messageId, item.transactionTimestamp);
       } catch (error) {
         console.warn("Live View refresh failed:", error);
       }
@@ -1053,11 +1094,14 @@ async function processLiveViewQueue() {
     }
   } finally {
     liveViewProcessing = false;
-    if (isLiveViewEnabled()) setDatePlaybackStatus("Live View active — waiting for notifications");
+    if (isLiveViewEnabled()) {
+      setDatePlaybackStatus(liveViewQueue.length ? "Live View refresh queued" : "Live View active — waiting for notifications");
+      scheduleLiveViewQueue();
+    }
   }
 }
 
-async function fetchLiveViewAddress(address, chain, messageId = "") {
+async function fetchLiveViewAddress(address, chain, messageId = "", transactionTimestamp = Date.now()) {
   if (!graph || !renderer) return;
   const previousState = {
     baseKey: BASE_KEY,
@@ -1073,8 +1117,7 @@ async function fetchLiveViewAddress(address, chain, messageId = "") {
     // EVM adapters split the requested total between transfer categories.
     FIRST_ITERATION_LIMIT = isEvmChain(chain) ? LIVE_VIEW_FETCH_LIMIT * 2 : LIVE_VIEW_FETCH_LIMIT;
     LIMIT = 0;
-    FETCH_START_TIMESTAMP = null;
-    FETCH_END_TIMESTAMP = null;
+    [FETCH_START_TIMESTAMP, FETCH_END_TIMESTAMP] = getUtcDayRange(transactionTimestamp);
     cancelRequested = false;
     const signature = `live:${messageId || Date.now()}:${chain}:${address}`;
     await buildGraphRecursively(address, 0, 0, chain, signature);
