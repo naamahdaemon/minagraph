@@ -61,6 +61,7 @@ onMessage(messaging, (payload) => {
   const d = payload.data || {};
   const message_id = d.message_id || `auto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const data = {
+    ...d,
     title: d.title,
     body: d.body,
     icon: "/icons/icon-192.png",
@@ -76,4 +77,8 @@ onMessage(messaging, (payload) => {
   saveNotificationToStorage(data)
     .then(updateNotificationBadge)
     .catch(console.error);
+
+  // Let the graph opt into a rate-limited live refresh without coupling the
+  // Firebase module to the graph implementation.
+  window.dispatchEvent(new CustomEvent("minagraph-push-received", { detail: data }));
 });

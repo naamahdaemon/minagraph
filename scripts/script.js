@@ -465,6 +465,14 @@ let datePlaybackVisibleEdges = new Set();
 let datePlaybackFeedPinnedTop = true;
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
+const LIVE_VIEW_FETCH_LIMIT = 10;
+const LIVE_VIEW_INITIAL_DELAY_MS = 3500;
+const LIVE_VIEW_BETWEEN_FETCHES_MS = 2500;
+const liveViewQueue = [];
+const liveViewQueuedAddresses = new Set();
+const liveViewHandledMessages = new Set();
+let liveViewQueueTimer = null;
+let liveViewProcessing = false;
 let histogramChart;
 let dateHistogramBins = [];
 let isFullscreen = false;
@@ -535,7 +543,7 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
   if (playbackFeed) {
-    const playbackRightOffset = panelOpen ? panelWidth + gap : 64;
+    const playbackRightOffset = panelOpen ? panelWidth + gap : 12;
     playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
@@ -580,7 +588,8 @@ function saveDatePlaybackSettings() {
       stepValue: Math.max(1, Number(document.getElementById("date-playback-step-value")?.value) || 1),
       stepUnit: document.getElementById("date-playback-step-unit")?.value || "days",
       cadence: Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1),
-      rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative"
+      rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative",
+      liveView: document.getElementById("date-playback-live-view")?.checked === true
     }));
   } catch (error) {
     console.warn("Could not save advanced playback settings:", error);
@@ -787,12 +796,16 @@ function updateDatePlaybackUi() {
   const reverse = document.getElementById("date-playback-reverse");
   const pause = document.getElementById("date-playback-pause");
   const forward = document.getElementById("date-playback-forward");
+  const stepBackward = document.getElementById("date-playback-step-backward");
+  const stepForward = document.getElementById("date-playback-step-forward");
   const isPlaying = datePlaybackDirection !== 0;
   controls?.classList.toggle("playing", isPlaying);
   content?.classList.toggle("playing", isPlaying);
   reverse?.classList.toggle("active", datePlaybackDirection < 0);
   forward?.classList.toggle("active", datePlaybackDirection > 0);
   pause?.classList.toggle("active", !isPlaying);
+  if (stepBackward) stepBackward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
+  if (stepForward) stepForward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
   document.querySelectorAll("#slicer-range .noUi-handle").forEach(handle => {
     handle.tabIndex = isPlaying ? -1 : 0;
   });
@@ -868,6 +881,16 @@ function startDatePlayback(direction) {
   scheduleDatePlaybackTick();
 }
 
+function manuallyAdvanceDatePlayback(direction) {
+  if (datePlaybackDirection !== 0 || !datePlaybackAdvancedEnabled) return;
+  document.getElementById("date-playback-feed")?.removeAttribute("hidden");
+  if (advanceDatePlayback(direction)) {
+    setDatePlaybackStatus(direction > 0 ? "Advanced one step" : "Moved back one step");
+  } else {
+    setDatePlaybackStatus(direction > 0 ? "End of timeline reached" : "Start of timeline reached");
+  }
+}
+
 function initializeDatePlaybackControls() {
   const enabled = document.getElementById("date-playback-enabled");
   const settings = document.getElementById("date-playback-settings");
@@ -884,12 +907,14 @@ function initializeDatePlaybackControls() {
   const stepUnit = document.getElementById("date-playback-step-unit");
   const cadence = document.getElementById("date-playback-cadence");
   const rangeMode = document.getElementById("date-playback-range-mode");
+  const liveView = document.getElementById("date-playback-live-view");
   if (stepValue && Number(storedSettings.stepValue) >= 1) stepValue.value = String(storedSettings.stepValue);
   if (stepUnit && ["days", "hours", "minutes", "seconds"].includes(storedSettings.stepUnit)) stepUnit.value = storedSettings.stepUnit;
   if (cadence && Number(storedSettings.cadence) >= 0.1) cadence.value = String(storedSettings.cadence);
   if (rangeMode) rangeMode.value = ["window", "cumulative"].includes(storedSettings.rangeMode)
     ? storedSettings.rangeMode
     : "cumulative";
+  if (liveView) liveView.checked = storedSettings.liveView === true;
   enabled.checked = storedSettings.enabled === true && isDesktopDatePlayback();
   datePlaybackAdvancedEnabled = enabled.checked;
   settings.hidden = !datePlaybackAdvancedEnabled;
@@ -901,6 +926,7 @@ function initializeDatePlaybackControls() {
     pauseDatePlayback();
     clearDatePlaybackFocus();
     if (!datePlaybackAdvancedEnabled && feed) feed.hidden = true;
+    if (!datePlaybackAdvancedEnabled) clearLiveViewQueue();
     updateDateSliderStep();
     applyDateFilter();
     saveDatePlaybackSettings();
@@ -909,6 +935,8 @@ function initializeDatePlaybackControls() {
   document.getElementById("date-playback-reverse")?.addEventListener("click", () => startDatePlayback(-1));
   document.getElementById("date-playback-pause")?.addEventListener("click", () => pauseDatePlayback());
   document.getElementById("date-playback-forward")?.addEventListener("click", () => startDatePlayback(1));
+  document.getElementById("date-playback-step-backward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(-1));
+  document.getElementById("date-playback-step-forward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(1));
   document.getElementById("date-playback-clear-focus")?.addEventListener("click", () => clearDatePlaybackFocus());
   document.getElementById("date-playback-reset-feed")?.addEventListener("click", () => resetDatePlaybackFeed());
   document.getElementById("date-playback-close-feed")?.addEventListener("click", () => {
@@ -922,6 +950,10 @@ function initializeDatePlaybackControls() {
       if (["date-playback-step-value", "date-playback-step-unit"].includes(id)) updateDateSliderStep();
       saveDatePlaybackSettings();
     });
+  });
+  liveView?.addEventListener("change", () => {
+    saveDatePlaybackSettings();
+    if (!liveView.checked) clearLiveViewQueue();
   });
   document.querySelectorAll("[data-number-target]").forEach(button => {
     button.addEventListener("click", () => {
@@ -953,6 +985,163 @@ function initializeDatePlaybackControls() {
     syncDateSlicerWithNodePanel();
   });
   enabled.dataset.bound = "true";
+}
+
+function isLiveViewEnabled() {
+  return isDesktopDatePlayback() && datePlaybackAdvancedEnabled &&
+    document.getElementById("date-playback-live-view")?.checked === true;
+}
+
+function clearLiveViewQueue() {
+  if (liveViewQueueTimer) clearTimeout(liveViewQueueTimer);
+  liveViewQueueTimer = null;
+  liveViewQueue.length = 0;
+  liveViewQueuedAddresses.clear();
+}
+
+function getLiveViewNotificationAddresses(notification) {
+  const chain = String(notification?.chain || notification?.blockchain || "").toLowerCase();
+  if (!chain) return { chain: "", addresses: [] };
+  const addresses = [notification?.sender, notification?.receiver]
+    .map(address => typeof address === "string" ? normalizeAddressForChain(address.trim(), chain) : "")
+    .filter(Boolean);
+  return { chain, addresses: [...new Set(addresses)] };
+}
+
+function queueLiveViewNotification(notification) {
+  if (!isLiveViewEnabled() || !graph) return;
+  const messageId = String(notification?.message_id || "");
+  if (messageId && liveViewHandledMessages.has(messageId)) return;
+
+  const { chain, addresses } = getLiveViewNotificationAddresses(notification);
+  if (!chain || addresses.length === 0 || !addresses.some(address => graph.hasNode(address))) return;
+  if (messageId) {
+    liveViewHandledMessages.add(messageId);
+    if (liveViewHandledMessages.size > 500) {
+      liveViewHandledMessages.delete(liveViewHandledMessages.values().next().value);
+    }
+  }
+
+  addresses.forEach(address => {
+    const queueKey = `${chain}:${address}`;
+    if (liveViewQueuedAddresses.has(queueKey)) return;
+    liveViewQueuedAddresses.add(queueKey);
+    liveViewQueue.push({ chain, address, queueKey, messageId });
+  });
+
+  if (!liveViewProcessing && !liveViewQueueTimer) {
+    setDatePlaybackStatus(`Live View queued ${addresses.length} address${addresses.length === 1 ? "" : "es"}`);
+    liveViewQueueTimer = setTimeout(processLiveViewQueue, LIVE_VIEW_INITIAL_DELAY_MS);
+  }
+}
+
+async function processLiveViewQueue() {
+  liveViewQueueTimer = null;
+  if (liveViewProcessing || !isLiveViewEnabled()) return;
+  liveViewProcessing = true;
+  try {
+    while (liveViewQueue.length && isLiveViewEnabled()) {
+      const item = liveViewQueue.shift();
+      liveViewQueuedAddresses.delete(item.queueKey);
+      setDatePlaybackStatus(`Live View refreshing ${item.address.slice(0, 7)}… on ${item.chain}`);
+      try {
+        await fetchLiveViewAddress(item.address, item.chain, item.messageId);
+      } catch (error) {
+        console.warn("Live View refresh failed:", error);
+      }
+      if (liveViewQueue.length) await new Promise(resolve => setTimeout(resolve, LIVE_VIEW_BETWEEN_FETCHES_MS));
+    }
+  } finally {
+    liveViewProcessing = false;
+    if (isLiveViewEnabled()) setDatePlaybackStatus("Live View active — waiting for notifications");
+  }
+}
+
+async function fetchLiveViewAddress(address, chain, messageId = "") {
+  if (!graph || !renderer) return;
+  const previousState = {
+    baseKey: BASE_KEY,
+    firstLimit: FIRST_ITERATION_LIMIT,
+    limit: LIMIT,
+    fetchStart: FETCH_START_TIMESTAMP,
+    fetchEnd: FETCH_END_TIMESTAMP,
+    cancelled: cancelRequested
+  };
+  const previousEdgeCount = graph.size;
+  try {
+    BASE_KEY = address;
+    // EVM adapters split the requested total between transfer categories.
+    FIRST_ITERATION_LIMIT = isEvmChain(chain) ? LIVE_VIEW_FETCH_LIMIT * 2 : LIVE_VIEW_FETCH_LIMIT;
+    LIMIT = 0;
+    FETCH_START_TIMESTAMP = null;
+    FETCH_END_TIMESTAMP = null;
+    cancelRequested = false;
+    const signature = `live:${messageId || Date.now()}:${chain}:${address}`;
+    await buildGraphRecursively(address, 0, 0, chain, signature);
+  } finally {
+    BASE_KEY = previousState.baseKey;
+    FIRST_ITERATION_LIMIT = previousState.firstLimit;
+    LIMIT = previousState.limit;
+    FETCH_START_TIMESTAMP = previousState.fetchStart;
+    FETCH_END_TIMESTAMP = previousState.fetchEnd;
+    cancelRequested = previousState.cancelled;
+  }
+
+  if (graph.size === previousEdgeCount) return;
+  applyNodeSizesByDegree();
+  rebuildTransactionsByNeighbor();
+  setupReducers();
+  refreshDateSlicerAfterLiveUpdate();
+  renderer.refresh();
+}
+
+function refreshDateSlicerAfterLiveUpdate() {
+  if (!graph?.edges) return;
+  const timestamps = graph.edges().map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
+    .filter(Number.isFinite).sort((left, right) => left - right);
+  const slider = document.getElementById("slicer-range");
+  if (!timestamps.length || !slider?.noUiSlider) return;
+
+  const oldMin = allTimestamps[0];
+  const oldMax = allTimestamps[allTimestamps.length - 1];
+  const newMin = timestamps[0];
+  const newMax = timestamps[timestamps.length - 1];
+  const previousRange = currentRange.map(Number);
+  const followedLatest = Number.isFinite(oldMax) && previousRange[1] >= oldMax - 1000;
+  const rangeMode = document.getElementById("date-playback-range-mode")?.value || "cumulative";
+  let nextRange = [Math.max(newMin, previousRange[0]), Math.min(newMax, previousRange[1])];
+  if (followedLatest && newMax > oldMax) {
+    nextRange = rangeMode === "window"
+      ? [Math.max(newMin, previousRange[0] + (newMax - oldMax)), newMax]
+      : [nextRange[0], newMax];
+  }
+  if (!Number.isFinite(oldMin)) nextRange = [newMin, newMax];
+  allTimestamps = timestamps;
+
+  slider.noUiSlider.updateOptions({ range: { min: newMin, max: newMax } }, false);
+  setDatePlaybackRange(nextRange);
+
+  const binCount = 20;
+  const binSize = Math.max(1, Math.ceil((newMax - newMin) / binCount));
+  const bins = new Array(binCount).fill(0);
+  dateHistogramBins = bins.map((_, index) => ({
+    start: newMin + index * binSize,
+    end: newMin + (index + 1) * binSize
+  }));
+  timestamps.forEach(timestamp => {
+    bins[Math.min(Math.floor((timestamp - newMin) / binSize), binCount - 1)]++;
+  });
+  if (histogramChart) {
+    histogramChart.data.labels = bins.map((_, index) => new Date(newMin + index * binSize).toLocaleDateString());
+    histogramChart.data.datasets[0].data = bins;
+    histogramChart.options.plugins.tooltip.callbacks.title = items => {
+      const index = items[0].dataIndex;
+      return `${new Date(newMin + index * binSize).toLocaleString()} – ${new Date(newMin + (index + 1) * binSize).toLocaleString()}`;
+    };
+  }
+  applyDateFilter();
+  refreshDatePlaybackFeedForCurrentRange();
+  configureDateWindowShiftControl(currentRange);
 }
 
 let nodePanelViewportSyncFrame = 0;
@@ -2562,6 +2751,8 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(updateNotificationBadge)
         .catch(err => console.error('Failed to store notification:', err));
 
+      queueLiveViewNotification(notif);
+
       //handleNotificationActions(notif); // Optionnel ici si déjà couvert plus haut
     }
   });
@@ -3431,6 +3622,12 @@ function initializeLayoutAlgorithmMenu() {
       const direction = event.key === "ArrowDown" ? 1 : -1;
       options[(currentIndex + direction + options.length) % options.length]?.focus();
     }
+  });
+
+  // Foreground Firebase messages do not necessarily pass through the active
+  // service worker, so fcm-init forwards the same payload through this event.
+  window.addEventListener("minagraph-push-received", event => {
+    queueLiveViewNotification(event.detail);
   });
 
   button.addEventListener("keydown", event => {
@@ -9094,6 +9291,8 @@ function setupDateSlicer() {
   const ctx = document.getElementById("slicer-chart").getContext("2d");
   if (histogramChart) histogramChart.destroy();
 
+  Chart.defaults.font.family = "'Coda', sans-serif";
+
   histogramChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -10613,21 +10812,26 @@ window.deleteAndRefresh = async function(message_id) {
 function showToastNotification(title, body) {
   const toast = document.getElementById('toast');
   if (!toast) return;
-
-  const safeBody = (body || '').replace(/\n/g, '<br/>');
-
-  toast.innerHTML = `<strong>${title}</strong><br>${safeBody}`;
-  toast.style.display = 'block';
+  const titleElement = document.getElementById('toast-title');
+  const bodyElement = document.getElementById('toast-body');
+  const closeButton = document.getElementById('toast-close');
+  if (titleElement) titleElement.textContent = title || 'Notification';
+  if (bodyElement) bodyElement.textContent = body || '';
 
   if (window._toastTimeout) {
     clearTimeout(window._toastTimeout);
   }
 
-  toast.classList.add('show');
-  setTimeout(() => {
+  const hideToast = () => {
     toast.classList.remove('show');
-    toast.style.display = 'none';
-  }, 4000);
+    setTimeout(() => {
+      if (!toast.classList.contains('show')) toast.hidden = true;
+    }, 240);
+  };
+  toast.hidden = false;
+  requestAnimationFrame(() => toast.classList.add('show'));
+  if (closeButton) closeButton.onclick = hideToast;
+  window._toastTimeout = setTimeout(hideToast, 5000);
 }
 
 /**

@@ -2,6 +2,9 @@
       /* Shared application stacking order. Keep graph controls below drawers,
          contextual floating panels above drawers, and true modals on top. */
       --z-graph-overlay: 900;
+      /* Date panels cover graph controls such as zoom, while command
+         popovers (search, filters, notifications) remain above them. */
+      --z-timeline-panel: 1010;
       --z-command-bar: 1000;
       --z-command-popover: 1020;
       --z-sidebar-backdrop: 1100;
@@ -426,7 +429,7 @@
     }
 
     body.fullscreen-mode.fullscreen-ui-visible #legend.legend-box {
-      z-index: var(--z-floating-panel);
+      z-index: var(--z-command-popover);
     }
 
     body.fullscreen-mode #date-slicer-container {
@@ -485,6 +488,8 @@
       background: #1e1e1e;
       padding: 10px;
       border-top: 1px solid #444;
+      font-family: 'Coda', sans-serif;
+      font-size: 10px;
     }
 
     body[data-theme="light"] #date-slicer-container {
@@ -516,6 +521,7 @@
       cursor: pointer;
       list-style: none;
       font-size: 11px;
+      font-family: inherit;
       user-select: none;
     }
 
@@ -666,11 +672,13 @@
       display: none;
     }
 
-    #date-playback-settings > label {
+    #date-playback-settings > label,
+    .date-playback-mode-field {
       display: grid;
       gap: 4px;
       color: var(--date-panel-muted);
       font-size: 9px;
+      font-family: inherit;
     }
 
     .date-playback-input-group {
@@ -701,6 +709,7 @@
       caret-color: var(--date-panel-border);
       -webkit-text-fill-color: var(--date-panel-text);
       appearance: textfield;
+      font: inherit;
     }
 
     .date-playback-number-control input:focus {
@@ -730,7 +739,7 @@
       background: rgba(79, 195, 247, 0.12);
       color: var(--date-panel-text);
       cursor: pointer;
-      font: 700 11px/1 sans-serif;
+      font: 700 11px/1 'Coda', sans-serif;
     }
 
     .date-playback-number-buttons button + button {
@@ -773,16 +782,40 @@
     .date-playback-actions {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 0.72fr 1fr 1fr 1fr 0.72fr;
       gap: 6px;
     }
 
-    .date-playback-mode-field {
+    .date-playback-mode-row {
       grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 8px;
     }
 
     .date-playback-mode-field select {
       width: 100%;
+    }
+
+    .date-playback-live-toggle {
+      display: flex !important;
+      min-height: 34px;
+      flex-direction: row !important;
+      align-items: center;
+      gap: 6px;
+      padding: 0 9px;
+      border: 1px solid var(--date-panel-border);
+      border-radius: 7px;
+      background: rgba(79, 195, 247, 0.08);
+      white-space: nowrap;
+      cursor: pointer;
+      color: var(--date-panel-text);
+      font: 10px/1 'Coda', sans-serif;
+    }
+
+    .date-playback-live-toggle input {
+      accent-color: #4fc3f7;
     }
 
     .date-playback-actions button {
@@ -792,7 +825,8 @@
       background: rgba(79, 195, 247, 0.12);
       color: var(--date-panel-text);
       cursor: pointer;
-      font: inherit;
+      font-family: 'Coda', sans-serif;
+      font-weight: 400;
       font-size: 13px;
       box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.18);
       transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
@@ -809,6 +843,17 @@
     .date-playback-actions button.active {
       background: #1689bd;
       color: #fff;
+    }
+
+    .date-playback-actions button:disabled {
+      cursor: not-allowed;
+      opacity: 0.38;
+      transform: none;
+    }
+
+    .date-playback-step-button {
+      font-size: 11px !important;
+      letter-spacing: -2px;
     }
 
     .date-playback-pause-icon {
@@ -847,11 +892,11 @@
     }
 
     #date-playback-feed {
-      --playback-feed-right: 64px;
+      --playback-feed-right: 12px;
       position: fixed;
       top: 64px;
       right: var(--playback-feed-right);
-      z-index: var(--z-floating-panel);
+      z-index: var(--z-timeline-panel);
       display: flex;
       flex-direction: column;
       width: min(400px, calc(100vw - var(--playback-feed-right) - 24px));
@@ -2135,7 +2180,7 @@
       line-height: 1.6;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
       transition: left 0.3s ease;
-      z-index: 1000;
+      z-index: var(--z-command-popover);
     }
 
     /* 💻 Desktop layout: shift legend if sidebar is visible */
@@ -2155,14 +2200,14 @@
     #date-slicer-container {
       position: absolute;
       bottom: 50px;
-      right: 64px;
-      width: min(400px, calc(100vw - 88px));
+      right: 12px;
+      width: min(400px, calc(100vw - 36px));
       background: #1e1e1e;
       border: 1px solid #444;
       border-radius: 8px;
       padding: 10px;
       box-shadow: 0 0 6px rgba(0,0,0,0.4);
-      z-index: var(--z-graph-overlay);
+      z-index: var(--z-timeline-panel);
     }
 
     #slicer-container {
@@ -2710,11 +2755,104 @@
   }
   
   #toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: var(--z-floating-panel);
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 30px;
+    align-items: start;
+    gap: 10px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 12px;
+    border: 1px solid rgba(101, 205, 248, 0.72);
+    border-radius: 12px;
+    background: rgba(24, 30, 34, 0.97);
+    color: #f5f7f8;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+    font-family: 'Coda', sans-serif;
     opacity: 0;
-    transition: opacity 0.3s ease-in-out;
+    transform: translateY(12px) scale(0.98);
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
   }
+
+  #toast[hidden] { display: none; }
+
   #toast.show {
     opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  .toast-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(79, 195, 247, 0.16);
+    font-size: 18px;
+  }
+
+  .toast-content {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  #toast-title {
+    color: #79d6fb;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  #toast-body {
+    color: #e7edf0;
+    font-size: 11px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+
+  #toast-close {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(127, 127, 127, 0.46);
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  #toast-close:hover,
+  #toast-close:focus-visible {
+    border-color: #65cdf8;
+    background: rgba(79, 195, 247, 0.15);
+    outline: none;
+  }
+
+  body[data-theme="light"] #toast {
+    border-color: #43b9ec;
+    background: rgba(248, 252, 254, 0.98);
+    color: #17262e;
+    box-shadow: 0 14px 38px rgba(38, 50, 56, 0.22);
+  }
+
+  body[data-theme="light"] #toast-title { color: #087da9; }
+  body[data-theme="light"] #toast-body { color: #263238; }
+
+  @media screen and (max-width: 768px) {
+    #toast {
+      right: 10px;
+      bottom: 12px;
+      width: calc(100vw - 20px);
+    }
   }
   
   .notif-item {
