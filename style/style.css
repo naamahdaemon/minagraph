@@ -892,7 +892,9 @@
     }
 
     #date-playback-feed {
-      --playback-feed-right: 12px;
+      /* Zoom control sits at right:20px; keep a small visible gap after its
+         handle instead of covering it. */
+      --playback-feed-right: 44px;
       position: fixed;
       top: 64px;
       right: var(--playback-feed-right);
@@ -2200,8 +2202,8 @@
     #date-slicer-container {
       position: absolute;
       bottom: 50px;
-      right: 12px;
-      width: min(400px, calc(100vw - 36px));
+      right: 44px;
+      width: min(400px, calc(100vw - 68px));
       background: #1e1e1e;
       border: 1px solid #444;
       border-radius: 8px;
