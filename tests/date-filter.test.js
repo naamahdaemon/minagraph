@@ -43,6 +43,10 @@ assert.match(source, /const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback
 assert.match(source, /function saveDatePlaybackSettings\(\)/);
 assert.match(source, /rangeMode: document\.getElementById\("date-playback-range-mode"\)\?\.value \|\| "cumulative"/);
 assert.match(source, /liveView: document\.getElementById\("date-playback-live-view"\)\?\.checked === true/);
+assert.match(source, /collapsed: document\.getElementById\("date-playback-collapse"\)/);
+assert.match(source, /collapse\?\.addEventListener\("click"/);
+assert.doesNotMatch(source, /function isDesktopDatePlayback\(\)/);
+assert.match(source, /const maximumFeedHeight = window\.innerWidth <= 768 \? 180 : 500/);
 assert.match(source, /function manuallyAdvanceDatePlayback\(direction\)/);
 assert.match(source, /function moveDatePlaybackBoundary\(boundary\)/);
 assert.match(source, /nextRange\[0\] = Math\.min\(previousRange\[1\], previousRange\[0\] \+ step\)/);

@@ -576,6 +576,8 @@
 
     #date-window-shift-previous,
     #date-window-shift-next {
+      display: grid;
+      place-items: center;
       width: 32px;
       min-width: 32px;
       height: 32px;
@@ -585,8 +587,20 @@
       background: rgba(79, 195, 247, 0.12);
       color: var(--date-panel-text);
       cursor: pointer;
-      font-size: 22px;
-      line-height: 1;
+    }
+
+    #date-window-shift-previous svg,
+    #date-window-shift-next svg,
+    #date-playback-collapse svg {
+      display: block;
+      width: 17px;
+      height: 17px;
+      overflow: visible;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     #date-window-shift-previous:disabled,
@@ -661,6 +675,36 @@
       cursor: pointer;
     }
 
+    .date-playback-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #date-playback-collapse {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      padding: 0;
+      border: 1px solid var(--date-panel-border);
+      border-radius: 50%;
+      background: rgba(79, 195, 247, 0.12);
+      color: var(--date-panel-text);
+      cursor: pointer;
+      font: 700 13px/1 'Coda', sans-serif;
+    }
+
+    #date-playback-collapse svg { transition: transform 0.16s ease; }
+
+    #date-playback-collapse[aria-expanded="false"] svg { transform: rotate(180deg); }
+
+    #date-playback-collapse:disabled {
+      cursor: default;
+      opacity: 0.35;
+    }
+
     #date-playback-settings {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -710,6 +754,8 @@
       -webkit-text-fill-color: var(--date-panel-text);
       appearance: textfield;
       font: inherit;
+      box-sizing: border-box;
+      padding-left: 6px;
     }
 
     .date-playback-number-control input:focus {
@@ -1560,11 +1606,6 @@
     }
 
     @media screen and (max-width: 768px) {
-      #date-playback-controls,
-      #date-playback-feed {
-        display: none !important;
-      }
-
       .node-color-menu {
         width: min(270px, calc(100vw - 20px));
         padding: 12px;
@@ -2224,6 +2265,43 @@
       padding: 10px;
       box-shadow: 0 0 6px rgba(0,0,0,0.4);
       z-index: var(--z-timeline-panel);
+    }
+
+    @media screen and (max-width: 768px) {
+      #date-slicer-container {
+        right: 8px;
+        bottom: 8px;
+        width: calc(100vw - 16px);
+        padding: 6px;
+      }
+
+      #date-playback-settings {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      #date-playback-feed {
+        --playback-feed-right: 8px;
+        --mobile-feed-row-height: 64px;
+        top: 58px;
+        width: calc(100vw - 16px);
+        max-height: 180px;
+      }
+
+      #date-playback-feed-list {
+        flex: 0 1 auto;
+        max-height: calc(var(--mobile-feed-row-height) * 2);
+      }
+
+      .date-playback-transaction {
+        min-height: var(--mobile-feed-row-height);
+        max-height: var(--mobile-feed-row-height);
+        overflow: hidden;
+      }
+
+      #date-playback-feed > header,
+      .date-playback-transaction {
+        padding: 7px 9px;
+      }
     }
 
     #slicer-container {
