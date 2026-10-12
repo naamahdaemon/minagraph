@@ -5,8 +5,8 @@
       /* Date panels cover graph controls such as zoom, while command
          popovers (search, filters, notifications) remain above them. */
       --z-timeline-panel: 1010;
-      --z-command-bar: 1000;
-      --z-command-popover: 1020;
+      --z-command-bar: 1030;
+      --z-command-popover: 1050;
       --z-sidebar-backdrop: 1100;
       --z-sidebar: 1110;
       --z-floating-panel: 1120;
