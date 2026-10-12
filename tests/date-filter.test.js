@@ -42,6 +42,12 @@ assert.match(source, /function getTransactionsEnteringDateRange\(previousRange, 
 assert.match(source, /const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings"/);
 assert.match(source, /function saveDatePlaybackSettings\(\)/);
 assert.match(source, /rangeMode: document\.getElementById\("date-playback-range-mode"\)\?\.value \|\| "cumulative"/);
+assert.match(source, /liveView: document\.getElementById\("date-playback-live-view"\)\?\.checked === true/);
+assert.match(source, /function manuallyAdvanceDatePlayback\(direction\)/);
+assert.match(source, /function queueLiveViewNotification\(notification\)/);
+assert.match(source, /function processLiveViewQueue\(\)/);
+assert.match(source, /function refreshDateSlicerAfterLiveUpdate\(\)/);
+assert.match(source, /FIRST_ITERATION_LIMIT = isEvmChain\(chain\) \? LIVE_VIEW_FETCH_LIMIT \* 2 : LIVE_VIEW_FETCH_LIMIT/);
 assert.match(source, /return direction < 0 \? delta : -delta/);
 assert.match(source, /datePlaybackFeedPinnedTop = feedList\.scrollTop <= 2/);
 assert.match(source, /list\.scrollTop = datePlaybackFeedPinnedTop \? 0 : previousScrollTop/);
