@@ -677,18 +677,21 @@
 
             <div id="date-window-shift-heading">Move selected period</div>
             <div id="date-window-shift-container">
-              <button id="date-window-shift-previous" type="button" title="Previous period" aria-label="Previous period">‹</button>
+              <button id="date-window-shift-previous" type="button" title="Previous period" aria-label="Previous period"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
               <input id="date-window-shift" type="range" min="0" max="0" step="1" value="0" disabled
                 aria-label="Move selected date period">
-              <button id="date-window-shift-next" type="button" title="Next period" aria-label="Next period">›</button>
+              <button id="date-window-shift-next" type="button" title="Next period" aria-label="Next period"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
               <span id="date-window-shift-value">Select a shorter period to move it</span>
             </div>
 
             <section id="date-playback-controls" aria-label="Advanced date playback">
-              <label class="date-playback-mode-toggle">
-                <input id="date-playback-enabled" type="checkbox">
-                <span>Advanced playback</span>
-              </label>
+              <div class="date-playback-heading">
+                <label class="date-playback-mode-toggle">
+                  <input id="date-playback-enabled" type="checkbox">
+                  <span>Advanced playback</span>
+                </label>
+                <button id="date-playback-collapse" type="button" aria-expanded="true" aria-controls="date-playback-settings" title="Collapse advanced playback"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 15 7-7 7 7"/></svg></button>
+              </div>
               <div id="date-playback-settings" hidden>
                 <label>
                   <span>Step</span>
