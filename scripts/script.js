@@ -466,7 +466,7 @@ let datePlaybackFeedPinnedTop = true;
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
 const LIVE_VIEW_FETCH_LIMIT = 10;
-const LIVE_VIEW_INITIAL_DELAY_MS = 3500;
+const LIVE_VIEW_INITIAL_DELAY_MS = 3 * 60 * 1000;
 const LIVE_VIEW_BETWEEN_FETCHES_MS = 2500;
 const liveViewQueue = [];
 const liveViewQueuedAddresses = new Set();
@@ -790,6 +790,15 @@ function setDatePlaybackStatus(message) {
   if (status) status.textContent = message;
 }
 
+function updateDatePlaybackBoundaryButtons() {
+  const isPlaying = datePlaybackDirection !== 0;
+  const unavailable = isPlaying || !datePlaybackAdvancedEnabled;
+  const trimStart = document.getElementById("date-playback-trim-start");
+  const trimEnd = document.getElementById("date-playback-trim-end");
+  if (trimStart) trimStart.disabled = unavailable || currentRange[0] >= currentRange[1];
+  if (trimEnd) trimEnd.disabled = unavailable || currentRange[1] <= currentRange[0];
+}
+
 function updateDatePlaybackUi() {
   const controls = document.getElementById("date-playback-controls");
   const content = document.getElementById("date-filter-content");
@@ -806,6 +815,7 @@ function updateDatePlaybackUi() {
   pause?.classList.toggle("active", !isPlaying);
   if (stepBackward) stepBackward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
   if (stepForward) stepForward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
+  updateDatePlaybackBoundaryButtons();
   document.querySelectorAll("#slicer-range .noUi-handle").forEach(handle => {
     handle.tabIndex = isPlaying ? -1 : 0;
   });
@@ -891,6 +901,25 @@ function manuallyAdvanceDatePlayback(direction) {
   }
 }
 
+function moveDatePlaybackBoundary(boundary) {
+  if (datePlaybackDirection !== 0 || !datePlaybackAdvancedEnabled || !allTimestamps.length) return;
+  const previousRange = currentRange.map(Number);
+  const step = getDatePlaybackStepMilliseconds();
+  const nextRange = [...previousRange];
+  if (boundary === "start") {
+    nextRange[0] = Math.min(previousRange[1], previousRange[0] + step);
+  } else if (boundary === "end") {
+    nextRange[1] = Math.max(previousRange[0], previousRange[1] - step);
+  } else {
+    return;
+  }
+  if (nextRange[0] === previousRange[0] && nextRange[1] === previousRange[1]) return;
+  setDatePlaybackRange(nextRange);
+  renderDatePlaybackFeed(getTransactionsVisibleInDateRange(nextRange), boundary === "start" ? 1 : -1, nextRange);
+  setDatePlaybackStatus(boundary === "start" ? "Lower bound advanced one step" : "Upper bound moved back one step");
+  updateDatePlaybackUi();
+}
+
 function initializeDatePlaybackControls() {
   const enabled = document.getElementById("date-playback-enabled");
   const settings = document.getElementById("date-playback-settings");
@@ -937,6 +966,8 @@ function initializeDatePlaybackControls() {
   document.getElementById("date-playback-forward")?.addEventListener("click", () => startDatePlayback(1));
   document.getElementById("date-playback-step-backward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(-1));
   document.getElementById("date-playback-step-forward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(1));
+  document.getElementById("date-playback-trim-start")?.addEventListener("click", () => moveDatePlaybackBoundary("start"));
+  document.getElementById("date-playback-trim-end")?.addEventListener("click", () => moveDatePlaybackBoundary("end"));
   document.getElementById("date-playback-clear-focus")?.addEventListener("click", () => clearDatePlaybackFocus());
   document.getElementById("date-playback-reset-feed")?.addEventListener("click", () => resetDatePlaybackFeed());
   document.getElementById("date-playback-close-feed")?.addEventListener("click", () => {
@@ -999,6 +1030,42 @@ function clearLiveViewQueue() {
   liveViewQueuedAddresses.clear();
 }
 
+function parseLiveViewNotificationTimestamp(notification) {
+  const candidates = [
+    notification?.transaction_timestamp,
+    notification?.transactionTimestamp,
+    notification?.transaction_date,
+    notification?.transactionDate,
+    notification?.blockTime,
+    notification?.timestamp,
+    notification?.date,
+    String(notification?.message_id || "").split("-")[0]
+  ];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === "") continue;
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) {
+      const milliseconds = numeric < 1e12 ? numeric * 1000 : numeric;
+      if (Number.isFinite(new Date(milliseconds).getTime())) return milliseconds;
+    }
+    const parsed = Date.parse(String(candidate));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+function getUtcDayRange(timestamp) {
+  const date = new Date(timestamp);
+  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return [start, start + DAY_IN_MILLISECONDS - 1];
+}
+
+function scheduleLiveViewQueue() {
+  if (liveViewProcessing || liveViewQueueTimer || !liveViewQueue.length || !isLiveViewEnabled()) return;
+  const nextReadyAt = Math.min(...liveViewQueue.map(item => item.readyAt));
+  liveViewQueueTimer = setTimeout(processLiveViewQueue, Math.max(0, nextReadyAt - Date.now()));
+}
+
 function getLiveViewNotificationAddresses(notification) {
   const chain = String(notification?.chain || notification?.blockchain || "").toLowerCase();
   if (!chain) return { chain: "", addresses: [] };
@@ -1015,6 +1082,8 @@ function queueLiveViewNotification(notification) {
 
   const { chain, addresses } = getLiveViewNotificationAddresses(notification);
   if (!chain || addresses.length === 0 || !addresses.some(address => graph.hasNode(address))) return;
+  const transactionTimestamp = parseLiveViewNotificationTimestamp(notification);
+  const readyAt = Date.now() + LIVE_VIEW_INITIAL_DELAY_MS;
   if (messageId) {
     liveViewHandledMessages.add(messageId);
     if (liveViewHandledMessages.size > 500) {
@@ -1026,26 +1095,29 @@ function queueLiveViewNotification(notification) {
     const queueKey = `${chain}:${address}`;
     if (liveViewQueuedAddresses.has(queueKey)) return;
     liveViewQueuedAddresses.add(queueKey);
-    liveViewQueue.push({ chain, address, queueKey, messageId });
+    liveViewQueue.push({ chain, address, queueKey, messageId, transactionTimestamp, readyAt });
   });
 
-  if (!liveViewProcessing && !liveViewQueueTimer) {
-    setDatePlaybackStatus(`Live View queued ${addresses.length} address${addresses.length === 1 ? "" : "es"}`);
-    liveViewQueueTimer = setTimeout(processLiveViewQueue, LIVE_VIEW_INITIAL_DELAY_MS);
-  }
+  setDatePlaybackStatus(`Live View queued ${addresses.length} address${addresses.length === 1 ? "" : "es"} — refresh in 3 minutes`);
+  scheduleLiveViewQueue();
 }
 
 async function processLiveViewQueue() {
   liveViewQueueTimer = null;
   if (liveViewProcessing || !isLiveViewEnabled()) return;
+  liveViewQueue.sort((left, right) => left.readyAt - right.readyAt);
+  if (liveViewQueue[0]?.readyAt > Date.now()) {
+    scheduleLiveViewQueue();
+    return;
+  }
   liveViewProcessing = true;
   try {
-    while (liveViewQueue.length && isLiveViewEnabled()) {
+    while (liveViewQueue.length && liveViewQueue[0].readyAt <= Date.now() && isLiveViewEnabled()) {
       const item = liveViewQueue.shift();
       liveViewQueuedAddresses.delete(item.queueKey);
       setDatePlaybackStatus(`Live View refreshing ${item.address.slice(0, 7)}… on ${item.chain}`);
       try {
-        await fetchLiveViewAddress(item.address, item.chain, item.messageId);
+        await fetchLiveViewAddress(item.address, item.chain, item.messageId, item.transactionTimestamp);
       } catch (error) {
         console.warn("Live View refresh failed:", error);
       }
@@ -1053,11 +1125,14 @@ async function processLiveViewQueue() {
     }
   } finally {
     liveViewProcessing = false;
-    if (isLiveViewEnabled()) setDatePlaybackStatus("Live View active — waiting for notifications");
+    if (isLiveViewEnabled()) {
+      setDatePlaybackStatus(liveViewQueue.length ? "Live View refresh queued" : "Live View active — waiting for notifications");
+      scheduleLiveViewQueue();
+    }
   }
 }
 
-async function fetchLiveViewAddress(address, chain, messageId = "") {
+async function fetchLiveViewAddress(address, chain, messageId = "", transactionTimestamp = Date.now()) {
   if (!graph || !renderer) return;
   const previousState = {
     baseKey: BASE_KEY,
@@ -1067,14 +1142,13 @@ async function fetchLiveViewAddress(address, chain, messageId = "") {
     fetchEnd: FETCH_END_TIMESTAMP,
     cancelled: cancelRequested
   };
-  const previousEdgeCount = graph.size;
+  const previousEdges = new Set(graph.edges());
   try {
     BASE_KEY = address;
     // EVM adapters split the requested total between transfer categories.
     FIRST_ITERATION_LIMIT = isEvmChain(chain) ? LIVE_VIEW_FETCH_LIMIT * 2 : LIVE_VIEW_FETCH_LIMIT;
     LIMIT = 0;
-    FETCH_START_TIMESTAMP = null;
-    FETCH_END_TIMESTAMP = null;
+    [FETCH_START_TIMESTAMP, FETCH_END_TIMESTAMP] = getUtcDayRange(transactionTimestamp);
     cancelRequested = false;
     const signature = `live:${messageId || Date.now()}:${chain}:${address}`;
     await buildGraphRecursively(address, 0, 0, chain, signature);
@@ -1087,35 +1161,44 @@ async function fetchLiveViewAddress(address, chain, messageId = "") {
     cancelRequested = previousState.cancelled;
   }
 
-  if (graph.size === previousEdgeCount) return;
+  const newEdges = graph.edges().filter(edge => !previousEdges.has(edge));
+  if (!newEdges.length) return;
   applyNodeSizesByDegree();
   rebuildTransactionsByNeighbor();
   setupReducers();
-  refreshDateSlicerAfterLiveUpdate();
+  refreshDateSlicerAfterLiveUpdate(newEdges);
   renderer.refresh();
 }
 
-function refreshDateSlicerAfterLiveUpdate() {
+function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   if (!graph?.edges) return;
   const timestamps = graph.edges().map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
     .filter(Number.isFinite).sort((left, right) => left - right);
   const slider = document.getElementById("slicer-range");
   if (!timestamps.length || !slider?.noUiSlider) return;
 
-  const oldMin = allTimestamps[0];
-  const oldMax = allTimestamps[allTimestamps.length - 1];
   const newMin = timestamps[0];
   const newMax = timestamps[timestamps.length - 1];
   const previousRange = currentRange.map(Number);
-  const followedLatest = Number.isFinite(oldMax) && previousRange[1] >= oldMax - 1000;
+  const liveTimestamps = newEdges
+    .filter(edge => graph.hasEdge(edge))
+    .map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
+    .filter(Number.isFinite);
   const rangeMode = document.getElementById("date-playback-range-mode")?.value || "cumulative";
   let nextRange = [Math.max(newMin, previousRange[0]), Math.min(newMax, previousRange[1])];
-  if (followedLatest && newMax > oldMax) {
-    nextRange = rangeMode === "window"
-      ? [Math.max(newMin, previousRange[0] + (newMax - oldMax)), newMax]
-      : [nextRange[0], newMax];
+  if (liveTimestamps.length) {
+    const liveMin = Math.min(...liveTimestamps);
+    const liveMax = Math.max(...liveTimestamps);
+    if (rangeMode === "window") {
+      const span = Math.max(0, previousRange[1] - previousRange[0], liveMax - liveMin);
+      if (liveMax > previousRange[1]) nextRange = [Math.max(newMin, liveMax - span), liveMax];
+      else if (liveMin < previousRange[0]) nextRange = [liveMin, Math.min(newMax, liveMin + span)];
+    } else {
+      nextRange = [Math.min(previousRange[0], liveMin), Math.max(previousRange[1], liveMax)];
+    }
   }
-  if (!Number.isFinite(oldMin)) nextRange = [newMin, newMax];
+  if (!Number.isFinite(previousRange[0]) || !Number.isFinite(previousRange[1])) nextRange = [newMin, newMax];
+  nextRange = [Math.max(newMin, nextRange[0]), Math.min(newMax, nextRange[1])];
   allTimestamps = timestamps;
 
   slider.noUiSlider.updateOptions({ range: { min: newMin, max: newMax } }, false);
@@ -1140,7 +1223,11 @@ function refreshDateSlicerAfterLiveUpdate() {
     };
   }
   applyDateFilter();
-  refreshDatePlaybackFeedForCurrentRange();
+  if (datePlaybackAdvancedEnabled && !document.getElementById("date-playback-feed")?.hidden) {
+    const visibleEdges = getTransactionsVisibleInDateRange(currentRange);
+    const visibleNewEdges = newEdges.filter(edge => visibleEdges.includes(edge));
+    renderDatePlaybackFeed(visibleEdges, datePlaybackDirection || 1, currentRange, visibleNewEdges);
+  }
   configureDateWindowShiftControl(currentRange);
 }
 
@@ -9416,6 +9503,7 @@ function setupDateSlicer() {
   // Update range filter
   slider.noUiSlider.on("update", function (values) {
     currentRange = values.map(v => parseInt(v));
+    updateDatePlaybackBoundaryButtons();
     applyDateFilter(); // filter the graph dynamically
   });
 

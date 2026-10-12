@@ -5,8 +5,8 @@
       /* Date panels cover graph controls such as zoom, while command
          popovers (search, filters, notifications) remain above them. */
       --z-timeline-panel: 1010;
-      --z-command-bar: 1000;
-      --z-command-popover: 1020;
+      --z-command-bar: 1030;
+      --z-command-popover: 1050;
       --z-sidebar-backdrop: 1100;
       --z-sidebar: 1110;
       --z-floating-panel: 1120;
@@ -782,8 +782,8 @@
     .date-playback-actions {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: 0.72fr 1fr 1fr 1fr 0.72fr;
-      gap: 6px;
+      grid-template-columns: 0.72fr 1fr 0.72fr 1fr 0.72fr 1fr 0.72fr;
+      gap: 4px;
     }
 
     .date-playback-mode-row {
@@ -819,7 +819,12 @@
     }
 
     .date-playback-actions button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       min-height: 34px;
+      min-width: 0;
+      padding: 0;
       border: 1px solid var(--date-panel-border);
       border-radius: 7px;
       background: rgba(79, 195, 247, 0.12);
@@ -830,6 +835,16 @@
       font-size: 13px;
       box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.18);
       transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+    }
+
+    .date-playback-actions button > span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      line-height: 1;
+      text-align: center;
     }
 
     .date-playback-actions button:hover,
@@ -853,29 +868,28 @@
 
     .date-playback-step-button {
       font-size: 11px !important;
-      letter-spacing: -2px;
+      letter-spacing: 0;
     }
 
     .date-playback-pause-icon {
       position: relative;
-      display: inline-block;
-      width: 12px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
     }
 
     .date-playback-pause-icon::before,
     .date-playback-pause-icon::after {
       position: absolute;
-      top: 1px;
-      bottom: 1px;
+      top: 2px;
+      bottom: 2px;
       width: 4px;
       border-radius: 2px;
       background: currentColor;
       content: "";
     }
 
-    .date-playback-pause-icon::before { left: 0; }
-    .date-playback-pause-icon::after { right: 0; }
+    .date-playback-pause-icon::before { left: 4px; }
+    .date-playback-pause-icon::after { right: 4px; }
 
     #date-playback-status {
       grid-column: 1 / -1;

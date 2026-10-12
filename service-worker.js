@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v125';
+const CACHE_NAME = 'mina-graph-explorer-v129';
 const APP_BUILD_DATE = '2026-10-12';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -337,6 +337,13 @@ self.addEventListener('push', function(event) {
     address: data.address,
     action_primary: data.action_primary,
     action_secondary: data.action_secondary,
+    ...(data.transaction_timestamp && { transaction_timestamp: data.transaction_timestamp }),
+    ...(data.transactionTimestamp && { transactionTimestamp: data.transactionTimestamp }),
+    ...(data.transaction_date && { transaction_date: data.transaction_date }),
+    ...(data.transactionDate && { transactionDate: data.transactionDate }),
+    ...(data.blockTime && { blockTime: data.blockTime }),
+    ...(data.timestamp && { transaction_timestamp: data.timestamp }),
+    ...(data.date && { transaction_date: data.date }),
     ...(data.sender && { sender: data.sender }),
     ...(data.receiver && { receiver: data.receiver }),
     ...(data.creatorAccount && { creatorAccount: data.creatorAccount }),
