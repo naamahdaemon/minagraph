@@ -790,6 +790,15 @@ function setDatePlaybackStatus(message) {
   if (status) status.textContent = message;
 }
 
+function updateDatePlaybackBoundaryButtons() {
+  const isPlaying = datePlaybackDirection !== 0;
+  const unavailable = isPlaying || !datePlaybackAdvancedEnabled;
+  const trimStart = document.getElementById("date-playback-trim-start");
+  const trimEnd = document.getElementById("date-playback-trim-end");
+  if (trimStart) trimStart.disabled = unavailable || currentRange[0] >= currentRange[1];
+  if (trimEnd) trimEnd.disabled = unavailable || currentRange[1] <= currentRange[0];
+}
+
 function updateDatePlaybackUi() {
   const controls = document.getElementById("date-playback-controls");
   const content = document.getElementById("date-filter-content");
@@ -806,6 +815,7 @@ function updateDatePlaybackUi() {
   pause?.classList.toggle("active", !isPlaying);
   if (stepBackward) stepBackward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
   if (stepForward) stepForward.disabled = isPlaying || !datePlaybackAdvancedEnabled;
+  updateDatePlaybackBoundaryButtons();
   document.querySelectorAll("#slicer-range .noUi-handle").forEach(handle => {
     handle.tabIndex = isPlaying ? -1 : 0;
   });
@@ -891,6 +901,25 @@ function manuallyAdvanceDatePlayback(direction) {
   }
 }
 
+function moveDatePlaybackBoundary(boundary) {
+  if (datePlaybackDirection !== 0 || !datePlaybackAdvancedEnabled || !allTimestamps.length) return;
+  const previousRange = currentRange.map(Number);
+  const step = getDatePlaybackStepMilliseconds();
+  const nextRange = [...previousRange];
+  if (boundary === "start") {
+    nextRange[0] = Math.min(previousRange[1], previousRange[0] + step);
+  } else if (boundary === "end") {
+    nextRange[1] = Math.max(previousRange[0], previousRange[1] - step);
+  } else {
+    return;
+  }
+  if (nextRange[0] === previousRange[0] && nextRange[1] === previousRange[1]) return;
+  setDatePlaybackRange(nextRange);
+  renderDatePlaybackFeed(getTransactionsVisibleInDateRange(nextRange), boundary === "start" ? 1 : -1, nextRange);
+  setDatePlaybackStatus(boundary === "start" ? "Lower bound advanced one step" : "Upper bound moved back one step");
+  updateDatePlaybackUi();
+}
+
 function initializeDatePlaybackControls() {
   const enabled = document.getElementById("date-playback-enabled");
   const settings = document.getElementById("date-playback-settings");
@@ -937,6 +966,8 @@ function initializeDatePlaybackControls() {
   document.getElementById("date-playback-forward")?.addEventListener("click", () => startDatePlayback(1));
   document.getElementById("date-playback-step-backward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(-1));
   document.getElementById("date-playback-step-forward")?.addEventListener("click", () => manuallyAdvanceDatePlayback(1));
+  document.getElementById("date-playback-trim-start")?.addEventListener("click", () => moveDatePlaybackBoundary("start"));
+  document.getElementById("date-playback-trim-end")?.addEventListener("click", () => moveDatePlaybackBoundary("end"));
   document.getElementById("date-playback-clear-focus")?.addEventListener("click", () => clearDatePlaybackFocus());
   document.getElementById("date-playback-reset-feed")?.addEventListener("click", () => resetDatePlaybackFeed());
   document.getElementById("date-playback-close-feed")?.addEventListener("click", () => {
@@ -1111,7 +1142,7 @@ async function fetchLiveViewAddress(address, chain, messageId = "", transactionT
     fetchEnd: FETCH_END_TIMESTAMP,
     cancelled: cancelRequested
   };
-  const previousEdgeCount = graph.size;
+  const previousEdges = new Set(graph.edges());
   try {
     BASE_KEY = address;
     // EVM adapters split the requested total between transfer categories.
@@ -1130,35 +1161,44 @@ async function fetchLiveViewAddress(address, chain, messageId = "", transactionT
     cancelRequested = previousState.cancelled;
   }
 
-  if (graph.size === previousEdgeCount) return;
+  const newEdges = graph.edges().filter(edge => !previousEdges.has(edge));
+  if (!newEdges.length) return;
   applyNodeSizesByDegree();
   rebuildTransactionsByNeighbor();
   setupReducers();
-  refreshDateSlicerAfterLiveUpdate();
+  refreshDateSlicerAfterLiveUpdate(newEdges);
   renderer.refresh();
 }
 
-function refreshDateSlicerAfterLiveUpdate() {
+function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   if (!graph?.edges) return;
   const timestamps = graph.edges().map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
     .filter(Number.isFinite).sort((left, right) => left - right);
   const slider = document.getElementById("slicer-range");
   if (!timestamps.length || !slider?.noUiSlider) return;
 
-  const oldMin = allTimestamps[0];
-  const oldMax = allTimestamps[allTimestamps.length - 1];
   const newMin = timestamps[0];
   const newMax = timestamps[timestamps.length - 1];
   const previousRange = currentRange.map(Number);
-  const followedLatest = Number.isFinite(oldMax) && previousRange[1] >= oldMax - 1000;
+  const liveTimestamps = newEdges
+    .filter(edge => graph.hasEdge(edge))
+    .map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
+    .filter(Number.isFinite);
   const rangeMode = document.getElementById("date-playback-range-mode")?.value || "cumulative";
   let nextRange = [Math.max(newMin, previousRange[0]), Math.min(newMax, previousRange[1])];
-  if (followedLatest && newMax > oldMax) {
-    nextRange = rangeMode === "window"
-      ? [Math.max(newMin, previousRange[0] + (newMax - oldMax)), newMax]
-      : [nextRange[0], newMax];
+  if (liveTimestamps.length) {
+    const liveMin = Math.min(...liveTimestamps);
+    const liveMax = Math.max(...liveTimestamps);
+    if (rangeMode === "window") {
+      const span = Math.max(0, previousRange[1] - previousRange[0], liveMax - liveMin);
+      if (liveMax > previousRange[1]) nextRange = [Math.max(newMin, liveMax - span), liveMax];
+      else if (liveMin < previousRange[0]) nextRange = [liveMin, Math.min(newMax, liveMin + span)];
+    } else {
+      nextRange = [Math.min(previousRange[0], liveMin), Math.max(previousRange[1], liveMax)];
+    }
   }
-  if (!Number.isFinite(oldMin)) nextRange = [newMin, newMax];
+  if (!Number.isFinite(previousRange[0]) || !Number.isFinite(previousRange[1])) nextRange = [newMin, newMax];
+  nextRange = [Math.max(newMin, nextRange[0]), Math.min(newMax, nextRange[1])];
   allTimestamps = timestamps;
 
   slider.noUiSlider.updateOptions({ range: { min: newMin, max: newMax } }, false);
@@ -1183,7 +1223,11 @@ function refreshDateSlicerAfterLiveUpdate() {
     };
   }
   applyDateFilter();
-  refreshDatePlaybackFeedForCurrentRange();
+  if (datePlaybackAdvancedEnabled && !document.getElementById("date-playback-feed")?.hidden) {
+    const visibleEdges = getTransactionsVisibleInDateRange(currentRange);
+    const visibleNewEdges = newEdges.filter(edge => visibleEdges.includes(edge));
+    renderDatePlaybackFeed(visibleEdges, datePlaybackDirection || 1, currentRange, visibleNewEdges);
+  }
   configureDateWindowShiftControl(currentRange);
 }
 
@@ -9459,6 +9503,7 @@ function setupDateSlicer() {
   // Update range filter
   slider.noUiSlider.on("update", function (values) {
     currentRange = values.map(v => parseInt(v));
+    updateDatePlaybackBoundaryButtons();
     applyDateFilter(); // filter the graph dynamically
   });
 

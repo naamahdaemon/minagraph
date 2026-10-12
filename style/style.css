@@ -782,8 +782,8 @@
     .date-playback-actions {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: 0.72fr 1fr 1fr 1fr 0.72fr;
-      gap: 6px;
+      grid-template-columns: 0.72fr 1fr 0.72fr 1fr 0.72fr 1fr 0.72fr;
+      gap: 4px;
     }
 
     .date-playback-mode-row {
@@ -820,6 +820,7 @@
 
     .date-playback-actions button {
       min-height: 34px;
+      min-width: 0;
       border: 1px solid var(--date-panel-border);
       border-radius: 7px;
       background: rgba(79, 195, 247, 0.12);
@@ -853,7 +854,7 @@
 
     .date-playback-step-button {
       font-size: 11px !important;
-      letter-spacing: -2px;
+      letter-spacing: 0;
     }
 
     .date-playback-pause-icon {
