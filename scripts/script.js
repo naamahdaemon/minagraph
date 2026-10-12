@@ -543,7 +543,7 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
   if (playbackFeed) {
-    const playbackRightOffset = panelOpen ? panelWidth + gap : 12;
+    const playbackRightOffset = panelOpen ? panelWidth + gap : 44;
     playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
