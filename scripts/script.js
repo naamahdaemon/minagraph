@@ -543,21 +543,18 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
   if (playbackFeed) {
-    const playbackRightOffset = panelOpen ? panelWidth + gap : 44;
+    const playbackRightOffset = window.innerWidth <= 768 ? 8 : (panelOpen ? panelWidth + gap : 44);
     playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
     if (!playbackFeed.hidden && slicerRect.height > 0 && feedRect.height > 0) {
       const availableHeight = Math.floor(slicerRect.top - feedRect.top - 12);
-      playbackFeed.style.maxHeight = `${Math.max(64, Math.min(500, availableHeight))}px`;
+      const maximumFeedHeight = window.innerWidth <= 768 ? 180 : 500;
+      playbackFeed.style.maxHeight = `${Math.max(64, Math.min(maximumFeedHeight, availableHeight))}px`;
     } else {
       playbackFeed.style.removeProperty("max-height");
     }
   }
-}
-
-function isDesktopDatePlayback() {
-  return window.innerWidth > 768;
 }
 
 function getDatePlaybackStepMilliseconds() {
@@ -589,7 +586,8 @@ function saveDatePlaybackSettings() {
       stepUnit: document.getElementById("date-playback-step-unit")?.value || "days",
       cadence: Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1),
       rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative",
-      liveView: document.getElementById("date-playback-live-view")?.checked === true
+      liveView: document.getElementById("date-playback-live-view")?.checked === true,
+      collapsed: document.getElementById("date-playback-collapse")?.getAttribute("aria-expanded") === "false"
     }));
   } catch (error) {
     console.warn("Could not save advanced playback settings:", error);
@@ -840,7 +838,7 @@ function setDatePlaybackRange(range) {
 }
 
 function advanceDatePlayback(direction) {
-  if (!datePlaybackAdvancedEnabled || !isDesktopDatePlayback() || !allTimestamps.length) return false;
+  if (!datePlaybackAdvancedEnabled || !allTimestamps.length) return false;
   const previousRange = currentRange.map(Number);
   const globalMin = allTimestamps[0];
   const globalMax = allTimestamps[allTimestamps.length - 1];
@@ -878,7 +876,7 @@ function scheduleDatePlaybackTick() {
 }
 
 function startDatePlayback(direction) {
-  if (!datePlaybackAdvancedEnabled || !isDesktopDatePlayback()) return;
+  if (!datePlaybackAdvancedEnabled) return;
   pauseDatePlayback();
   datePlaybackDirection = direction < 0 ? -1 : 1;
   updateDatePlaybackUi();
@@ -925,6 +923,7 @@ function initializeDatePlaybackControls() {
   const settings = document.getElementById("date-playback-settings");
   const feed = document.getElementById("date-playback-feed");
   const feedList = document.getElementById("date-playback-feed-list");
+  const collapse = document.getElementById("date-playback-collapse");
   if (!enabled || !settings || enabled.dataset.bound === "true") return;
 
   feedList?.addEventListener("scroll", () => {
@@ -944,14 +943,23 @@ function initializeDatePlaybackControls() {
     ? storedSettings.rangeMode
     : "cumulative";
   if (liveView) liveView.checked = storedSettings.liveView === true;
-  enabled.checked = storedSettings.enabled === true && isDesktopDatePlayback();
+  enabled.checked = storedSettings.enabled === true;
   datePlaybackAdvancedEnabled = enabled.checked;
-  settings.hidden = !datePlaybackAdvancedEnabled;
+  if (collapse) collapse.setAttribute("aria-expanded", storedSettings.collapsed === true ? "false" : "true");
+  const syncSettingsVisibility = () => {
+    const collapsed = collapse?.getAttribute("aria-expanded") === "false";
+    settings.hidden = !datePlaybackAdvancedEnabled || collapsed;
+    if (collapse) {
+      collapse.disabled = !datePlaybackAdvancedEnabled;
+      collapse.title = collapsed ? "Expand advanced playback" : "Collapse advanced playback";
+    }
+    requestAnimationFrame(syncDateSlicerWithNodePanel);
+  };
+  syncSettingsVisibility();
 
   enabled.addEventListener("change", () => {
-    datePlaybackAdvancedEnabled = enabled.checked && isDesktopDatePlayback();
-    enabled.checked = datePlaybackAdvancedEnabled;
-    settings.hidden = !datePlaybackAdvancedEnabled;
+    datePlaybackAdvancedEnabled = enabled.checked;
+    syncSettingsVisibility();
     pauseDatePlayback();
     clearDatePlaybackFocus();
     if (!datePlaybackAdvancedEnabled && feed) feed.hidden = true;
@@ -959,7 +967,12 @@ function initializeDatePlaybackControls() {
     updateDateSliderStep();
     applyDateFilter();
     saveDatePlaybackSettings();
-    requestAnimationFrame(syncDateSlicerWithNodePanel);
+  });
+  collapse?.addEventListener("click", () => {
+    if (!datePlaybackAdvancedEnabled) return;
+    collapse.setAttribute("aria-expanded", collapse.getAttribute("aria-expanded") === "false" ? "true" : "false");
+    syncSettingsVisibility();
+    saveDatePlaybackSettings();
   });
   document.getElementById("date-playback-reverse")?.addEventListener("click", () => startDatePlayback(-1));
   document.getElementById("date-playback-pause")?.addEventListener("click", () => pauseDatePlayback());
@@ -997,29 +1010,13 @@ function initializeDatePlaybackControls() {
     });
   });
   window.addEventListener("resize", () => {
-    if (!isDesktopDatePlayback() && datePlaybackAdvancedEnabled) {
-      enabled.checked = false;
-      datePlaybackAdvancedEnabled = false;
-      settings.hidden = true;
-      pauseDatePlayback();
-      clearDatePlaybackFocus();
-      if (feed) feed.hidden = true;
-      updateDateSliderStep();
-      applyDateFilter();
-    } else if (isDesktopDatePlayback() && !datePlaybackAdvancedEnabled && getStoredDatePlaybackSettings().enabled === true) {
-      enabled.checked = true;
-      datePlaybackAdvancedEnabled = true;
-      settings.hidden = false;
-      updateDateSliderStep();
-      applyDateFilter();
-    }
     syncDateSlicerWithNodePanel();
   });
   enabled.dataset.bound = "true";
 }
 
 function isLiveViewEnabled() {
-  return isDesktopDatePlayback() && datePlaybackAdvancedEnabled &&
+  return datePlaybackAdvancedEnabled &&
     document.getElementById("date-playback-live-view")?.checked === true;
 }
 
