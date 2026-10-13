@@ -57,6 +57,7 @@ assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ DA
 assert.match(source, /function runDatePlaybackFlashAnimation\(\)/);
 assert.match(source, /function highlightLatestDatePlaybackFlow\(edges, direction\)/);
 assert.match(source, /if \(isDatePlaybackNodeFlashing\(node\)\)/);
+assert.equal((source.match(/zIndex:\s*true/g) || []).length, 2, 'every Sigma renderer should sort edges by z-index');
 assert.match(source, /const flashing = isDatePlaybackFlashVisible\(edge\)/);
 assert.match(source, /function manuallyAdvanceDatePlayback\(direction\)/);
 assert.match(source, /function moveDatePlaybackBoundary\(boundary\)/);
