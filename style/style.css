@@ -1020,6 +1020,103 @@
       cursor: pointer;
     }
 
+    .date-playback-feed-actions svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    #date-playback-sort-panel {
+      display: grid;
+      gap: 7px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+      background: rgba(79, 195, 247, 0.07);
+    }
+
+    #date-playback-sort-panel[hidden] { display: none; }
+
+    .date-playback-sort-add {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(88px, 1fr) auto;
+      gap: 5px;
+    }
+
+    .date-playback-sort-add select,
+    .date-playback-sort-add button,
+    #date-playback-sort-clear,
+    .date-playback-sort-rule button {
+      min-width: 0;
+      min-height: 28px;
+      border: 1px solid #71808a;
+      border-radius: 6px;
+      background: #303a40;
+      color: #f5f7f8;
+      font: 9px/1.2 'Coda', sans-serif;
+    }
+
+    .date-playback-sort-add select { padding: 3px 5px; }
+
+    .date-playback-sort-add button,
+    #date-playback-sort-clear,
+    .date-playback-sort-rule button { cursor: pointer; }
+
+    #date-playback-sort-rules {
+      display: grid;
+      gap: 4px;
+    }
+
+    #date-playback-sort-rules.empty::before {
+      color: #aebbc2;
+      content: "Playback order (no manual criteria)";
+      font-size: 9px;
+      text-align: center;
+    }
+
+    .date-playback-sort-rule {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) repeat(4, 28px);
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+    }
+
+    .date-playback-sort-rule > strong {
+      display: grid;
+      place-items: center;
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      background: #1689bd;
+      color: #fff;
+    }
+
+    .date-playback-sort-rule > span {
+      overflow: hidden;
+      color: #d7e1e5;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .date-playback-sort-rule button:disabled {
+      cursor: default;
+      opacity: 0.3;
+    }
+
+    body[data-theme="light"] #date-playback-sort-panel { background: rgba(22, 137, 189, 0.08); }
+    body[data-theme="light"] .date-playback-sort-add select,
+    body[data-theme="light"] .date-playback-sort-add button,
+    body[data-theme="light"] #date-playback-sort-clear,
+    body[data-theme="light"] .date-playback-sort-rule button {
+      background: #e6eef2;
+      color: #17262e;
+    }
+    body[data-theme="light"] .date-playback-sort-rule > span { color: #263d48; }
+
     #date-playback-feed-empty {
       padding: 14px;
       color: #aebbc2;
@@ -2290,6 +2387,17 @@
       #date-playback-feed-list {
         flex: 0 1 auto;
         max-height: calc(var(--mobile-feed-row-height) * 2);
+      }
+
+      #date-playback-feed.sorting { max-height: min(360px, calc(100dvh - 70px)); }
+
+      #date-playback-sort-panel {
+        max-height: 170px;
+        overflow-y: auto;
+      }
+
+      .date-playback-sort-add {
+        grid-template-columns: minmax(0, 1fr) minmax(82px, 0.75fr) 42px;
       }
 
       .date-playback-transaction {

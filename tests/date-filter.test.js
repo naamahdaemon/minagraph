@@ -46,7 +46,11 @@ assert.match(source, /liveView: document\.getElementById\("date-playback-live-vi
 assert.match(source, /collapsed: document\.getElementById\("date-playback-collapse"\)/);
 assert.match(source, /collapse\?\.addEventListener\("click"/);
 assert.doesNotMatch(source, /function isDesktopDatePlayback\(\)/);
-assert.match(source, /const maximumFeedHeight = window\.innerWidth <= 768 \? 180 : 500/);
+assert.match(source, /playbackFeed\.classList\.contains\("sorting"\) \? 360 : 180/);
+assert.match(source, /function normalizeDatePlaybackSortRules\(rules\)/);
+assert.match(source, /function sortDatePlaybackEdges\(edges, direction\)/);
+assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
+assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /function manuallyAdvanceDatePlayback\(direction\)/);
 assert.match(source, /function moveDatePlaybackBoundary\(boundary\)/);
 assert.match(source, /nextRange\[0\] = Math\.min\(previousRange\[1\], previousRange\[0\] \+ step\)/);
@@ -62,7 +66,7 @@ assert.match(source, /function parseLiveViewNotificationTimestamp\(notification\
 assert.match(source, /function getUtcDayRange\(timestamp\)/);
 assert.match(source, /\[FETCH_START_TIMESTAMP, FETCH_END_TIMESTAMP\] = getUtcDayRange\(transactionTimestamp\)/);
 assert.match(source, /FIRST_ITERATION_LIMIT = isEvmChain\(chain\) \? LIVE_VIEW_FETCH_LIMIT \* 2 : LIVE_VIEW_FETCH_LIMIT/);
-assert.match(source, /return direction < 0 \? delta : -delta/);
+assert.match(source, /return direction < 0 \? timestampDelta : -timestampDelta/);
 assert.match(source, /datePlaybackFeedPinnedTop = feedList\.scrollTop <= 2/);
 assert.match(source, /list\.scrollTop = datePlaybackFeedPinnedTop \? 0 : previousScrollTop/);
 assert.match(source, /step: 1000, \/\/ advanced playback can move with one-second precision/);

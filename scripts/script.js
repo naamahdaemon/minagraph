@@ -463,6 +463,7 @@ let datePlaybackTimer = null;
 const datePlaybackFocusedEdges = new Set();
 let datePlaybackVisibleEdges = new Set();
 let datePlaybackFeedPinnedTop = true;
+let datePlaybackSortRules = [];
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
 const LIVE_VIEW_FETCH_LIMIT = 10;
@@ -549,7 +550,9 @@ function syncDateSlicerWithNodePanel() {
     const feedRect = playbackFeed.getBoundingClientRect();
     if (!playbackFeed.hidden && slicerRect.height > 0 && feedRect.height > 0) {
       const availableHeight = Math.floor(slicerRect.top - feedRect.top - 12);
-      const maximumFeedHeight = window.innerWidth <= 768 ? 180 : 500;
+      const maximumFeedHeight = window.innerWidth <= 768
+        ? (playbackFeed.classList.contains("sorting") ? 360 : 180)
+        : 500;
       playbackFeed.style.maxHeight = `${Math.max(64, Math.min(maximumFeedHeight, availableHeight))}px`;
     } else {
       playbackFeed.style.removeProperty("max-height");
@@ -587,7 +590,8 @@ function saveDatePlaybackSettings() {
       cadence: Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1),
       rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative",
       liveView: document.getElementById("date-playback-live-view")?.checked === true,
-      collapsed: document.getElementById("date-playback-collapse")?.getAttribute("aria-expanded") === "false"
+      collapsed: document.getElementById("date-playback-collapse")?.getAttribute("aria-expanded") === "false",
+      sortRules: datePlaybackSortRules
     }));
   } catch (error) {
     console.warn("Could not save advanced playback settings:", error);
@@ -719,6 +723,122 @@ function refreshDatePlaybackFeedForCurrentRange() {
   );
 }
 
+const DATE_PLAYBACK_SORT_LABELS = {
+  sender: "Sender address",
+  receiver: "Receiver address",
+  amount: "Amount (upper ten)",
+  "date-day": "Date — day",
+  "date-hour": "Date — hour"
+};
+
+function normalizeDatePlaybackSortRules(rules) {
+  if (!Array.isArray(rules)) return [];
+  const seen = new Set();
+  return rules.filter(rule => {
+    const kind = String(rule?.kind || "");
+    if (!DATE_PLAYBACK_SORT_LABELS[kind] || seen.has(kind)) return false;
+    seen.add(kind);
+    return true;
+  }).map(rule => ({
+    kind: String(rule.kind),
+    direction: rule.direction === "desc" ? "desc" : "asc"
+  }));
+}
+
+function getDatePlaybackSortValue(edge, kind) {
+  const attrs = graph.getEdgeAttributes(edge);
+  if (kind === "sender") return String(graph.source(edge) || "").toLocaleLowerCase();
+  if (kind === "receiver") return String(graph.target(edge) || "").toLocaleLowerCase();
+  if (kind === "amount") {
+    let displayedAmount;
+    try { displayedAmount = formatNodeTransactionAmount(attrs); } catch (_error) { displayedAmount = attrs.amount ?? 0; }
+    const numericAmount = Number(String(displayedAmount).replace(/\s/g, "").replace(",", ".").match(/[-+]?\d+(?:\.\d+)?/)?.[0] || 0);
+    return Math.ceil(Math.abs(numericAmount) / 10) * 10;
+  }
+  const timestamp = Number(attrs.timestamp) || 0;
+  if (kind === "date-hour") return Math.floor(timestamp / 3600000) * 3600000;
+  if (kind === "date-day") return Math.floor(timestamp / DAY_IN_MILLISECONDS) * DAY_IN_MILLISECONDS;
+  return "";
+}
+
+function sortDatePlaybackEdges(edges, direction) {
+  return edges.map((edge, index) => ({ edge, index })).sort((left, right) => {
+    for (const rule of datePlaybackSortRules) {
+      const a = getDatePlaybackSortValue(left.edge, rule.kind);
+      const b = getDatePlaybackSortValue(right.edge, rule.kind);
+      const comparison = typeof a === "number" && typeof b === "number"
+        ? a - b
+        : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+      if (comparison !== 0) return comparison * (rule.direction === "desc" ? -1 : 1);
+    }
+    const timestampDelta = Number(graph.getEdgeAttribute(left.edge, "timestamp")) - Number(graph.getEdgeAttribute(right.edge, "timestamp"));
+    if (timestampDelta !== 0) return direction < 0 ? timestampDelta : -timestampDelta;
+    return left.index - right.index;
+  }).map(entry => entry.edge);
+}
+
+function rerenderDatePlaybackFeedWithSort() {
+  const feed = document.getElementById("date-playback-feed");
+  if (!datePlaybackAdvancedEnabled || !feed || feed.hidden) return;
+  renderDatePlaybackFeed(getTransactionsVisibleInDateRange(currentRange), datePlaybackDirection || 1, currentRange);
+}
+
+function renderDatePlaybackSortRules() {
+  const container = document.getElementById("date-playback-sort-rules");
+  if (!container) return;
+  container.replaceChildren();
+  datePlaybackSortRules.forEach((rule, index) => {
+    const row = document.createElement("div");
+    row.className = "date-playback-sort-rule";
+    const order = document.createElement("strong");
+    order.textContent = String(index + 1);
+    const label = document.createElement("span");
+    label.textContent = DATE_PLAYBACK_SORT_LABELS[rule.kind];
+    const direction = document.createElement("button");
+    direction.type = "button";
+    direction.className = "date-playback-sort-direction";
+    direction.title = rule.direction === "asc" ? "Ascending — click for descending" : "Descending — click for ascending";
+    direction.setAttribute("aria-label", direction.title);
+    direction.textContent = rule.direction === "asc" ? "↑" : "↓";
+    direction.addEventListener("click", () => {
+      rule.direction = rule.direction === "asc" ? "desc" : "asc";
+      saveDatePlaybackSettings();
+      renderDatePlaybackSortRules();
+      rerenderDatePlaybackFeedWithSort();
+    });
+    const moveUp = document.createElement("button");
+    moveUp.type = "button";
+    moveUp.textContent = "⌃";
+    moveUp.title = "Move criterion up";
+    moveUp.disabled = index === 0;
+    moveUp.addEventListener("click", () => {
+      [datePlaybackSortRules[index - 1], datePlaybackSortRules[index]] = [datePlaybackSortRules[index], datePlaybackSortRules[index - 1]];
+      saveDatePlaybackSettings(); renderDatePlaybackSortRules(); rerenderDatePlaybackFeedWithSort();
+    });
+    const moveDown = document.createElement("button");
+    moveDown.type = "button";
+    moveDown.textContent = "⌄";
+    moveDown.title = "Move criterion down";
+    moveDown.disabled = index === datePlaybackSortRules.length - 1;
+    moveDown.addEventListener("click", () => {
+      [datePlaybackSortRules[index], datePlaybackSortRules[index + 1]] = [datePlaybackSortRules[index + 1], datePlaybackSortRules[index]];
+      saveDatePlaybackSettings(); renderDatePlaybackSortRules(); rerenderDatePlaybackFeedWithSort();
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.title = "Remove criterion";
+    remove.addEventListener("click", () => {
+      datePlaybackSortRules.splice(index, 1);
+      saveDatePlaybackSettings(); renderDatePlaybackSortRules(); rerenderDatePlaybackFeedWithSort();
+    });
+    row.append(order, label, direction, moveUp, moveDown, remove);
+    container.append(row);
+  });
+  container.classList.toggle("empty", datePlaybackSortRules.length === 0);
+  requestAnimationFrame(syncDateSlicerWithNodePanel);
+}
+
 function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
   const feed = document.getElementById("date-playback-feed");
   const list = document.getElementById("date-playback-feed-list");
@@ -737,12 +857,7 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
     if (!visibleEdgeIds.has(edge)) datePlaybackFocusedEdges.delete(edge);
   });
 
-  const orderedEdges = [...edges].sort((left, right) => {
-    const delta = Number(graph.getEdgeAttribute(left, "timestamp")) - Number(graph.getEdgeAttribute(right, "timestamp"));
-    // Forward playback keeps the newest transaction first. Reverse playback
-    // mirrors the order so the oldest transaction remains first.
-    return direction < 0 ? delta : -delta;
-  });
+  const orderedEdges = sortDatePlaybackEdges([...edges], direction);
 
   orderedEdges.forEach(edge => {
     if (!graph.hasEdge(edge)) return;
@@ -936,6 +1051,8 @@ function initializeDatePlaybackControls() {
   const cadence = document.getElementById("date-playback-cadence");
   const rangeMode = document.getElementById("date-playback-range-mode");
   const liveView = document.getElementById("date-playback-live-view");
+  const sortToggle = document.getElementById("date-playback-sort-toggle");
+  const sortPanel = document.getElementById("date-playback-sort-panel");
   if (stepValue && Number(storedSettings.stepValue) >= 1) stepValue.value = String(storedSettings.stepValue);
   if (stepUnit && ["days", "hours", "minutes", "seconds"].includes(storedSettings.stepUnit)) stepUnit.value = storedSettings.stepUnit;
   if (cadence && Number(storedSettings.cadence) >= 0.1) cadence.value = String(storedSettings.cadence);
@@ -943,6 +1060,8 @@ function initializeDatePlaybackControls() {
     ? storedSettings.rangeMode
     : "cumulative";
   if (liveView) liveView.checked = storedSettings.liveView === true;
+  datePlaybackSortRules = normalizeDatePlaybackSortRules(storedSettings.sortRules);
+  renderDatePlaybackSortRules();
   enabled.checked = storedSettings.enabled === true;
   datePlaybackAdvancedEnabled = enabled.checked;
   if (collapse) collapse.setAttribute("aria-expanded", storedSettings.collapsed === true ? "false" : "true");
@@ -973,6 +1092,31 @@ function initializeDatePlaybackControls() {
     collapse.setAttribute("aria-expanded", collapse.getAttribute("aria-expanded") === "false" ? "true" : "false");
     syncSettingsVisibility();
     saveDatePlaybackSettings();
+  });
+  sortToggle?.addEventListener("click", () => {
+    const willOpen = sortPanel?.hidden !== false;
+    if (sortPanel) sortPanel.hidden = !willOpen;
+    feed?.classList.toggle("sorting", willOpen);
+    sortToggle.setAttribute("aria-expanded", String(willOpen));
+    if (willOpen) renderDatePlaybackSortRules();
+    requestAnimationFrame(syncDateSlicerWithNodePanel);
+  });
+  document.getElementById("date-playback-sort-add")?.addEventListener("click", () => {
+    const kind = document.getElementById("date-playback-sort-kind")?.value;
+    const direction = document.getElementById("date-playback-sort-direction")?.value === "desc" ? "desc" : "asc";
+    if (!DATE_PLAYBACK_SORT_LABELS[kind]) return;
+    const existingRule = datePlaybackSortRules.find(rule => rule.kind === kind);
+    if (existingRule) existingRule.direction = direction;
+    else datePlaybackSortRules.push({ kind, direction });
+    saveDatePlaybackSettings();
+    renderDatePlaybackSortRules();
+    rerenderDatePlaybackFeedWithSort();
+  });
+  document.getElementById("date-playback-sort-clear")?.addEventListener("click", () => {
+    datePlaybackSortRules = [];
+    saveDatePlaybackSettings();
+    renderDatePlaybackSortRules();
+    rerenderDatePlaybackFeedWithSort();
   });
   document.getElementById("date-playback-reverse")?.addEventListener("click", () => startDatePlayback(-1));
   document.getElementById("date-playback-pause")?.addEventListener("click", () => pauseDatePlayback());
