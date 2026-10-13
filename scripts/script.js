@@ -7601,6 +7601,7 @@ function initRenderer() {
   graph = new Graph({ multi: true });
   //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
   param = {
+    zIndex: true,
     labelColor: {
         color: isLightTheme() ? "#000" : "#9999ff"
     },
@@ -8472,6 +8473,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     selectedNode = null;      
 
     param = {
+        zIndex: true,
         labelColor: {
             color: isLightTheme() ? "#000" : "#9999ff"
         },
