@@ -882,7 +882,13 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
     const type = attrs.command_type || attrs.label || "transaction";
     let amount = "-";
     try { amount = formatNodeTransactionAmount(attrs); } catch (_error) { amount = attrs.amount ?? "-"; }
-    detailsLine.textContent = `${type} · ${attrs.status || "unknown"} · ${amount}`;
+    const transactionKind = document.createElement("span");
+    transactionKind.className = "date-playback-transaction-kind";
+    transactionKind.textContent = `${type} · ${attrs.status || "unknown"}`;
+    const transactionAmount = document.createElement("strong");
+    transactionAmount.className = "date-playback-transaction-amount";
+    transactionAmount.textContent = amount;
+    detailsLine.append(transactionKind, transactionAmount);
     button.append(meta, route, detailsLine);
     button.addEventListener("click", () => focusDatePlaybackTransaction(edge));
     list.append(button);

@@ -51,6 +51,7 @@ assert.match(source, /function normalizeDatePlaybackSortRules\(rules\)/);
 assert.match(source, /function sortDatePlaybackEdges\(edges, direction\)/);
 assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
+assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
 assert.match(source, /function manuallyAdvanceDatePlayback\(direction\)/);
 assert.match(source, /function moveDatePlaybackBoundary\(boundary\)/);
 assert.match(source, /nextRange\[0\] = Math\.min\(previousRange\[1\], previousRange\[0\] \+ step\)/);
