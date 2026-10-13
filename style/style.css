@@ -1237,8 +1237,30 @@
     }
 
     .date-playback-transaction-data {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: baseline;
+      gap: 8px;
       color: #cbd5da;
       font-size: 9px;
+    }
+
+    .date-playback-transaction-kind {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .date-playback-transaction-amount {
+      justify-self: end;
+      min-width: max-content;
+      color: #65cdf8;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: right;
+      white-space: nowrap;
     }
 
     body[data-theme="light"] #date-playback-feed {
@@ -1256,6 +1278,8 @@
       color: #405762;
       font-weight: 650;
     }
+
+    body[data-theme="light"] .date-playback-transaction-amount { color: #087da9; }
 
     body[data-theme="light"] #date-playback-feed-list {
       scrollbar-color: #7895a3 rgba(23, 38, 46, 0.05);

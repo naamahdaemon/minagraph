@@ -461,6 +461,10 @@ let datePlaybackAdvancedEnabled = false;
 let datePlaybackDirection = 0;
 let datePlaybackTimer = null;
 const datePlaybackFocusedEdges = new Set();
+const datePlaybackFlashDeadlines = new Map();
+let datePlaybackFlashFrame = null;
+let datePlaybackAutoFlashEdge = null;
+const DATE_PLAYBACK_FLASH_DURATION_MS = 2000;
 let datePlaybackVisibleEdges = new Set();
 let datePlaybackFeedPinnedTop = true;
 let datePlaybackSortRules = [];
@@ -648,8 +652,66 @@ function getDatePlaybackFocus() {
   return { edges, nodes };
 }
 
+function isDatePlaybackFlashVisible(edge, now = Date.now()) {
+  const deadline = datePlaybackFlashDeadlines.get(edge) || 0;
+  return deadline > now && Math.floor(now / 350) % 2 === 0;
+}
+
+function isDatePlaybackNodeFlashing(node, now = Date.now()) {
+  for (const edge of datePlaybackFlashDeadlines.keys()) {
+    if (!graph?.hasEdge(edge) || !isDatePlaybackFlashVisible(edge, now)) continue;
+    if (graph.source(edge) === node || graph.target(edge) === node) return true;
+  }
+  return false;
+}
+
+function runDatePlaybackFlashAnimation() {
+  datePlaybackFlashFrame = null;
+  const now = Date.now();
+  datePlaybackFlashDeadlines.forEach((deadline, edge) => {
+    if (deadline <= now || !graph?.hasEdge(edge)) {
+      datePlaybackFlashDeadlines.delete(edge);
+      if (datePlaybackAutoFlashEdge === edge) datePlaybackAutoFlashEdge = null;
+    }
+  });
+  renderer?.refresh?.();
+  if (datePlaybackFlashDeadlines.size > 0) {
+    datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
+  }
+}
+
+function startDatePlaybackFlash(edge) {
+  datePlaybackFlashDeadlines.set(edge, Date.now() + DATE_PLAYBACK_FLASH_DURATION_MS);
+  if (datePlaybackFlashFrame === null) {
+    datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
+  }
+}
+
+function highlightLatestDatePlaybackFlow(edges, direction) {
+  if (!datePlaybackDirection || !edges.length) return;
+  const nextEdge = sortDatePlaybackEdges([...edges], direction)[0];
+  if (!nextEdge || !graph?.hasEdge(nextEdge)) return;
+  if (datePlaybackAutoFlashEdge && datePlaybackAutoFlashEdge !== nextEdge) {
+    if (!datePlaybackFocusedEdges.has(datePlaybackAutoFlashEdge)) stopDatePlaybackFlash(datePlaybackAutoFlashEdge);
+  }
+  datePlaybackAutoFlashEdge = nextEdge;
+  startDatePlaybackFlash(nextEdge);
+}
+
+function stopDatePlaybackFlash(edge) {
+  datePlaybackFlashDeadlines.delete(edge);
+  if (datePlaybackFlashDeadlines.size === 0 && datePlaybackFlashFrame !== null) {
+    cancelAnimationFrame(datePlaybackFlashFrame);
+    datePlaybackFlashFrame = null;
+  }
+}
+
 function clearDatePlaybackFocus({ refresh = true } = {}) {
   datePlaybackFocusedEdges.clear();
+  datePlaybackFlashDeadlines.clear();
+  datePlaybackAutoFlashEdge = null;
+  if (datePlaybackFlashFrame !== null) cancelAnimationFrame(datePlaybackFlashFrame);
+  datePlaybackFlashFrame = null;
   document.querySelectorAll(".date-playback-transaction.active").forEach(item => item.classList.remove("active"));
   const clearButton = document.getElementById("date-playback-clear-focus");
   if (clearButton) clearButton.hidden = true;
@@ -658,8 +720,13 @@ function clearDatePlaybackFocus({ refresh = true } = {}) {
 
 function focusDatePlaybackTransaction(edge) {
   if (!graph?.hasEdge(edge)) return;
-  if (datePlaybackFocusedEdges.has(edge)) datePlaybackFocusedEdges.delete(edge);
-  else datePlaybackFocusedEdges.add(edge);
+  if (datePlaybackFocusedEdges.has(edge)) {
+    datePlaybackFocusedEdges.delete(edge);
+    stopDatePlaybackFlash(edge);
+  } else {
+    datePlaybackFocusedEdges.add(edge);
+    startDatePlaybackFlash(edge);
+  }
   document.querySelectorAll(".date-playback-transaction").forEach(item => {
     item.classList.toggle("active", datePlaybackFocusedEdges.has(item.dataset.edgeId));
   });
@@ -854,10 +921,14 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
   const visibleEdgeIds = new Set(edges);
   const newEdgeIds = new Set(newEdges);
   [...datePlaybackFocusedEdges].forEach(edge => {
-    if (!visibleEdgeIds.has(edge)) datePlaybackFocusedEdges.delete(edge);
+    if (!visibleEdgeIds.has(edge)) {
+      datePlaybackFocusedEdges.delete(edge);
+      stopDatePlaybackFlash(edge);
+    }
   });
 
   const orderedEdges = sortDatePlaybackEdges([...edges], direction);
+  highlightLatestDatePlaybackFlow(newEdges, direction);
 
   orderedEdges.forEach(edge => {
     if (!graph.hasEdge(edge)) return;
@@ -882,7 +953,13 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
     const type = attrs.command_type || attrs.label || "transaction";
     let amount = "-";
     try { amount = formatNodeTransactionAmount(attrs); } catch (_error) { amount = attrs.amount ?? "-"; }
-    detailsLine.textContent = `${type} · ${attrs.status || "unknown"} · ${amount}`;
+    const transactionKind = document.createElement("span");
+    transactionKind.className = "date-playback-transaction-kind";
+    transactionKind.textContent = `${type} · ${attrs.status || "unknown"}`;
+    const transactionAmount = document.createElement("strong");
+    transactionAmount.className = "date-playback-transaction-amount";
+    transactionAmount.textContent = amount;
+    detailsLine.append(transactionKind, transactionAmount);
     button.append(meta, route, detailsLine);
     button.addEventListener("click", () => focusDatePlaybackTransaction(edge));
     list.append(button);
@@ -7619,6 +7696,24 @@ function setupReducers() {
         };
       }
 
+    if (isDatePlaybackNodeFlashing(node)) {
+      const flashFill = isLightTheme() ? "#b07a00" : "#ffdc33";
+      return {
+        ...data,
+        color: flashFill,
+        overrideColor: flashFill,
+        borderColor: "#ff3b30",
+        borderSize: 16,
+        opacity: 1,
+        label: showAllLabels ? renderedLabel : "",
+        labelSize: 36,
+        labelColor: { color: isLightTheme() ? "#000" : "#fff" },
+        forceLabelColor: true,
+        size: defaultSize * 1.8,
+        zIndex: 10
+      };
+    }
+
     // ✨ Focus or neighbor styling
     if (focusNode) {
       if (isFocus) {
@@ -7716,7 +7811,7 @@ function setupReducers() {
       size: defaultSize,
       zIndex: 1
     };
-    
+
     //console.log("Rendering node:", node, standardNode);
 
     // 🧩 Default view
@@ -7773,18 +7868,30 @@ function setupReducers() {
     const playbackFocus = getDatePlaybackFocus();
     if (playbackFocus) {
       if (!playbackFocus.edges.has(edge)) return { ...data, hidden: true };
+      const flashing = isDatePlaybackFlashVisible(edge);
       return {
         ...data,
         hidden: false,
-        color: baseColor,
-        size: Math.max(2.4, visualSize * 1.7),
+        color: flashing ? "#ff3b30" : baseColor,
+        size: flashing ? Math.max(4.2, visualSize * 2.8) : Math.max(2.4, visualSize * 1.7),
         opacity: 1,
-        zIndex: 5
+        zIndex: flashing ? 12 : 5
       };
     }
 
     if (!edgeMatchesSelectedNodeDirection(source, target)) return { ...data, hidden: true };
     if (!transactionMatchesActiveLegendFilters(data)) return fadedStyle;
+
+    if (isDatePlaybackFlashVisible(edge)) {
+      return {
+        ...data,
+        hidden: false,
+        color: "#ff3b30",
+        size: Math.max(4.2, visualSize * 2.8),
+        opacity: 1,
+        zIndex: 12
+      };
+    }
 
     if (focusNode) {
       const neighbors = new Set(graph.neighbors(focusNode));
