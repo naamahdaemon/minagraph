@@ -766,11 +766,32 @@
           <strong id="date-playback-feed-title">New transactions</strong>
         </div>
         <div class="date-playback-feed-actions">
+          <button id="date-playback-sort-toggle" type="button" title="Sort timeline" aria-label="Sort timeline" aria-expanded="false" aria-controls="date-playback-sort-panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16m0 0-3-3m3 3 3-3M16 20V4m0 0-3 3m3-3 3 3"/></svg>
+          </button>
           <button id="date-playback-clear-focus" type="button" title="Clear transaction focus" aria-label="Clear transaction focus" hidden>◎</button>
           <button id="date-playback-reset-feed" type="button" title="Reset timeline" aria-label="Reset timeline">↺</button>
           <button id="date-playback-close-feed" type="button" title="Close timeline activity" aria-label="Close timeline activity">×</button>
         </div>
       </header>
+      <section id="date-playback-sort-panel" aria-label="Timeline sorting" hidden>
+        <div class="date-playback-sort-add">
+          <select id="date-playback-sort-kind" aria-label="Sort criterion">
+            <option value="sender">Sender address</option>
+            <option value="receiver">Receiver address</option>
+            <option value="amount">Amount (upper ten)</option>
+            <option value="date-day">Date — day</option>
+            <option value="date-hour">Date — hour</option>
+          </select>
+          <select id="date-playback-sort-direction" aria-label="Sort direction">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <button id="date-playback-sort-add" type="button">Add</button>
+        </div>
+        <div id="date-playback-sort-rules" aria-live="polite"></div>
+        <button id="date-playback-sort-clear" type="button">Default order</button>
+      </section>
       <div id="date-playback-feed-empty">Start playback to display transactions entering the period.</div>
       <div id="date-playback-feed-list"></div>
     </aside>
