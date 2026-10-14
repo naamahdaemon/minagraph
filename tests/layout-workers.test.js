@@ -157,6 +157,16 @@ assert.match(scriptSource, /const renderInterval = algorithm === "spacious" \? 8
 assert.match(scriptSource, /if \(algorithm === "spacious"\) restoreInitialPositions\(\)/,
   "Spacious must restore initial positions after a worker failure");
 assert.match(scriptSource, /Spacious layout returned invalid positions; the graph was left unchanged/);
+assert.match(scriptSource, /const layoutScope = document\.getElementById\("layout-scope"\)\?\.value \|\| "all"/);
+assert.match(scriptSource, /graph\.edges\(\)\.filter\(edge => playbackFocus/,
+  "visible scope should snapshot the focused or actively filtered transactions");
+assert.match(scriptSource, /: graphEdgeMatchesActiveView\(edge\)/);
+assert.match(scriptSource, /const nodes = layoutNodeIds\.map/,
+  "workers should receive only nodes captured by the selected scope");
+assert.match(scriptSource, /layoutEdges\.filter\(id =>[\s\S]*?layoutNodeSet\.has\(graph\.source\(id\)\)/,
+  "workers should receive only edges whose endpoints are in the scoped node set");
+assert.match(scriptSource, /layoutNodeIds\.forEach\(id => \{/,
+  "leaving OpenOrd must not randomize nodes outside the selected scope");
 
 const spaciousSource = fs.readFileSync(path.join(projectRoot, "scripts", "spaciousLayout.js"), "utf8");
 assert.match(spaciousSource, /now - lastProgressTime < 65/,

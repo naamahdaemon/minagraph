@@ -291,6 +291,7 @@ let edgeVisualSizes = new Map();
 
 const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; Spacious adds a dedicated expansion and anti-overlap pass without changing the other layouts; OpenOrd-inspired favors large-scale separation and is experimental.",
+  "layout-scope": "Chooses whether the layout moves every loaded node or only nodes connected by transactions visible when the layout starts. Hidden nodes keep their current positions.",
   "layout-linlog": "ForceAtlas2 only. Replaces linear attraction with logarithmic attraction, weakening long-distance links so communities separate more clearly.",
   "layout-outbound": "ForceAtlas2 only. Distributes each sender's attraction across its outgoing connections using a moderated mass compensation. Highly connected senders pull each recipient less strongly, so transaction direction remains visible without the extreme branches of full linear distribution.",
   "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
@@ -2367,6 +2368,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const param_endDate = params.get("enddate");
   const sharedLayoutParams = {
     algorithm: params.get("layout"),
+    scope: params.get("layoutscope"),
     iterations: params.get("iterations"),
     width: params.get("width"),
     height: params.get("height"),
@@ -3508,7 +3510,7 @@ class LayoutController {
     const width = Math.max(1, parseInt(document.getElementById("layout-width").value, 10) || 2000);
     const height = Math.max(1, parseInt(document.getElementById("layout-height").value, 10) || 2000);
     const algorithm = document.getElementById("layout-algorithm").value;
-    const nodeCount = graph.order;
+    const layoutScope = document.getElementById("layout-scope")?.value || "all";
     const iterations = requestedIterations;
     const runId = ++this.runId;
 
@@ -3532,8 +3534,30 @@ class LayoutController {
       settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1;
     }
 
+    const playbackFocus = getDatePlaybackFocus();
+    const layoutEdges = layoutScope === "visible"
+      ? graph.edges().filter(edge => playbackFocus
+          ? playbackFocus.edges.has(edge)
+          : graphEdgeMatchesActiveView(edge))
+      : graph.edges();
+    const layoutNodeIds = layoutScope === "visible"
+      ? [...layoutEdges.reduce((nodes, edge) => {
+          const source = graph.source(edge);
+          const target = graph.target(edge);
+          if (graph.getNodeAttribute(source, "hidden") !== true) nodes.add(source);
+          if (graph.getNodeAttribute(target, "hidden") !== true) nodes.add(target);
+          return nodes;
+        }, new Set())]
+      : graph.nodes();
+    if (layoutScope === "visible" && graph.size === 0) {
+      graph.forEachNode((node, attributes) => {
+        if (attributes.hidden !== true) layoutNodeIds.push(node);
+      });
+    }
+    const layoutNodeSet = new Set(layoutNodeIds);
+
     if (previousLayout === "ord" && algorithm !== "ord") {
-      graph.forEachNode(id => {
+      layoutNodeIds.forEach(id => {
         graph.setNodeAttribute(id, "x", Math.random() * width);
         graph.setNodeAttribute(id, "y", Math.random() * height);
       });
@@ -3550,15 +3574,18 @@ class LayoutController {
     setLayoutUiState("running", "0%");
 
     const layoutLabel = origin === "manual" ? "Manual" : "Automatic";
-    document.getElementById("layout-info").textContent = `${layoutLabel} layout: ${iterations} iterations`;
+    const scopeLabel = layoutScope === "visible" ? ` · ${layoutNodeIds.length}/${graph.order} visible nodes` : "";
+    document.getElementById("layout-info").textContent = `${layoutLabel} layout: ${iterations} iterations${scopeLabel}`;
 
-    const nodes = graph.nodes().map(id => ({
+    const nodes = layoutNodeIds.map(id => ({
       id,
       x: graph.getNodeAttribute(id, "x"),
       y: graph.getNodeAttribute(id, "y"),
       size: graph.getNodeAttribute(id, "size") || 1
     }));
-    const edges = graph.edges().map(id => ({
+    const edges = layoutEdges.filter(id =>
+      layoutNodeSet.has(graph.source(id)) && layoutNodeSet.has(graph.target(id))
+    ).map(id => ({
       source: graph.source(id),
       target: graph.target(id),
       weight: graph.getEdgeAttribute(id, "weight") ?? 1
@@ -8746,8 +8773,9 @@ function saveLayoutSettings(algorithm) {
   const settings = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)) || {};
 
   const inputIds = {
-    fr: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
+    fr: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
     fa: [
+      "layout-scope",
       "layout-iterations",
       "layout-width",
       "layout-height",
@@ -8758,8 +8786,8 @@ function saveLayoutSettings(algorithm) {
       "layout-strong-gravity",
       "layout-prevent-overlap"
     ],
-    spacious: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
-    ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
+    spacious: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
+    ord: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
   };
 
   settings[algorithm] = {};
@@ -8767,7 +8795,11 @@ function saveLayoutSettings(algorithm) {
   inputIds[algorithm].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    settings[algorithm][id] = el.type === "checkbox" ? el.checked : parseFloat(el.value);
+    settings[algorithm][id] = el.type === "checkbox"
+      ? el.checked
+      : el.tagName === "SELECT"
+        ? el.value
+        : parseFloat(el.value);
   });
 
   localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(settings));
@@ -9426,6 +9458,7 @@ function getGraphShareUrl() {
     startdate: document.getElementById("param-start-date")?.value,
     enddate: document.getElementById("param-end-date")?.value,
     layout: document.getElementById("layout-algorithm")?.value,
+    layoutscope: document.getElementById("layout-scope")?.value,
     iterations: document.getElementById("layout-iterations")?.value,
     width: document.getElementById("layout-width")?.value,
     height: document.getElementById("layout-height")?.value,
@@ -9527,10 +9560,11 @@ function applySharedLayoutParams(shared) {
     if (element) element.checked = value === "1" || value === "true";
   };
 
-  if (shared.algorithm && ["fr", "fa", "ord"].includes(shared.algorithm)) {
+  if (shared.algorithm && ["fr", "fa", "spacious", "ord"].includes(shared.algorithm)) {
     setValue("layout-algorithm", shared.algorithm);
     document.getElementById("layout-algorithm")?.dispatchEvent(new Event("change"));
   }
+  if (["all", "visible"].includes(shared.scope)) setValue("layout-scope", shared.scope);
   setValue("layout-iterations", shared.iterations);
   setValue("layout-width", shared.width);
   setValue("layout-height", shared.height);
