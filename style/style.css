@@ -1125,10 +1125,46 @@
     }
 
     #date-playback-feed-list {
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
       scrollbar-color: #607985 rgba(255, 255, 255, 0.035);
+    }
+
+    #date-playback-feed-resize-handle {
+      position: absolute;
+      right: 38%;
+      bottom: 0;
+      left: 38%;
+      z-index: 2;
+      height: 8px;
+      cursor: ns-resize;
+      touch-action: none;
+    }
+
+    #date-playback-feed-resize-handle::after {
+      position: absolute;
+      right: 0;
+      bottom: 2px;
+      left: 0;
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(114, 220, 255, 0.42);
+      content: "";
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    #date-playback-feed-resize-handle:hover::after,
+    #date-playback-feed-resize-handle:focus-visible::after,
+    #date-playback-feed.resizing #date-playback-feed-resize-handle::after {
+      background: #72dcff;
+      transform: scaleX(1.18);
+    }
+
+    #date-playback-feed-resize-handle:focus-visible {
+      outline: none;
     }
 
     #date-playback-feed-list::-webkit-scrollbar {
@@ -2413,6 +2449,11 @@
       #date-playback-feed-list {
         flex: 0 1 auto;
         max-height: calc(var(--mobile-feed-row-height) * 2);
+      }
+
+      #date-playback-feed.user-resized #date-playback-feed-list {
+        flex: 1 1 auto;
+        max-height: none;
       }
 
       #date-playback-feed.sorting { max-height: min(360px, calc(100dvh - 70px)); }

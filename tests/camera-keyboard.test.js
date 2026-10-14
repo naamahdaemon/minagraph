@@ -54,6 +54,7 @@ assert.match(script, /const currentRun = \+\+rotatePositionRun/);
 assert.match(script, /elapsed < 900 \|\| stableFrames < 4/);
 assert.match(script, /rotateLayoutObserver\.observe\(dateSlicerContainer\)/);
 assert.match(script, /rotateLayoutObserver\.observe\(datePlaybackFeed\)/);
+assert.match(script, /const rotateLayoutObserver = new ResizeObserver\(\(\) => \{[\s\S]*?syncDateSlicerWithNodePanel\(\);[\s\S]*?scheduleRotateSliderPosition\(\)/);
 assert.match(script, /run\(\{ iterationsOverride = null, origin = "manual" \} = \{\}\) \{[\s\S]*?renderer\?\.setCustomBBox\(null\)/);
 assert.match(script, /const iterations = requestedIterations;/);
 assert.doesNotMatch(script, /safeLimit/);
