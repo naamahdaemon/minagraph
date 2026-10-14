@@ -2392,9 +2392,9 @@
 
     @media screen and (max-width: 768px) {
       #date-slicer-container {
-        right: 30px;
+        right: 10px;
         bottom: 8px;
-        width: calc(100vw - 35px);
+        width: calc(100vw - 20px);
         padding: 6px;
       }
 
@@ -2403,10 +2403,10 @@
       }
 
       #date-playback-feed {
-        --playback-feed-right: 30px;
+        --playback-feed-right: 10px;
         --mobile-feed-row-height: 64px;
         top: 58px;
-        width: calc(100vw - 35px);
+        width: calc(100vw - 20px);
         max-height: 180px;
       }
 
@@ -2505,8 +2505,8 @@
 
     body.mobile-mode #date-slicer-container {
       position: absolute;
-      left: 5px !important;
-      right: 30px !important;
+      left: 10px !important;
+      right: 10px !important;
       transform: none;
       bottom: 30px !important;
       width: auto !important;
