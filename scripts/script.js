@@ -471,6 +471,8 @@ let datePlaybackFeedPinnedTop = true;
 let datePlaybackSortRules = [];
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
+const DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY = "minagraph-date-playback-feed-height";
+let datePlaybackFeedPreferredHeight = null;
 const LIVE_VIEW_FETCH_LIMIT = 10;
 const LIVE_VIEW_INITIAL_DELAY_MS = 3 * 60 * 1000;
 const LIVE_VIEW_BETWEEN_FETCHES_MS = 2500;
@@ -554,15 +556,80 @@ function syncDateSlicerWithNodePanel() {
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
     if (!playbackFeed.hidden && slicerRect.height > 0 && feedRect.height > 0) {
-      const availableHeight = Math.floor(slicerRect.top - feedRect.top - 12);
+      const availableHeight = Math.max(0, Math.floor(slicerRect.top - feedRect.top - 12));
       const maximumFeedHeight = window.innerWidth <= 768
         ? (playbackFeed.classList.contains("sorting") ? 360 : 180)
         : 500;
-      playbackFeed.style.maxHeight = `${Math.max(64, Math.min(maximumFeedHeight, availableHeight))}px`;
+      playbackFeed.style.maxHeight = `${availableHeight}px`;
+      if (Number.isFinite(datePlaybackFeedPreferredHeight)) {
+        const minimumHeight = Math.min(92, availableHeight);
+        const appliedHeight = Math.min(availableHeight, Math.max(minimumHeight, datePlaybackFeedPreferredHeight));
+        playbackFeed.style.height = `${appliedHeight}px`;
+        playbackFeed.classList.add("user-resized");
+      } else {
+        playbackFeed.style.removeProperty("height");
+        playbackFeed.style.maxHeight = `${Math.min(maximumFeedHeight, availableHeight)}px`;
+        playbackFeed.classList.remove("user-resized");
+      }
     } else {
+      playbackFeed.style.removeProperty("height");
       playbackFeed.style.removeProperty("max-height");
     }
   }
+}
+
+function initializeDatePlaybackFeedResize() {
+  const feed = document.getElementById("date-playback-feed");
+  const handle = document.getElementById("date-playback-feed-resize-handle");
+  if (!feed || !handle) return;
+
+  const storedHeight = Number(localStorage.getItem(DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY));
+  if (Number.isFinite(storedHeight) && storedHeight > 0) {
+    datePlaybackFeedPreferredHeight = storedHeight;
+    feed.classList.add("user-resized");
+  }
+
+  const applyHeight = height => {
+    datePlaybackFeedPreferredHeight = Math.max(92, Math.round(height));
+    localStorage.setItem(DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY, String(datePlaybackFeedPreferredHeight));
+    syncDateSlicerWithNodePanel();
+    scheduleRotateSliderPosition();
+  };
+
+  handle.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = feed.getBoundingClientRect().height;
+    feed.classList.add("resizing");
+    handle.setPointerCapture?.(event.pointerId);
+
+    const move = moveEvent => applyHeight(startHeight + moveEvent.clientY - startY);
+    const finish = () => {
+      feed.classList.remove("resizing");
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", finish);
+      handle.removeEventListener("pointercancel", finish);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", finish);
+    handle.addEventListener("pointercancel", finish);
+  });
+
+  handle.addEventListener("keydown", event => {
+    if (!['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Home') {
+      datePlaybackFeedPreferredHeight = null;
+      localStorage.removeItem(DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY);
+      syncDateSlicerWithNodePanel();
+      return;
+    }
+    const currentHeight = feed.getBoundingClientRect().height;
+    applyHeight(currentHeight + (event.key === 'ArrowDown' ? 20 : -20));
+  });
+
+  syncDateSlicerWithNodePanel();
 }
 
 function getDatePlaybackStepMilliseconds() {
@@ -690,13 +757,10 @@ function startDatePlaybackFlash(edge) {
 
 function highlightLatestDatePlaybackFlow(edges, direction) {
   if (!datePlaybackDirection || !edges.length) return;
-  const nextEdge = sortDatePlaybackEdges([...edges], direction)[0];
-  if (!nextEdge || !graph?.hasEdge(nextEdge)) return;
-  if (datePlaybackAutoFlashEdge && datePlaybackAutoFlashEdge !== nextEdge) {
-    if (!datePlaybackFocusedEdges.has(datePlaybackAutoFlashEdge)) stopDatePlaybackFlash(datePlaybackAutoFlashEdge);
-  }
-  datePlaybackAutoFlashEdge = nextEdge;
-  startDatePlaybackFlash(nextEdge);
+  const revealedEdges = sortDatePlaybackEdges([...edges], direction).filter(edge => graph?.hasEdge(edge));
+  if (!revealedEdges.length) return;
+  datePlaybackAutoFlashEdge = revealedEdges[0];
+  revealedEdges.forEach(startDatePlaybackFlash);
 }
 
 function stopDatePlaybackFlash(edge) {
@@ -796,7 +860,8 @@ const DATE_PLAYBACK_SORT_LABELS = {
   receiver: "Receiver address",
   amount: "Amount (upper ten)",
   "date-day": "Date — day",
-  "date-hour": "Date — hour"
+  "date-hour": "Date — hour",
+  "date-minute": "Date — minute"
 };
 
 function normalizeDatePlaybackSortRules(rules) {
@@ -813,6 +878,12 @@ function normalizeDatePlaybackSortRules(rules) {
   }));
 }
 
+function roundTimestampUp(timestamp, unitMilliseconds) {
+  const numericTimestamp = Number(timestamp) || 0;
+  const numericUnit = Math.max(1, Number(unitMilliseconds) || 1);
+  return Math.ceil(numericTimestamp / numericUnit) * numericUnit;
+}
+
 function getDatePlaybackSortValue(edge, kind) {
   const attrs = graph.getEdgeAttributes(edge);
   if (kind === "sender") return String(graph.source(edge) || "").toLocaleLowerCase();
@@ -824,7 +895,8 @@ function getDatePlaybackSortValue(edge, kind) {
     return Math.ceil(Math.abs(numericAmount) / 10) * 10;
   }
   const timestamp = Number(attrs.timestamp) || 0;
-  if (kind === "date-hour") return Math.floor(timestamp / 3600000) * 3600000;
+  if (kind === "date-hour") return roundTimestampUp(timestamp, 3600000);
+  if (kind === "date-minute") return roundTimestampUp(timestamp, 60000);
   if (kind === "date-day") return Math.floor(timestamp / DAY_IN_MILLISECONDS) * DAY_IN_MILLISECONDS;
   return "";
 }
@@ -1068,6 +1140,17 @@ function scheduleDatePlaybackTick() {
   }, getDatePlaybackCadenceMilliseconds());
 }
 
+function preserveDatePlaybackDuringPanelToggle() {
+  const activeDirection = datePlaybackDirection;
+  requestAnimationFrame(() => {
+    syncDateSlicerWithNodePanel();
+    scheduleRotateSliderPosition();
+    if (activeDirection && datePlaybackDirection === activeDirection && datePlaybackTimer === null) {
+      scheduleDatePlaybackTick();
+    }
+  });
+}
+
 function startDatePlayback(direction) {
   if (!datePlaybackAdvancedEnabled) return;
   pauseDatePlayback();
@@ -1118,6 +1201,7 @@ function initializeDatePlaybackControls() {
   const feedList = document.getElementById("date-playback-feed-list");
   const collapse = document.getElementById("date-playback-collapse");
   if (!enabled || !settings || enabled.dataset.bound === "true") return;
+  initializeDatePlaybackFeedResize();
 
   feedList?.addEventListener("scroll", () => {
     datePlaybackFeedPinnedTop = feedList.scrollTop <= 2;
@@ -1170,6 +1254,7 @@ function initializeDatePlaybackControls() {
     collapse.setAttribute("aria-expanded", collapse.getAttribute("aria-expanded") === "false" ? "true" : "false");
     syncSettingsVisibility();
     saveDatePlaybackSettings();
+    preserveDatePlaybackDuringPanelToggle();
   });
   sortToggle?.addEventListener("click", () => {
     const willOpen = sortPanel?.hidden !== false;
@@ -2898,7 +2983,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sigmaContainer) {
     resizeObserver.observe(sigmaContainer);
   }
-  const rotateLayoutObserver = new ResizeObserver(scheduleRotateSliderPosition);
+  const rotateLayoutObserver = new ResizeObserver(() => {
+    syncDateSlicerWithNodePanel();
+    scheduleRotateSliderPosition();
+  });
   const dateSlicerContainer = document.getElementById("date-slicer-container");
   if (dateSlicerContainer) rotateLayoutObserver.observe(dateSlicerContainer);
   const datePlaybackFeed = document.getElementById("date-playback-feed");
@@ -9932,7 +10020,7 @@ function configureDateWindowShiftControl(range = currentRange) {
         : savedPanelState === "true";
       panel.addEventListener("toggle", () => {
         localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(panel.open));
-        requestAnimationFrame(syncDateSlicerWithNodePanel);
+        preserveDatePlaybackDuringPanelToggle();
       });
     }
     control.dataset.shiftListenerBound = "true";
