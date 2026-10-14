@@ -61,8 +61,21 @@ self.onmessage = function (event) {
   };
   separateCoincidentNodes();
 
-  const sendProgress = progress => {
-    self.postMessage({ type: "progress", progress, positions: null, atomic: true });
+  let lastProgressTime = 0;
+  const packPositions = () => {
+    const positions = new Float64Array(count * 2);
+    for (let index = 0; index < count; index++) {
+      positions[index * 2] = x[index];
+      positions[index * 2 + 1] = y[index];
+    }
+    return positions;
+  };
+  const sendProgress = (progress, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastProgressTime < 65) return;
+    lastProgressTime = now;
+    const positions = packPositions();
+    self.postMessage({ type: "progress", progress, positions, packed: true }, [positions.buffer]);
   };
 
   for (let iteration = 0; iteration < forceIterations; iteration++) {
@@ -119,7 +132,7 @@ self.onmessage = function (event) {
       y[index] += dy[index] * factor * cooling;
     }
 
-    if (iteration % 20 === 0) sendProgress((iteration / Math.max(1, forceIterations)) * 0.82);
+    sendProgress((iteration / Math.max(1, forceIterations)) * 0.82);
   }
 
   // Final collision relaxation. This pass only pushes overlapping discs apart;
@@ -149,7 +162,7 @@ self.onmessage = function (event) {
         y[second] += pushY;
       }
     }
-    sendProgress(0.82 + ((iteration + 1) / collisionIterations) * 0.17);
+    sendProgress(0.82 + ((iteration + 1) / collisionIterations) * 0.17, iteration === collisionIterations - 1);
     if (collisions === 0) break;
   }
 
@@ -176,10 +189,6 @@ self.onmessage = function (event) {
     }
   }
 
-  const positions = new Float64Array(count * 2);
-  for (let index = 0; index < count; index++) {
-    positions[index * 2] = x[index];
-    positions[index * 2 + 1] = y[index];
-  }
+  const positions = packPositions();
   self.postMessage({ type: "done", positions, packed: true, atomic: true }, [positions.buffer]);
 };
