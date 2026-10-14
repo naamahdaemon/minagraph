@@ -463,6 +463,7 @@ let datePlaybackDirection = 0;
 let datePlaybackTimer = null;
 const datePlaybackFocusedEdges = new Set();
 const datePlaybackFlashDeadlines = new Map();
+const datePlaybackNodeFlashDeadlines = new Map();
 let datePlaybackFlashFrame = null;
 let datePlaybackAutoFlashEdge = null;
 const DATE_PLAYBACK_FLASH_DURATION_MS = 2000;
@@ -726,6 +727,8 @@ function isDatePlaybackFlashVisible(edge, now = Date.now()) {
 }
 
 function isDatePlaybackNodeFlashing(node, now = Date.now()) {
+  const nodeDeadline = datePlaybackNodeFlashDeadlines.get(node) || 0;
+  if (nodeDeadline > now && Math.floor(now / 350) % 2 === 0) return true;
   for (const edge of datePlaybackFlashDeadlines.keys()) {
     if (!graph?.hasEdge(edge) || !isDatePlaybackFlashVisible(edge, now)) continue;
     if (graph.source(edge) === node || graph.target(edge) === node) return true;
@@ -742,8 +745,19 @@ function runDatePlaybackFlashAnimation() {
       if (datePlaybackAutoFlashEdge === edge) datePlaybackAutoFlashEdge = null;
     }
   });
+  datePlaybackNodeFlashDeadlines.forEach((deadline, node) => {
+    if (deadline <= now || !graph?.hasNode(node)) datePlaybackNodeFlashDeadlines.delete(node);
+  });
   renderer?.refresh?.();
-  if (datePlaybackFlashDeadlines.size > 0) {
+  if (datePlaybackFlashDeadlines.size > 0 || datePlaybackNodeFlashDeadlines.size > 0) {
+    datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
+  }
+}
+
+function startDatePlaybackNodeFlash(node) {
+  if (!graph?.hasNode(node)) return;
+  datePlaybackNodeFlashDeadlines.set(node, Date.now() + DATE_PLAYBACK_FLASH_DURATION_MS);
+  if (datePlaybackFlashFrame === null) {
     datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
   }
 }
@@ -765,7 +779,7 @@ function highlightLatestDatePlaybackFlow(edges, direction) {
 
 function stopDatePlaybackFlash(edge) {
   datePlaybackFlashDeadlines.delete(edge);
-  if (datePlaybackFlashDeadlines.size === 0 && datePlaybackFlashFrame !== null) {
+  if (datePlaybackFlashDeadlines.size === 0 && datePlaybackNodeFlashDeadlines.size === 0 && datePlaybackFlashFrame !== null) {
     cancelAnimationFrame(datePlaybackFlashFrame);
     datePlaybackFlashFrame = null;
   }
@@ -774,6 +788,7 @@ function stopDatePlaybackFlash(edge) {
 function clearDatePlaybackFocus({ refresh = true } = {}) {
   datePlaybackFocusedEdges.clear();
   datePlaybackFlashDeadlines.clear();
+  datePlaybackNodeFlashDeadlines.clear();
   datePlaybackAutoFlashEdge = null;
   if (datePlaybackFlashFrame !== null) cancelAnimationFrame(datePlaybackFlashFrame);
   datePlaybackFlashFrame = null;
@@ -1446,6 +1461,7 @@ async function fetchLiveViewAddress(address, chain, messageId = "", transactionT
     fetchEnd: FETCH_END_TIMESTAMP,
     cancelled: cancelRequested
   };
+  const previousNodes = new Set(graph.nodes());
   const previousEdges = new Set(graph.edges());
   try {
     BASE_KEY = address;
@@ -1465,13 +1481,31 @@ async function fetchLiveViewAddress(address, chain, messageId = "", transactionT
     cancelRequested = previousState.cancelled;
   }
 
+  const newNodes = graph.nodes().filter(node => !previousNodes.has(node));
   const newEdges = graph.edges().filter(edge => !previousEdges.has(edge));
-  if (!newEdges.length) return;
+  if (!newNodes.length && !newEdges.length) return;
   applyNodeSizesByDegree();
   rebuildTransactionsByNeighbor();
   setupReducers();
   refreshDateSlicerAfterLiveUpdate(newEdges);
+  highlightLiveViewAdditions(newNodes, newEdges);
   renderer.refresh();
+  runLiveViewLayoutIfIdle();
+}
+
+function highlightLiveViewAdditions(nodes = [], edges = []) {
+  edges.filter(edge => graph?.hasEdge(edge)).forEach(edge => {
+    startDatePlaybackFlash(edge);
+    startDatePlaybackNodeFlash(graph.source(edge));
+    startDatePlaybackNodeFlash(graph.target(edge));
+  });
+  nodes.filter(node => graph?.hasNode(node)).forEach(startDatePlaybackNodeFlash);
+}
+
+function runLiveViewLayoutIfIdle() {
+  if (isLayoutRunning || !graph?.order) return false;
+  animateLayout(null, "incremental");
+  return true;
 }
 
 function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
