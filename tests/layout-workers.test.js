@@ -123,6 +123,49 @@ assert.notDeepEqual(
   "outbound distribution should preserve transaction direction in the layout"
 );
 
+const spaciousResult = runWorker("spaciousLayout.js", {
+  nodes: [
+    { id: "a", x: 50, y: 50, size: 8 },
+    { id: "b", x: 50, y: 50, size: 8 },
+    { id: "c", x: 50, y: 50, size: 8 },
+    { id: "d", x: 50, y: 50, size: 8 }
+  ],
+  edges: [
+    { source: "a", target: "b", weight: 1 },
+    { source: "b", target: "c", weight: 1 },
+    { source: "c", target: "d", weight: 1 }
+  ],
+  settings: { iterations: 80, gravity: 0.01, scalingRatio: 500, width: 800, height: 800 }
+});
+assert.equal(spaciousResult.packed, true, "Spacious should return compact packed positions");
+assert.equal(spaciousResult.atomic, true, "Spacious results must be applied atomically");
+assertFinitePositions(spaciousResult.positions);
+for (let first = 0; first < 4; first++) {
+  for (let second = first + 1; second < 4; second++) {
+    const distance = Math.hypot(
+      spaciousResult.positions[first * 2] - spaciousResult.positions[second * 2],
+      spaciousResult.positions[first * 2 + 1] - spaciousResult.positions[second * 2 + 1]
+    );
+    assert.ok(distance > 20, "Spacious should separate initially overlapping nodes");
+  }
+}
+
+const scriptSource = fs.readFileSync(path.join(projectRoot, "scripts", "script.js"), "utf8");
+assert.match(scriptSource, /workerFile = "spaciousLayout\.js"/);
+assert.match(scriptSource, /algorithm !== "spacious" && now - lastRenderTime > 300/,
+  "Spacious must not apply partial worker positions");
+assert.match(scriptSource, /Spacious layout returned invalid positions; the graph was left unchanged/);
+
+for (const nodes of [[], [{ id: "solo", x: 12, y: 34, size: 4 }]]) {
+  const boundaryResult = runWorker("spaciousLayout.js", {
+    nodes,
+    edges: [],
+    settings: { iterations: 2, width: 200, height: 200 }
+  });
+  assert.equal(boundaryResult.positions.length, nodes.length * 2);
+  assertFinitePositions(boundaryResult.positions);
+}
+
 function runOpenOrd(weight) {
   return runWorker("openOrd.js", {
     nodes: [{ id: "a", x: 0, y: 0 }, { id: "b", x: 10, y: 0 }],
