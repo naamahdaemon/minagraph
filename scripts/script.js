@@ -549,7 +549,7 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
   if (playbackFeed) {
-    const playbackRightOffset = window.innerWidth <= 768 ? 8 : (panelOpen ? panelWidth + gap : 44);
+    const playbackRightOffset = window.innerWidth <= 768 ? 30 : (panelOpen ? panelWidth + gap : 34);
     playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
@@ -1595,6 +1595,8 @@ let auroProvider = null;
 let zoomSlider;    // no const/var inside DOMContentLoaded
 let rotateSlider;
 let cameraControlsBound = false;
+const cameraControlBoundCameras = new WeakSet();
+let syncingCameraControls = false;
 let recenterAfterLayout = false;
 const NODE_TRANSACTION_SORT_STORAGE_KEY = "minagraph-node-transaction-sort";
 let nodeTransactionSort = loadNodeTransactionSort();
@@ -1708,8 +1710,10 @@ function positionRotateSlider() {
 
   if (!visibleWidth || !visibleHeight) return;
 
-  const edgeOffset = Math.min(40, Math.max(18, visibleHeight * 0.045));
-  const width = Math.min(240, Math.max(140, visibleWidth * 0.42));
+  const edgeOffset = window.innerWidth <= 768
+    ? 5
+    : 8;
+  const width = Math.min(300, Math.max(180, visibleWidth * 0.52));
   const sliderCenterX = visibleLeft + visibleWidth / 2;
   let sliderCenterY = visibleBottom - edgeOffset;
   const dateSlicer = document.getElementById("date-slicer-container");
@@ -2763,22 +2767,6 @@ document.addEventListener("DOMContentLoaded", () => {
       renderer.render();
     }
     
-    const sliderContainer = document.getElementById('zoom-slider');
-    if (sliderContainer) {
-      sliderContainer.style.background = isLight
-        ? 'rgba(255, 255, 255, 0.5)'
-        // dark mode: rgb(34,34,34) at 50%
-        : 'rgba(34, 34, 34, 0.5)';
-    }
-
-    const rotateContainer = document.getElementById('rotate-slider');
-    if (rotateContainer) {
-      rotateContainer.style.background = isLight
-        ? 'rgba(255, 255, 255, 0.5)'
-        // dark mode: rgb(34,34,34) at 50%
-        : 'rgba(34, 34, 34, 0.5)';
-    }
-    
   }
 
   themeToggleBtn?.addEventListener("click", () => {
@@ -3168,6 +3156,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   scheduleRotateSliderPosition();
   bindCameraControls();
+  bindCameraStateToControls();
 });
 
 init();
@@ -3795,7 +3784,7 @@ function bindCameraControls() {
   cameraControlsBound = true;
 
   zoomSlider.noUiSlider.on('update', (values, handleIndex) => {
-    if (!renderer) return;
+    if (!renderer || syncingCameraControls) return;
     renderer.getCamera().setState({ ratio: parseFloat(values[handleIndex]) });
   });
 
@@ -3806,10 +3795,39 @@ function bindCameraControls() {
   zoomSlider.noUiSlider.on('change', () => centerGraphInViewport());
 
   rotateSlider.noUiSlider.on('update', (values, handleIndex) => {
-    if (!renderer) return;
+    if (!renderer || syncingCameraControls) return;
     const angle = parseFloat(values[handleIndex]) * Math.PI / 180;
     renderer.getCamera().setState({ angle });
   });
+}
+
+function syncControlsFromCamera(state) {
+  if (!zoomSlider?.noUiSlider || !rotateSlider?.noUiSlider || !state) return;
+  const ratio = Math.min(5, Math.max(0.25, Number(state.ratio) || 1));
+  const degrees = ((Number(state.angle) || 0) * 180 / Math.PI + 360) % 360;
+  const currentRatio = Number(zoomSlider.noUiSlider.get());
+  const currentDegrees = Number(rotateSlider.noUiSlider.get());
+  const ratioChanged = Math.abs(currentRatio - ratio) > 0.001;
+  const angularDifference = Math.abs(currentDegrees - degrees);
+  const angleChanged = Math.min(angularDifference, 360 - angularDifference) > 0.25;
+  if (!ratioChanged && !angleChanged) return;
+  syncingCameraControls = true;
+  try {
+    if (ratioChanged) zoomSlider.noUiSlider.set(ratio);
+    if (angleChanged) rotateSlider.noUiSlider.set(degrees);
+  } finally {
+    syncingCameraControls = false;
+  }
+}
+
+function bindCameraStateToControls() {
+  if (!renderer || !zoomSlider?.noUiSlider || !rotateSlider?.noUiSlider) return;
+  const camera = renderer.getCamera();
+  if (!cameraControlBoundCameras.has(camera)) {
+    cameraControlBoundCameras.add(camera);
+    camera.on("updated", syncControlsFromCamera);
+  }
+  syncControlsFromCamera(camera.getState());
 }
 
 function syncCameraControlsToRenderer() {
@@ -3817,6 +3835,7 @@ function syncCameraControlsToRenderer() {
   const ratio = parseFloat(zoomSlider.noUiSlider.get());
   const angle = parseFloat(rotateSlider.noUiSlider.get()) * Math.PI / 180;
   renderer.getCamera().setState({ ratio, angle });
+  bindCameraStateToControls();
 }
 
 function getRotatedPanDelta(key, step, angle) {
@@ -3859,12 +3878,10 @@ function handleGraphKeyboardNavigation(event) {
       const direction = event.key === "ArrowLeft" ? -1 : 1;
       const angle = (state.angle + direction * rotationStep + 2 * Math.PI) % (2 * Math.PI);
       nextState = { angle };
-      rotateSlider?.noUiSlider?.set(angle * 180 / Math.PI);
     } else {
       const factor = event.key === "ArrowUp" ? 0.85 : 1 / 0.85;
       const ratio = Math.min(5, Math.max(0.25, state.ratio * factor));
       nextState = { ratio };
-      zoomSlider?.noUiSlider?.set(ratio);
     }
   } else {
     const delta = getRotatedPanDelta(event.key, panStep, state.angle);
