@@ -26,6 +26,7 @@ assert.match(html, /<div id="controls">\s*<button id="menu-toggle"/);
 assert.match(html, /id="layout-toggle-btn"[^>]+layout-toggle-button/);
 assert.match(html, /id="layout-toggle-btn"[^>]+aria-haspopup="menu"[^>]+aria-controls="layout-algorithm-menu"/);
 assert.match(html, /id="layout-algorithm-menu"[\s\S]*?data-layout-algorithm="fr"[\s\S]*?data-layout-algorithm="fa"[\s\S]*?data-layout-algorithm="ord"/);
+assert.match(html, /id="layout-algorithm-menu"[\s\S]*?data-layout-algorithm="spacious"/);
 assert.match(html, /id="layout-sidebar-toggle-btn"[^>]*>[\s\S]*?Apply Layout \(L\)/);
 const commandOrder = [
   'layout-toggle-btn',

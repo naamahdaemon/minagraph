@@ -290,7 +290,7 @@ let edgeThicknessMode = "uniform";
 let edgeVisualSizes = new Map();
 
 const LAYOUT_PARAMETER_HELP = Object.freeze({
-  "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; OpenOrd-inspired favors large-scale separation and is experimental.",
+  "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; Spacious adds a dedicated expansion and anti-overlap pass without changing the other layouts; OpenOrd-inspired favors large-scale separation and is experimental.",
   "layout-linlog": "ForceAtlas2 only. Replaces linear attraction with logarithmic attraction, weakening long-distance links so communities separate more clearly.",
   "layout-outbound": "ForceAtlas2 only. Distributes each sender's attraction across its outgoing connections using a moderated mass compensation. Highly connected senders pull each recipient less strongly, so transaction direction remains visible without the extreme branches of full linear distribution.",
   "layout-strong-gravity": "ForceAtlas2 only. Applies gravity proportionally to distance from the layout center. It pulls remote nodes back much more strongly and creates a more compact graph.",
@@ -3521,6 +3521,9 @@ class LayoutController {
       settings.outboundAttractionDistribution = document.getElementById("layout-outbound")?.checked || false;
       settings.strongGravityMode = document.getElementById("layout-strong-gravity")?.checked || false;
       settings.preventOverlap = document.getElementById("layout-prevent-overlap")?.checked ?? true;
+    } else if (algorithm === "spacious") {
+      workerFile = "spaciousLayout.js";
+      settings.preventOverlap = true;
     } else if (algorithm === "ord") {
       workerFile = "openOrd.js";
       settings.edgeWeightInfluence = parseFloat(document.getElementById("layout-ewi")?.value) || 0;
@@ -3552,7 +3555,8 @@ class LayoutController {
     const nodes = graph.nodes().map(id => ({
       id,
       x: graph.getNodeAttribute(id, "x"),
-      y: graph.getNodeAttribute(id, "y")
+      y: graph.getNodeAttribute(id, "y"),
+      size: graph.getNodeAttribute(id, "size") || 1
     }));
     const edges = graph.edges().map(id => ({
       source: graph.source(id),
@@ -3591,12 +3595,34 @@ class LayoutController {
         document.getElementById("layout-progress").value = percent;
         setLayoutUiState("running", `${percent}%`);
         const now = performance.now();
-        if (now - lastRenderTime > 300) {
+        // Spacious is deliberately atomic: no graph coordinate changes until
+        // its force and collision passes have both completed successfully.
+        if (algorithm !== "spacious" && now - lastRenderTime > 300) {
           applyPositions(positions, packed);
           renderer.refresh();
           lastRenderTime = now;
         }
       } else if (type === "done") {
+        if (algorithm === "spacious") {
+          const expectedCoordinates = packed ? nodes.length * 2 : nodes.length;
+          const receivedCoordinates = packed
+            ? Math.floor((positions?.length || 0))
+            : Object.keys(positions || {}).length;
+          const valid = receivedCoordinates === expectedCoordinates && (packed
+            ? Array.from(positions).every(Number.isFinite)
+            : nodes.every(node => {
+                const position = positions?.[node.id];
+                return Number.isFinite(position?.x) && Number.isFinite(position?.y);
+              }));
+          if (!valid) {
+            const message = "Spacious layout returned invalid positions; the graph was left unchanged.";
+            console.error(message);
+            this.stop({ message });
+            setLayoutUiState("error", message);
+            showErrorPopup(message);
+            return;
+          }
+        }
         applyPositions(positions, packed);
         renderer.refresh();
         document.getElementById("layout-progress").value = 100;
@@ -8722,6 +8748,7 @@ function saveLayoutSettings(algorithm) {
       "layout-strong-gravity",
       "layout-prevent-overlap"
     ],
+    spacious: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
     ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
   };
 
@@ -8739,7 +8766,16 @@ function saveLayoutSettings(algorithm) {
 // Load layout parameters
 function loadLayoutSettings(algorithm) {
   const settings = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY));
-  if (!settings || !settings[algorithm]) return;
+  if (!settings || !settings[algorithm]) {
+    if (algorithm === "spacious") {
+      document.getElementById("layout-iterations").value = 800;
+      document.getElementById("layout-width").value = 2400;
+      document.getElementById("layout-height").value = 2400;
+      document.getElementById("layout-gravity").value = 0.01;
+      document.getElementById("layout-scale").value = 1000;
+    }
+    return;
+  }
 
   Object.entries(settings[algorithm]).forEach(([id, val]) => {
     const el = document.getElementById(id);
