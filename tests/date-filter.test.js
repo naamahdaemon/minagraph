@@ -60,6 +60,7 @@ assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
 assert.match(source, /const DATE_PLAYBACK_FLASH_DURATION_MS = 2000/);
+assert.match(source, /const datePlaybackNodeFlashDeadlines = new Map\(\)/);
 assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ DATE_PLAYBACK_FLASH_DURATION_MS\)/);
 assert.match(source, /function runDatePlaybackFlashAnimation\(\)/);
 assert.match(source, /function highlightLatestDatePlaybackFlow\(edges, direction\)/);
@@ -80,6 +81,12 @@ assert.match(source, /nextRange\[1\] = Math\.max\(previousRange\[0\], previousRa
 assert.match(source, /function queueLiveViewNotification\(notification\)/);
 assert.match(source, /function processLiveViewQueue\(\)/);
 assert.match(source, /function refreshDateSlicerAfterLiveUpdate\(newEdges = \[\]\)/);
+assert.match(source, /function highlightLiveViewAdditions\(nodes = \[\], edges = \[\]\)/);
+assert.match(source, /highlightLiveViewAdditions\(newNodes, newEdges\)/);
+assert.match(source, /function runLiveViewLayoutIfIdle\(\)/);
+assert.match(source, /if \(isLayoutRunning \|\| !graph\?\.order\) return false/);
+assert.match(source, /animateLayout\(null, "incremental"\)/);
+assert.match(source, /runLiveViewLayoutIfIdle\(\)/);
 assert.match(source, /const newEdges = graph\.edges\(\)\.filter\(edge => !previousEdges\.has\(edge\)\)/);
 assert.match(source, /const liveTimestamps = newEdges/);
 assert.match(source, /renderDatePlaybackFeed\(visibleEdges, datePlaybackDirection \|\| 1, currentRange, visibleNewEdges\)/);
@@ -142,5 +149,20 @@ const minute = 60 * 1000;
 assert.equal(roundingContext.result(18 * hour, hour), 18 * hour, 'Exact hours should remain unchanged');
 assert.equal(roundingContext.result(18 * hour + 1, hour), 19 * hour, 'Hour sorting should round upward');
 assert.equal(roundingContext.result(18 * hour + 6 * minute + 1, minute), 18 * hour + 7 * minute, 'Minute sorting should round upward');
+
+const liveLayoutHelper = source.match(/function runLiveViewLayoutIfIdle\(\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(liveLayoutHelper, 'Live View layout helper should exist');
+const liveLayoutCalls = [];
+const liveLayoutContext = {
+  isLayoutRunning: false,
+  graph: { order: 3 },
+  animateLayout: (...args) => liveLayoutCalls.push(args)
+};
+vm.runInNewContext(`${liveLayoutHelper}; result = runLiveViewLayoutIfIdle;`, liveLayoutContext);
+assert.equal(liveLayoutContext.result(), true);
+assert.deepEqual(liveLayoutCalls, [[null, 'incremental']]);
+liveLayoutContext.isLayoutRunning = true;
+assert.equal(liveLayoutContext.result(), false);
+assert.equal(liveLayoutCalls.length, 1, 'Live View must not restart an active layout');
 
 console.log('Date filter tests passed');
