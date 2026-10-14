@@ -45,10 +45,17 @@ assert.match(source, /rangeMode: document\.getElementById\("date-playback-range-
 assert.match(source, /liveView: document\.getElementById\("date-playback-live-view"\)\?\.checked === true/);
 assert.match(source, /collapsed: document\.getElementById\("date-playback-collapse"\)/);
 assert.match(source, /collapse\?\.addEventListener\("click"/);
+assert.match(source, /function preserveDatePlaybackDuringPanelToggle\(\)/);
+assert.match(source, /activeDirection && datePlaybackDirection === activeDirection && datePlaybackTimer === null/);
+assert.match(source, /panel\.addEventListener\("toggle", \(\) => \{[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
+assert.match(source, /collapse\?\.addEventListener\("click", \(\) => \{[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
 assert.doesNotMatch(source, /function isDesktopDatePlayback\(\)/);
 assert.match(source, /playbackFeed\.classList\.contains\("sorting"\) \? 360 : 180/);
 assert.match(source, /function normalizeDatePlaybackSortRules\(rules\)/);
 assert.match(source, /function sortDatePlaybackEdges\(edges, direction\)/);
+assert.match(source, /"date-minute": "Date — minute"/);
+assert.match(source, /if \(kind === "date-hour"\) return roundTimestampUp\(timestamp, 3600000\)/);
+assert.match(source, /if \(kind === "date-minute"\) return roundTimestampUp\(timestamp, 60000\)/);
 assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
@@ -56,6 +63,13 @@ assert.match(source, /const DATE_PLAYBACK_FLASH_DURATION_MS = 2000/);
 assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ DATE_PLAYBACK_FLASH_DURATION_MS\)/);
 assert.match(source, /function runDatePlaybackFlashAnimation\(\)/);
 assert.match(source, /function highlightLatestDatePlaybackFlow\(edges, direction\)/);
+assert.match(source, /revealedEdges\.forEach\(startDatePlaybackFlash\)/);
+assert.doesNotMatch(source, /datePlaybackAutoFlashEdge !== nextEdge[\s\S]*?stopDatePlaybackFlash/);
+assert.match(source, /function initializeDatePlaybackFeedResize\(\)/);
+assert.match(source, /DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY/);
+assert.match(source, /availableHeight = Math\.max\(0, Math\.floor\(slicerRect\.top - feedRect\.top - 12\)\)/);
+assert.match(source, /playbackFeed\.style\.maxHeight = `\$\{availableHeight\}px`/);
+assert.match(source, /initializeDatePlaybackFeedResize\(\)/);
 assert.match(source, /if \(isDatePlaybackNodeFlashing\(node\)\)/);
 assert.equal((source.match(/zIndex:\s*true/g) || []).length, 2, 'every Sigma renderer should sort edges by z-index');
 assert.match(source, /const flashing = isDatePlaybackFlashVisible\(edge\)/);
@@ -118,5 +132,15 @@ assert.deepEqual(
   Array.from(liveDateContext.result.getUtcDayRange(notificationTimestamp)),
   [Date.parse('2026-10-12T00:00:00.000Z'), Date.parse('2026-10-12T23:59:59.999Z')]
 );
+
+const roundTimestampHelper = source.match(/function roundTimestampUp\(timestamp, unitMilliseconds\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(roundTimestampHelper, 'Timeline timestamp rounding helper should exist');
+const roundingContext = {};
+vm.runInNewContext(`${roundTimestampHelper}; result = roundTimestampUp;`, roundingContext);
+const hour = 60 * 60 * 1000;
+const minute = 60 * 1000;
+assert.equal(roundingContext.result(18 * hour, hour), 18 * hour, 'Exact hours should remain unchanged');
+assert.equal(roundingContext.result(18 * hour + 1, hour), 19 * hour, 'Hour sorting should round upward');
+assert.equal(roundingContext.result(18 * hour + 6 * minute + 1, minute), 18 * hour + 7 * minute, 'Minute sorting should round upward');
 
 console.log('Date filter tests passed');
