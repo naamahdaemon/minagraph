@@ -34,9 +34,9 @@ assert.match(styles, /#zoom-slider\.noUi-target,\s*#rotate-slider\.noUi-target\s
 assert.match(styles, /#rotate-slider \.noUi-base\s*\{[\s\S]*?top: 50%;[\s\S]*?transform: translateY\(-50%\)/);
 assert.match(styles, /#zoom-slider\s*\{[\s\S]*?height: 250px/);
 assert.match(styles, /#date-slicer-container\s*\{[\s\S]*?--camera-panel-right: 34px;[\s\S]*?right: var\(--camera-panel-right\)/);
-assert.match(styles, /body\.mobile-mode #date-slicer-container\s*\{[\s\S]*?left: 5px !important;[\s\S]*?right: 30px !important;[\s\S]*?width: auto !important;/);
+assert.match(styles, /body\.mobile-mode #date-slicer-container\s*\{[\s\S]*?left: 10px !important;[\s\S]*?right: 10px !important;[\s\S]*?width: auto !important;/);
 assert.match(styles, /body\.mobile-mode #date-slicer-container\s*\{[\s\S]*?bottom: 30px !important/);
-assert.match(styles, /#date-playback-feed\s*\{[\s\S]*?--playback-feed-right: 30px;[\s\S]*?width: calc\(100vw - 35px\)/);
+assert.match(styles, /#date-playback-feed\s*\{[\s\S]*?--playback-feed-right: 10px;[\s\S]*?width: calc\(100vw - 20px\)/);
 assert.match(styles, /@media screen and \(max-width: 768px\)[\s\S]*?#zoom-slider\s*\{[\s\S]*?width: 20px/);
 assert.match(styles, /body\.mobile-mode #date-slicer-container\s*\{[\s\S]*?padding: 0;/);
 assert.match(styles, /body\.mobile-mode #date-filter-panel summary\s*\{[\s\S]*?min-height: 34px/);
@@ -44,12 +44,16 @@ assert.match(styles, /@media screen and \(max-width: 768px\)[\s\S]*?#zoom-slider
 assert.match(script, /const sliderCenterX = visibleLeft \+ visibleWidth \/ 2/);
 assert.match(script, /const edgeOffset = window\.innerWidth <= 768[\s\S]*?\? 5[\s\S]*?: 8/);
 assert.match(script, /const width = Math\.min\(300, Math\.max\(180, visibleWidth \* 0\.52\)\)/);
+assert.match(script, /const zoomTopLimit = Math\.max\(/);
+assert.match(script, /const zoomBottomLimit = Math\.min\(/);
+assert.match(script, /zoomSlider\.style\.visibility = zoomHeight >= 80 \? "visible" : "hidden"/);
 assert.match(script, /slicerBounds\.bottom \+ slicerGap \+ sliderHandleRadius/);
 assert.match(script, /const slicerGap = 14/);
 assert.match(script, /function scheduleRotateSliderPosition\(\)/);
 assert.match(script, /const currentRun = \+\+rotatePositionRun/);
 assert.match(script, /elapsed < 900 \|\| stableFrames < 4/);
 assert.match(script, /rotateLayoutObserver\.observe\(dateSlicerContainer\)/);
+assert.match(script, /rotateLayoutObserver\.observe\(datePlaybackFeed\)/);
 assert.match(script, /run\(\{ iterationsOverride = null, origin = "manual" \} = \{\}\) \{[\s\S]*?renderer\?\.setCustomBBox\(null\)/);
 assert.match(script, /const iterations = requestedIterations;/);
 assert.doesNotMatch(script, /safeLimit/);

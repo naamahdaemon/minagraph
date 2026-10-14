@@ -549,7 +549,7 @@ function syncDateSlicerWithNodePanel() {
   dateSlicer.style.setProperty("--node-panel-offset", `${Math.ceil(panelWidth + gap)}px`);
   dateSlicer.classList.toggle("on-left", fitsBesidePanel);
   if (playbackFeed) {
-    const playbackRightOffset = window.innerWidth <= 768 ? 30 : (panelOpen ? panelWidth + gap : 34);
+    const playbackRightOffset = window.innerWidth <= 768 ? 10 : (panelOpen ? panelWidth + gap : 34);
     playbackFeed.style.setProperty("--playback-feed-right", `${Math.ceil(playbackRightOffset)}px`);
     const slicerRect = dateSlicer.getBoundingClientRect();
     const feedRect = playbackFeed.getBoundingClientRect();
@@ -1718,6 +1718,38 @@ function positionRotateSlider() {
   let sliderCenterY = visibleBottom - edgeOffset;
   const dateSlicer = document.getElementById("date-slicer-container");
 
+  if (zoomSlider) {
+    if (window.innerWidth <= 768) {
+      const timeline = document.getElementById("date-playback-feed");
+      const timelineBounds = timeline && !timeline.hidden
+        ? timeline.getBoundingClientRect()
+        : null;
+      const slicerBounds = dateSlicer && getComputedStyle(dateSlicer).display !== "none"
+        ? dateSlicer.getBoundingClientRect()
+        : null;
+      const zoomGap = 5;
+      const zoomTopLimit = Math.max(
+        visibleTop + zoomGap,
+        timelineBounds?.height ? timelineBounds.bottom + zoomGap : visibleTop + zoomGap
+      );
+      const zoomBottomLimit = Math.min(
+        visibleBottom - zoomGap,
+        slicerBounds?.height ? slicerBounds.top - zoomGap : visibleBottom - zoomGap
+      );
+      const availableZoomHeight = Math.max(0, zoomBottomLimit - zoomTopLimit);
+      const zoomHeight = Math.min(230, availableZoomHeight);
+      zoomSlider.style.height = `${zoomHeight}px`;
+      zoomSlider.style.top = `${zoomTopLimit + Math.max(0, (availableZoomHeight - zoomHeight) / 2)}px`;
+      zoomSlider.style.transform = "none";
+      zoomSlider.style.visibility = zoomHeight >= 80 ? "visible" : "hidden";
+    } else {
+      zoomSlider.style.removeProperty("height");
+      zoomSlider.style.removeProperty("top");
+      zoomSlider.style.removeProperty("transform");
+      zoomSlider.style.removeProperty("visibility");
+    }
+  }
+
   if (dateSlicer && getComputedStyle(dateSlicer).display !== "none") {
     const slicerBounds = dateSlicer.getBoundingClientRect();
     const overlapsHorizontally =
@@ -1754,6 +1786,7 @@ function scheduleRotateSliderPosition() {
 
     const graphBounds = sigmaContainer?.getBoundingClientRect();
     const slicerBounds = document.getElementById("date-slicer-container")?.getBoundingClientRect();
+    const timelineBounds = document.getElementById("date-playback-feed")?.getBoundingClientRect();
     const geometry = [
       window.innerWidth,
       window.innerHeight,
@@ -1767,7 +1800,11 @@ function scheduleRotateSliderPosition() {
       slicerBounds?.left,
       slicerBounds?.top,
       slicerBounds?.right,
-      slicerBounds?.bottom
+      slicerBounds?.bottom,
+      timelineBounds?.top,
+      timelineBounds?.right,
+      timelineBounds?.bottom,
+      timelineBounds?.left
     ].map(value => typeof value === "number" ? Math.round(value) : value).join("|");
 
     stableFrames = geometry === previousGeometry ? stableFrames + 1 : 0;
@@ -2864,6 +2901,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const rotateLayoutObserver = new ResizeObserver(scheduleRotateSliderPosition);
   const dateSlicerContainer = document.getElementById("date-slicer-container");
   if (dateSlicerContainer) rotateLayoutObserver.observe(dateSlicerContainer);
+  const datePlaybackFeed = document.getElementById("date-playback-feed");
+  if (datePlaybackFeed) rotateLayoutObserver.observe(datePlaybackFeed);
   window.visualViewport?.addEventListener("resize", scheduleRotateSliderPosition);
   window.visualViewport?.addEventListener("resize", () => scheduleNodePanelViewportSync());
   window.visualViewport?.addEventListener("scroll", () => scheduleNodePanelViewportSync());
