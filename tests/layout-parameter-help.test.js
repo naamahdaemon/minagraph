@@ -8,7 +8,7 @@ const script = fs.readFileSync(path.join(projectRoot, "scripts", "script.js"), "
 const styles = fs.readFileSync(path.join(projectRoot, "style", "style.css"), "utf8");
 
 const parameterIds = [
-  "layout-algorithm", "layout-linlog", "layout-outbound", "layout-strong-gravity",
+  "layout-algorithm", "layout-scope", "layout-linlog", "layout-outbound", "layout-strong-gravity",
   "layout-prevent-overlap", "layout-ewi", "layout-cooling", "layout-attraction",
   "layout-repulsion", "layout-iterations", "layout-width", "layout-height",
   "layout-gravity", "layout-scale", "toggle-labels", "toggle-edge-directions", "edge-thickness-mode"
