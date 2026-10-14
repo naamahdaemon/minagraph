@@ -152,9 +152,16 @@ for (let first = 0; first < 4; first++) {
 
 const scriptSource = fs.readFileSync(path.join(projectRoot, "scripts", "script.js"), "utf8");
 assert.match(scriptSource, /workerFile = "spaciousLayout\.js"/);
-assert.match(scriptSource, /algorithm !== "spacious" && now - lastRenderTime > 300/,
-  "Spacious must not apply partial worker positions");
+assert.match(scriptSource, /const renderInterval = algorithm === "spacious" \? 80 : 300/,
+  "Spacious should animate more smoothly without changing existing layout refresh rates");
+assert.match(scriptSource, /if \(algorithm === "spacious"\) restoreInitialPositions\(\)/,
+  "Spacious must restore initial positions after a worker failure");
 assert.match(scriptSource, /Spacious layout returned invalid positions; the graph was left unchanged/);
+
+const spaciousSource = fs.readFileSync(path.join(projectRoot, "scripts", "spaciousLayout.js"), "utf8");
+assert.match(spaciousSource, /now - lastProgressTime < 65/,
+  "Spacious progress snapshots should be time-throttled independently of iteration count");
+assert.match(spaciousSource, /type: "progress", progress, positions, packed: true/);
 
 for (const nodes of [[], [{ id: "solo", x: 12, y: 34, size: 4 }]]) {
   const boundaryResult = runWorker("spaciousLayout.js", {

@@ -3564,6 +3564,16 @@ class LayoutController {
       weight: graph.getEdgeAttribute(id, "weight") ?? 1
     }));
     let lastRenderTime = 0;
+    const renderInterval = algorithm === "spacious" ? 80 : 300;
+
+    const restoreInitialPositions = () => {
+      for (const node of nodes) {
+        if (!graph.hasNode(node.id)) continue;
+        if (Number.isFinite(node.x)) graph.setNodeAttribute(node.id, "x", node.x);
+        if (Number.isFinite(node.y)) graph.setNodeAttribute(node.id, "y", node.y);
+      }
+      renderer?.refresh();
+    };
 
     const applyPositions = (positions, packed = false) => {
       if (packed) {
@@ -3595,9 +3605,7 @@ class LayoutController {
         document.getElementById("layout-progress").value = percent;
         setLayoutUiState("running", `${percent}%`);
         const now = performance.now();
-        // Spacious is deliberately atomic: no graph coordinate changes until
-        // its force and collision passes have both completed successfully.
-        if (algorithm !== "spacious" && now - lastRenderTime > 300) {
+        if (positions && now - lastRenderTime > renderInterval) {
           applyPositions(positions, packed);
           renderer.refresh();
           lastRenderTime = now;
@@ -3617,6 +3625,7 @@ class LayoutController {
           if (!valid) {
             const message = "Spacious layout returned invalid positions; the graph was left unchanged.";
             console.error(message);
+            restoreInitialPositions();
             this.stop({ message });
             setLayoutUiState("error", message);
             showErrorPopup(message);
@@ -3646,6 +3655,7 @@ class LayoutController {
       if (runId !== this.runId || worker !== this.worker) return;
       console.error("Layout worker failed", event);
       const message = event.message || "Worker failure";
+      if (algorithm === "spacious") restoreInitialPositions();
       this.stop({ message });
       setLayoutUiState("error", message);
     };
