@@ -188,6 +188,14 @@ function initializeNodeColorFilters() {
   syncNodeColorFilterControls();
 }
 
+function initializeLegendPillColors() {
+  document.querySelectorAll(".legend-pill-list > .legend-item, .legend-pill-list > .legend-chain").forEach(item => {
+    const color = item.style.color;
+    if (!color) return;
+    item.style.setProperty("--legend-pill-color", color);
+  });
+}
+
 function showNodeColorMenu(node, clientX, clientY) {
   if (!graph?.hasNode(node)) return;
   const menu = ensureNodeColorMenu();
@@ -2673,6 +2681,7 @@ document.addEventListener("DOMContentLoaded", () => {
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
   initializeDatePlaybackControls();
+  initializeLegendPillColors();
   initializeNodeColorFilters();
 
   const technicalModal = document.getElementById('technical-info-modal');
