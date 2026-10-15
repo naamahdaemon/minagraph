@@ -24,7 +24,15 @@ assert.match(source, /suppressNodeClick = true;[\s\S]*?setTimeout\(\(\) => \{ su
 assert.match(css, /\.node-color-menu\s*\{/);
 assert.match(css, /\.node-color-swatches\s*\{/);
 assert.match(css, /grid-template-columns: repeat\(5, 1fr\)/);
+assert.match(source, /id="node-color-filter-swatches"/);
+assert.match(source, /const nodeColorFilter = new Set\(\)/);
+assert.match(source, /function initializeNodeColorFilters\(\)/);
+assert.match(source, /if \(nodeColorFilter\.has\(color\)\) nodeColorFilter\.delete\(color\)/);
+assert.match(source, /else nodeColorFilter\.add\(color\)/);
+assert.match(source, /function nodeMatchesActiveColorFilter\(node\)/);
+assert.match(source, /edgeMatchesActiveColorFilter\(source, target\)/);
+assert.match(css, /\.node-color-filter-swatches\s*\{[\s\S]*?grid-template-columns: repeat\(5, 28px\)/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v164/);
+assert.match(worker, /mina-graph-explorer-v165/);
 
 console.log('Node color context menu tests passed');
