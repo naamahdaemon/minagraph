@@ -1212,6 +1212,7 @@ function moveDatePlaybackBoundary(boundary) {
 function initializeDatePlaybackControls() {
   const enabled = document.getElementById("date-playback-enabled");
   const settings = document.getElementById("date-playback-settings");
+  const primaryControls = document.getElementById("date-playback-primary-controls");
   const feed = document.getElementById("date-playback-feed");
   const feedList = document.getElementById("date-playback-feed-list");
   const collapse = document.getElementById("date-playback-collapse");
@@ -1245,6 +1246,7 @@ function initializeDatePlaybackControls() {
   const syncSettingsVisibility = () => {
     const collapsed = collapse?.getAttribute("aria-expanded") === "false";
     settings.hidden = !datePlaybackAdvancedEnabled || collapsed;
+    if (primaryControls) primaryControls.hidden = !datePlaybackAdvancedEnabled;
     if (collapse) {
       collapse.disabled = !datePlaybackAdvancedEnabled;
       collapse.title = collapsed ? "Expand advanced playback" : "Collapse advanced playback";
@@ -1504,7 +1506,9 @@ function highlightLiveViewAdditions(nodes = [], edges = []) {
 
 function runLiveViewLayoutIfIdle() {
   if (isLayoutRunning || !graph?.order) return false;
-  animateLayout(null, "incremental");
+  // Live View must honor the complete active layout configuration, including
+  // the user-selected iteration count, rather than an automatic short profile.
+  animateLayout(null, "initial");
   return true;
 }
 
@@ -9337,7 +9341,7 @@ function updateSlicerView() {
       slicerContainer.style.height = "auto";
       slicerContainer.style.display = "block";
     }
-    labels.forEach(label => label.style.display = "none");
+    labels.forEach(label => label.style.display = "inline-block");
   } else {
     document.body.classList.remove("mobile-mode");
 

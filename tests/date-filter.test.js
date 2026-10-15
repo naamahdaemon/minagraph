@@ -4,6 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 const helperMatch = source.match(/function isTimestampInCurrentRange\(timestamp\) \{[\s\S]*?\n\}/);
 
 assert.ok(helperMatch, 'Date range helper should exist');
@@ -37,6 +38,9 @@ assert.match(source, /function shiftSelectedDateWindow\(pageIndex\)/);
 assert.match(source, /slider\.noUiSlider\.set\(shiftedRange, true, true\)/);
 assert.match(source, /function moveDateWindowByOnePeriod\(direction\)/);
 assert.match(source, /function initializeDatePlaybackControls\(\)/);
+assert.match(source, /primaryControls\.hidden = !datePlaybackAdvancedEnabled/);
+assert.ok(html.indexOf('id="date-playback-primary-controls"') < html.indexOf('id="date-playback-controls"'), 'Playback actions should precede advanced settings');
+assert.ok(html.indexOf('id="date-playback-status"') < html.indexOf('id="date-filter-labels"'), 'Playback status should precede From/To labels');
 assert.match(source, /function advanceDatePlayback\(direction\)/);
 assert.match(source, /function getTransactionsEnteringDateRange\(previousRange, nextRange\)/);
 assert.match(source, /const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings"/);
@@ -85,7 +89,7 @@ assert.match(source, /function highlightLiveViewAdditions\(nodes = \[\], edges =
 assert.match(source, /highlightLiveViewAdditions\(newNodes, newEdges\)/);
 assert.match(source, /function runLiveViewLayoutIfIdle\(\)/);
 assert.match(source, /if \(isLayoutRunning \|\| !graph\?\.order\) return false/);
-assert.match(source, /animateLayout\(null, "incremental"\)/);
+assert.match(source, /animateLayout\(null, "initial"\)/);
 assert.match(source, /runLiveViewLayoutIfIdle\(\)/);
 assert.match(source, /const newEdges = graph\.edges\(\)\.filter\(edge => !previousEdges\.has\(edge\)\)/);
 assert.match(source, /const liveTimestamps = newEdges/);
@@ -160,7 +164,7 @@ const liveLayoutContext = {
 };
 vm.runInNewContext(`${liveLayoutHelper}; result = runLiveViewLayoutIfIdle;`, liveLayoutContext);
 assert.equal(liveLayoutContext.result(), true);
-assert.deepEqual(liveLayoutCalls, [[null, 'incremental']]);
+assert.deepEqual(liveLayoutCalls, [[null, 'initial']]);
 liveLayoutContext.isLayoutRunning = true;
 assert.equal(liveLayoutContext.result(), false);
 assert.equal(liveLayoutCalls.length, 1, 'Live View must not restart an active layout');
