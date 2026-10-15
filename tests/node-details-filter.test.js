@@ -7,6 +7,7 @@ const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.
 assert.match(source, /function edgeMatchesTimelineSelection\(edge\) \{\s*return datePlaybackFocusedEdges\.size === 0 \|\| datePlaybackFocusedEdges\.has\(edge\);\s*\}/);
 assert.match(source, /graphEdgeMatchesActiveView\(edge, node\) && edgeMatchesTimelineSelection\(edge\)/);
 assert.match(source, /timelineEdges: \[\.\.\.datePlaybackFocusedEdges\]\.sort\(\)/);
+assert.match(source, /nodeColors: \[\.\.\.nodeColorFilter\]\.sort\(\)/);
 assert.match(source, /function focusDatePlaybackTransaction\(edge\)[\s\S]*?refreshSelectedNodePanelIfOpen\(\);/);
 const helper = source.match(/function transactionMatchesActiveLegendFilters\(transaction\) \{[\s\S]*?\n\}/)?.[0];
 const directionHelper = source.match(/function edgeMatchesSelectedNodeDirection\(source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
@@ -37,6 +38,7 @@ assert.equal(context.result({ command_type: 'payment', blockchain: 'ethereum' })
 
 const activeViewContext = {
   transactionMatchesActiveLegendFilters: () => true,
+  edgeMatchesActiveColorFilter: () => true,
   selectedNode: 'selected',
   selectedNodeDirectionFilter: 'all'
 };

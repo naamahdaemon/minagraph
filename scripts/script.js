@@ -85,6 +85,7 @@ let nodeTransactionRenderContext = "";
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
+const nodeColorFilter = new Set();
 const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ff1744", label: "Flash red" },
   { value: "#ffea00", label: "Flash yellow" },
@@ -135,7 +136,7 @@ function ensureNodeColorMenu() {
       if (originalColor) graph.setNodeAttribute(nodeColorMenuNode, "color", originalColor);
     }
     hideNodeColorMenu();
-    renderer?.refresh();
+    refreshLegendFilteredViews();
   });
 
   document.addEventListener("pointerdown", event => {
@@ -145,6 +146,46 @@ function ensureNodeColorMenu() {
     if (event.key === "Escape" && !menu.hidden) hideNodeColorMenu();
   });
   return menu;
+}
+
+function syncNodeColorFilterControls() {
+  document.querySelectorAll("[data-node-color-filter]").forEach(button => {
+    const active = nodeColorFilter.has(button.dataset.nodeColorFilter);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function initializeNodeColorFilters() {
+  let container = document.getElementById("node-color-filter-swatches");
+  if (!container) {
+    const directionSection = document.querySelector('[data-target="#node-direction-types"]')?.closest(".legend-section");
+    if (!directionSection) return;
+    const section = document.createElement("div");
+    section.className = "legend-section";
+    section.innerHTML = `<div class="legend-toggle" data-target="#node-color-filter" style="cursor:pointer;"><em>▶ Node Colors</em></div>
+      <div id="node-color-filter" style="display:none;">
+        <p class="node-color-filter-hint">Select one or more custom node colors.</p>
+        <div id="node-color-filter-swatches" class="node-color-filter-swatches" role="group" aria-label="Filter nodes by custom color"></div>
+      </div>`;
+    directionSection.before(section, document.createElement("hr"));
+    container = section.querySelector("#node-color-filter-swatches");
+  }
+  if (!container || container.dataset.initialized === "true") return;
+  container.dataset.initialized = "true";
+  container.innerHTML = NODE_CUSTOM_COLORS.map(color => `<button type="button" data-node-color-filter="${color.value}"
+    aria-label="Filter ${color.label}" title="${color.label}" aria-pressed="false"
+    style="--node-swatch:${color.value}"></button>`).join("");
+  container.addEventListener("click", event => {
+    const button = event.target.closest("[data-node-color-filter]");
+    if (!button) return;
+    const color = button.dataset.nodeColorFilter;
+    if (nodeColorFilter.has(color)) nodeColorFilter.delete(color);
+    else nodeColorFilter.add(color);
+    syncNodeColorFilterControls();
+    refreshLegendFilteredViews();
+  });
+  syncNodeColorFilterControls();
 }
 
 function showNodeColorMenu(node, clientX, clientY) {
@@ -378,10 +419,22 @@ function edgeMatchesSelectedNodeDirection(source, target, referenceNode = select
   return true;
 }
 
+function nodeMatchesActiveColorFilter(node) {
+  if (nodeColorFilter.size === 0) return true;
+  if (!graph?.hasNode(node)) return false;
+  const color = String(graph.getNodeAttribute(node, "customColor") || "").toLowerCase();
+  return nodeColorFilter.has(color);
+}
+
+function edgeMatchesActiveColorFilter(source, target) {
+  return nodeMatchesActiveColorFilter(source) && nodeMatchesActiveColorFilter(target);
+}
+
 function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
   return attributes?.hidden !== true &&
     transactionMatchesActiveLegendFilters(attributes) &&
-    edgeMatchesSelectedNodeDirection(source, target, referenceNode);
+    edgeMatchesSelectedNodeDirection(source, target, referenceNode) &&
+    edgeMatchesActiveColorFilter(source, target);
 }
 
 function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
@@ -935,6 +988,7 @@ function getTransactionsVisibleInDateRange(range = currentRange) {
     return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
       transactionMatchesActiveLegendFilters(attrs) &&
       edgeMatchesSelectedNodeDirection(source, target) &&
+      edgeMatchesActiveColorFilter(source, target) &&
       (!strictTouchFocusedNode || edgeMatchesStrictTouchFocus(edge));
   });
 }
@@ -2618,6 +2672,7 @@ document.addEventListener("DOMContentLoaded", () => {
   exitFullscreenBtn = document.getElementById("exit-fullscreen-btn");
   slicer = document.getElementById("date-slicer-container");
   initializeDatePlaybackControls();
+  initializeNodeColorFilters();
 
   const technicalModal = document.getElementById('technical-info-modal');
   try {
@@ -2822,12 +2877,14 @@ document.addEventListener("DOMContentLoaded", () => {
         // Reset both filters
         commandTypeFilter.clear();
         chainFilter.clear();
+        nodeColorFilter.clear();
         selectedNodeDirectionFilter = "all";
         console.log("🔄 All filters reset");
 
         // Visually reset all items
         document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.legend-chain').forEach(el => el.classList.remove('active'));
+        syncNodeColorFilterControls();
         syncNodeDirectionFilterControls();
 
         refreshLegendFilteredViews();
@@ -6930,6 +6987,7 @@ function getNodeTransactionRenderContext(node) {
     range: currentRange,
     commandTypes: [...commandTypeFilter].sort(),
     chains: [...chainFilter].sort(),
+    nodeColors: [...nodeColorFilter].sort(),
     timelineEdges: [...datePlaybackFocusedEdges].sort()
   });
 }
@@ -8013,6 +8071,7 @@ function setupReducers() {
   
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
+    if (!nodeMatchesActiveColorFilter(node)) return { ...data, hidden: true };
     const playbackFocus = getDatePlaybackFocus();
     if (playbackFocus && !playbackFocus.nodes.has(node)) {
       return { ...data, hidden: true };
@@ -8222,6 +8281,7 @@ function setupReducers() {
     const target = graph.target(edge);
     const sourceNode = graph.getNodeAttributes(source);
     const targetNode = graph.getNodeAttributes(target);
+    if (!edgeMatchesActiveColorFilter(source, target)) return { ...data, hidden: true };
 
     // Base color by type
     let baseColor = "#666";
