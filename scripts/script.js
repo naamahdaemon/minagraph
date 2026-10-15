@@ -86,6 +86,7 @@ let nodeTransactionRenderContext = "";
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
 const nodeColorFilter = new Set();
+const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1";
 const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ff1744", label: "Flash red" },
   { value: "#ffea00", label: "Flash yellow" },
@@ -103,6 +104,43 @@ const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ff4081", label: "Flash pink" },
   { value: "#ff9e80", label: "Flash coral" }
 ]);
+
+function loadPersistedNodeCustomColors() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(NODE_CUSTOM_COLOR_STORAGE_KEY) || "{}");
+    return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+  } catch (error) {
+    console.warn("Unable to load saved node colors:", error);
+    return {};
+  }
+}
+
+const persistedNodeCustomColors = loadPersistedNodeCustomColors();
+
+function savePersistedNodeCustomColors() {
+  try {
+    localStorage.setItem(NODE_CUSTOM_COLOR_STORAGE_KEY, JSON.stringify(persistedNodeCustomColors));
+  } catch (error) {
+    console.warn("Unable to save node colors:", error);
+  }
+}
+
+function setPersistedNodeCustomColor(node, color, { save = true } = {}) {
+  if (node === null || node === undefined || !/^#[0-9a-f]{6}$/i.test(String(color || ""))) return;
+  persistedNodeCustomColors[String(node)] = String(color).toLowerCase();
+  if (save) savePersistedNodeCustomColors();
+}
+
+function removePersistedNodeCustomColor(node) {
+  if (node === null || node === undefined) return;
+  delete persistedNodeCustomColors[String(node)];
+  savePersistedNodeCustomColors();
+}
+
+function getPersistedNodeCustomColor(node) {
+  const color = persistedNodeCustomColors[String(node)] || "";
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+}
 
 function ensureNodeColorMenu() {
   let menu = document.getElementById("node-color-menu");
@@ -130,10 +168,12 @@ function ensureNodeColorMenu() {
       const color = colorButton.dataset.nodeColor;
       graph.setNodeAttribute(nodeColorMenuNode, "customColor", color);
       graph.setNodeAttribute(nodeColorMenuNode, "color", color);
+      setPersistedNodeCustomColor(nodeColorMenuNode, color);
     } else {
       const originalColor = graph.getNodeAttribute(nodeColorMenuNode, "originalColor");
       graph.removeNodeAttribute(nodeColorMenuNode, "customColor");
       if (originalColor) graph.setNodeAttribute(nodeColorMenuNode, "color", originalColor);
+      removePersistedNodeCustomColor(nodeColorMenuNode);
     }
     hideNodeColorMenu();
     refreshLegendFilteredViews();
@@ -3763,7 +3803,9 @@ function refreshNodeChainColors(fallbackChain = selectedBlockchain) {
     graph.setNodeAttribute(node, "dominantChain", dominantChain);
     graph.setNodeAttribute(node, "colorByDegree", color);
     graph.setNodeAttribute(node, "originalColor", color);
-    graph.setNodeAttribute(node, "color", data.customColor || color);
+    const customColor = data.customColor || getPersistedNodeCustomColor(node);
+    if (customColor) graph.setNodeAttribute(node, "customColor", customColor);
+    graph.setNodeAttribute(node, "color", customColor || color);
   });
 }
 
@@ -9072,6 +9114,7 @@ function importJSON(file, mode="", iterations=500) {
       graph.clear();
       const total = data.nodes.length + data.edges.length;
       let current = 0;
+      let importedCustomColors = false;
       updateProgressBar(current, total);
 
       data.nodes.forEach(n => {
@@ -9079,9 +9122,14 @@ function importJSON(file, mode="", iterations=500) {
           n.chains = [n.chains];
         }
         graph.addNode(n.id, n);
+        if (n.customColor) {
+          setPersistedNodeCustomColor(n.id, n.customColor, { save: false });
+          importedCustomColors = true;
+        }
         current++;
         updateProgressBar(current, total);
       });
+      if (importedCustomColors) savePersistedNodeCustomColors();
 
       data.edges.forEach((e) => {
         if (e.timestamp) {
