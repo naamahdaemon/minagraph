@@ -2,7 +2,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const host = "127.0.0.1";
+const host = process.env.MINAGRAPH_HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.MINAGRAPH_PORT, 10) || 8765;
 const root = __dirname;
 
@@ -51,5 +51,6 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Minagraph available at http://${host}:${port}`);
+  const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
+  console.log(`Minagraph available at http://${displayHost}:${port}`);
 });

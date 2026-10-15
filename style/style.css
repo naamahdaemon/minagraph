@@ -1861,6 +1861,12 @@
       font-weight: 700;
     }
 
+    .node-direction-filter button.armed:not(.active) {
+      border-color: #4fc3f7;
+      border-style: dashed;
+      box-shadow: inset 0 0 0 1px rgba(79, 195, 247, 0.2);
+    }
+
     .node-direction-filter button:disabled {
       cursor: not-allowed;
       opacity: 0.42;
