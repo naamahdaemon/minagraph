@@ -54,5 +54,12 @@ assert.match(source, /const chainsToFetch = compatibleChains\.filter\(chain =>/)
 assert.match(source, /return !hasNodeFetchCoverage\(chain, normalizedNode, coverageSignature\)/);
 assert.match(source, /nodeFetchCoverageByChain\.clear\(\)/);
 assert.match(source, /const refreshNodeFetchAvailability = \(\) =>/);
+assert.match(source, /async function launchGraphFetchFromShortcut\(address, chain, depthOverride = null\)/);
+assert.match(source, /const wipeGraph = document\.getElementById\("wipe-select"\)\?\.value !== "no"/);
+assert.match(source, /await main\(requestedDepth, wipeGraph, chain\)/);
+assert.match(source, /launchGraphFetchFromShortcut\(address, chain\)\.catch\(console\.error\)/);
+assert.match(source, /launchGraphFetchFromShortcut\(address, chain, 1\)\.catch\(console\.error\)/);
+assert.doesNotMatch(source, /main\(1, true, chain\)/);
+assert.match(source, /emptydiv\.readOnly = true/);
 
 console.log('Incremental fetch profile tests passed');
