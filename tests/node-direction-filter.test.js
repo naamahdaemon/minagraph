@@ -24,6 +24,13 @@ assert.match(source, /graphEdgeMatchesActiveView\(edge, node\)/);
 assert.match(source, /selectedNodeDirectionFilter = "all";[\s\S]*?syncNodeDirectionFilterControls\(\)/);
 assert.doesNotMatch(source, /if \(mode !== "all" && \(!selectedNode/);
 assert.match(source, /if \(!referenceNode \|\| selectedNodeDirectionFilter === "all"\) return true/);
-assert.match(worker, /mina-graph-explorer-v156/);
+assert.match(source, /const isActive = hasSelection \? isChosen : mode === "all"/);
+assert.match(source, /button\.classList\.toggle\("armed", isArmed\)/);
+assert.match(source, /function hideNodePanel\(options = \{\}\)[\s\S]*?refreshDatePlaybackFeedForCurrentRange\(\)/);
+assert.doesNotMatch(source, /if \(!visibleEdgeIds\.has\(edge\)\) \{\s*datePlaybackFocusedEdges\.delete\(edge\)/);
+assert.match(css, /\.node-direction-filter button\.armed:not\(\.active\)/);
+assert.match(source, /function refreshSelectedNodePanelIfOpen\(\) \{[\s\S]*?panel\?\.classList\.contains\("open"\)[\s\S]*?showNodePanel\(selectedNode, false\)/);
+assert.match(source, /function refreshLegendFilteredViews\(\) \{[\s\S]*?refreshSelectedNodePanelIfOpen\(\);/);
+assert.match(worker, /mina-graph-explorer-v163/);
 
 console.log('Selected-node direction filter tests passed');
