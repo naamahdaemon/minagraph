@@ -7867,6 +7867,7 @@ function initRenderer() {
   //console.log("Dans InitRenderer - isLightTheme = " + isLightTheme())
   param = {
     zIndex: true,
+    tapMoveTolerance: 16,
     labelColor: {
         color: isLightTheme() ? "#000" : "#9999ff"
     },
@@ -7939,7 +7940,8 @@ function setupReducers() {
     }
 
     
-    const defaultSize = data.size || 5;
+    const mobileNodeScale = window.innerWidth <= 768 ? 1.25 : 1;
+    const defaultSize = (data.size || 5) * mobileNodeScale;
     //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
 
@@ -8240,6 +8242,40 @@ function setupInteractions() {
     isDragging = false;
     hasMoved = false;
   };
+
+  const activateTouchedNode = (node, source = "native") => {
+    if (!graph.hasNode(node)) return;
+    const now = Date.now();
+    const isSecondTouchTap = lastTouchNodeClick.node === node && now - lastTouchNodeClick.time < 1200;
+    lastTouchNodeClick = { node, time: now, source };
+    ignoreStageClickUntil = now + 150;
+    if (isSecondTouchTap) {
+      showNodePanel(node);
+    } else {
+      setNodePanelOpen(false);
+      selectedNode = node;
+      syncNodeDirectionFilterControls();
+    }
+    renderer.refresh();
+  };
+
+  const findNearestTouchableNode = event => {
+    if (window.innerWidth > 768 || !graph?.order) return null;
+    const position = getEventClientPosition(event);
+    let nearestNode = null;
+    let nearestDistance = Infinity;
+    graph.forEachNode(node => {
+      const displayData = renderer.getNodeDisplayData(node);
+      if (!displayData || displayData.hidden) return;
+      const distance = Math.hypot(displayData.x - position.x, displayData.y - position.y);
+      const touchRadius = Math.max(22, Number(displayData.size || 0) + 10);
+      if (distance <= touchRadius && distance < nearestDistance) {
+        nearestNode = node;
+        nearestDistance = distance;
+      }
+    });
+    return nearestNode;
+  };
   
   // Hover in/out to show tooltip & halo
   renderer.on("enterNode", ({ node, event }) => {
@@ -8278,6 +8314,18 @@ function setupInteractions() {
     }
     const touchStageClick = isTouchInteraction(event);
     const qualifiedStageReveal = !touchStageClick || Date.now() - lastQualifiedGraphTouchTapAt < 300;
+    const nearbyTouchNode = touchStageClick && qualifiedStageReveal ? findNearestTouchableNode(event) : null;
+    if (nearbyTouchNode) {
+      const compatibilityDuplicate =
+        isTouchCompatibilityClick(event) &&
+        lastTouchNodeClick.node === nearbyTouchNode &&
+        lastTouchNodeClick.source === "native" &&
+        Date.now() - lastTouchNodeClick.time < 250;
+      if (!compatibilityDuplicate) {
+        activateTouchedNode(nearbyTouchNode, isNativeTouchInteraction(event) ? "native" : "compatibility");
+      }
+      return;
+    }
     if (isFullscreen && Date.now() > suppressFullscreenUiRevealUntil && qualifiedStageReveal) {
       lastQualifiedGraphTouchTapAt = 0;
       setFullscreenUiVisible(true, { openSidebar: false });
@@ -8315,22 +8363,7 @@ function setupInteractions() {
     // second tap on the same node opens its details. Mouse clicks keep their
     // existing one-step behaviour.
     if (touchInteraction) {
-      const isSecondTouchTap =
-        lastTouchNodeClick.node === node &&
-        now - lastTouchNodeClick.time < 1200;
-      lastTouchNodeClick = {
-        node,
-        time: now,
-        source: nativeTouchInteraction ? "native" : "compatibility"
-      };
-      if (isSecondTouchTap) {
-        showNodePanel(node);
-      } else {
-        setNodePanelOpen(false);
-        selectedNode = node;
-        syncNodeDirectionFilterControls();
-      }
-      renderer.refresh();
+      activateTouchedNode(node, nativeTouchInteraction ? "native" : "compatibility");
       return;
     }
 
@@ -8403,7 +8436,8 @@ function setupInteractions() {
 
     const dx = event.x - dragStartPos.x,
           dy = event.y - dragStartPos.y;
-    if (!hasMoved && Math.hypot(dx, dy) > 5) {
+    const dragTolerance = isNativeTouchInteraction(event) ? 12 : 5;
+    if (!hasMoved && Math.hypot(dx, dy) > dragTolerance) {
       cancelNodeLongPress();
       hasMoved = true;
       graph.setNodeAttribute(draggedNode, "highlighted", true);
@@ -8739,6 +8773,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
 
     param = {
         zIndex: true,
+        tapMoveTolerance: 16,
         labelColor: {
             color: isLightTheme() ? "#000" : "#9999ff"
         },
