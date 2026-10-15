@@ -10810,6 +10810,15 @@ function createFavoritesModal(toggleSortCallback) {
   modal.id = "favorites-overlay";
   modal.style.display = "flex";
 
+  // Isolate editable controls from graph gestures and document-level mobile
+  // handlers without cancelling their native focus or virtual keyboard.
+  const editableSelector = "input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])";
+  ["pointerdown", "touchstart", "click", "focusin"].forEach(eventName => {
+    modal.addEventListener(eventName, event => {
+      if (event.target.closest(editableSelector)) event.stopPropagation();
+    }, eventName === "touchstart" ? { passive: true } : false);
+  });
+
   const closeButton = document.createElement("button");
   closeButton.textContent = "CLOSE";
   closeButton.className = "close-fav";
@@ -10904,7 +10913,7 @@ function createFavoritesModal(toggleSortCallback) {
       
     `;  
   emptydiv.style.pointerEvents = "none";
-  emptydiv.readonly = true;
+  emptydiv.readOnly = true;
   const thActions = document.createElement("th");
   //thActions.style.background = "#333333";
   //thActions.style.border = "none";
@@ -10975,14 +10984,32 @@ function updateFavoriteLabel(address, chain, newLabel) {
 
 
 function fetchFavorite(address, chain) {
-  const select = document.getElementById("blockchain-select");
-  select.value = chain;
+  launchGraphFetchFromShortcut(address, chain).catch(console.error);
+  document.getElementById("favorites-overlay")?.remove();
+}
 
-  // ⏬ Manually dispatch change event
-  select.dispatchEvent(new Event('change', { bubbles: true }));
-  document.getElementById("param-base-key").value = address;
-  document.getElementById("start-graph-btn").click();
-  document.getElementById("favorites-modal").style.display = "none";
+async function launchGraphFetchFromShortcut(address, chain, depthOverride = null) {
+  if (!address || !chain) return;
+
+  const select = document.getElementById("blockchain-select");
+  if (select && select.value !== chain) {
+    select.value = chain;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const baseKeyInput = document.getElementById("param-base-key");
+  if (baseKeyInput) baseKeyInput.value = address;
+
+  LIMIT = parseInt(document.getElementById("param-limit")?.value, 10);
+  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration")?.value, 10);
+  DEPTH = parseInt(document.getElementById("param-depth")?.value, 10);
+  BASE_KEY = address.trim();
+  API_TOKEN = document.getElementById("param-api-token")?.value.trim() || "";
+  if (!syncFetchDateRangeFromInputs()) return;
+
+  const wipeGraph = document.getElementById("wipe-select")?.value !== "no";
+  const requestedDepth = Number.isInteger(depthOverride) ? depthOverride : DEPTH;
+  await main(requestedDepth, wipeGraph, chain);
 }
 
 function showQRCode(address) {
@@ -11395,10 +11422,7 @@ async function showNotificationList() {
 window.handleShowGraph = function(chain, address) {
   if (!chain || !address) return;
   console.log('[UI] Triggering graph display from notification list:', chain, address);
-  LIMIT = parseInt(document.getElementById("param-limit").value, 10);
-  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration").value, 10);  
-  BASE_KEY = address;
-  main(1, true, chain);
+  launchGraphFetchFromShortcut(address, chain, 1).catch(console.error);
 };
 
 
