@@ -855,13 +855,21 @@
     .date-playback-mode-row {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(112px, 0.72fr) auto;
       align-items: end;
       gap: 8px;
     }
 
     .date-playback-mode-field select {
       width: 100%;
+    }
+
+    .date-playback-highlight-field .date-playback-input-group {
+      grid-template-columns: minmax(48px, 1fr) 54px;
+    }
+
+    .date-playback-highlight-field .date-playback-unit {
+      padding-inline: 5px;
     }
 
     .date-playback-live-toggle {
@@ -1053,6 +1061,7 @@
 
     #date-playback-sort-panel {
       display: grid;
+      flex: 0 0 auto;
       gap: 7px;
       padding: 8px 10px;
       border-bottom: 1px solid rgba(127, 127, 127, 0.35);
@@ -2479,8 +2488,9 @@
       #date-playback-feed.sorting { max-height: min(360px, calc(100dvh - 70px)); }
 
       #date-playback-sort-panel {
-        max-height: 170px;
+        max-height: min(170px, calc(100dvh - 190px));
         overflow-y: auto;
+        overscroll-behavior: contain;
       }
 
       .date-playback-sort-add {
@@ -2632,6 +2642,16 @@
     body.mobile-mode #date-playback-settings {
       gap: 4px 6px;
       margin-top: 5px;
+    }
+
+    body.mobile-mode .date-playback-mode-row {
+      grid-template-columns: minmax(0, 1fr) minmax(108px, 0.85fr);
+      gap: 6px;
+    }
+
+    body.mobile-mode .date-playback-mode-row .date-playback-live-toggle {
+      grid-column: 1 / -1;
+      justify-content: center;
     }
 
     body.mobile-mode .date-playback-number-control,
