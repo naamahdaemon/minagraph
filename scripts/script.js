@@ -90,7 +90,17 @@ const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ffea00", label: "Flash yellow" },
   { value: "#00e676", label: "Flash green" },
   { value: "#00e5ff", label: "Flash cyan" },
-  { value: "#d500f9", label: "Flash magenta" }
+  { value: "#d500f9", label: "Flash magenta" },
+  { value: "#ff6d00", label: "Flash orange" },
+  { value: "#ff9100", label: "Flash amber" },
+  { value: "#c6ff00", label: "Flash lime" },
+  { value: "#76ff03", label: "Flash chartreuse" },
+  { value: "#1de9b6", label: "Flash turquoise" },
+  { value: "#2979ff", label: "Flash blue" },
+  { value: "#3d5afe", label: "Flash indigo" },
+  { value: "#651fff", label: "Flash violet" },
+  { value: "#ff4081", label: "Flash pink" },
+  { value: "#ff9e80", label: "Flash coral" }
 ]);
 
 function ensureNodeColorMenu() {
