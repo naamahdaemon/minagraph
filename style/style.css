@@ -3313,6 +3313,18 @@
     font-size: 13px;
   }
 
+  #favorites-overlay :is(input:not([readonly]), textarea:not([readonly]), select) {
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+  }
+
+  @media (max-width: 768px) {
+    #favorites-overlay :is(input:not([readonly]), textarea:not([readonly]), select) {
+      font-size: 16px;
+    }
+  }
+
   /* Label input field */
   #favorites-overlay input[type="text"] {
     background: #1a1a1a;

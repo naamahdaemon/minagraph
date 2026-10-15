@@ -24,6 +24,6 @@ assert.match(source, /suppressNodeClick = true;[\s\S]*?setTimeout\(\(\) => \{ su
 assert.match(css, /\.node-color-menu\s*\{/);
 assert.match(css, /\.node-color-swatches\s*\{/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v152/);
+assert.match(worker, /mina-graph-explorer-v153/);
 
 console.log('Node color context menu tests passed');
