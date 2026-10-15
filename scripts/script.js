@@ -466,7 +466,7 @@ const datePlaybackFlashDeadlines = new Map();
 const datePlaybackNodeFlashDeadlines = new Map();
 let datePlaybackFlashFrame = null;
 let datePlaybackAutoFlashEdge = null;
-const DATE_PLAYBACK_FLASH_DURATION_MS = 2000;
+const DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS = 2;
 let datePlaybackVisibleEdges = new Set();
 let datePlaybackFeedPinnedTop = true;
 let datePlaybackSortRules = [];
@@ -564,7 +564,12 @@ function syncDateSlicerWithNodePanel() {
       playbackFeed.style.maxHeight = `${availableHeight}px`;
       if (Number.isFinite(datePlaybackFeedPreferredHeight)) {
         const minimumHeight = Math.min(92, availableHeight);
-        const appliedHeight = Math.min(availableHeight, Math.max(minimumHeight, datePlaybackFeedPreferredHeight));
+        // A stored compact height is useful for the transaction list, but it
+        // must not crush the sorting controls when that panel is expanded.
+        const preferredHeight = playbackFeed.classList.contains("sorting")
+          ? Math.max(datePlaybackFeedPreferredHeight, maximumFeedHeight)
+          : datePlaybackFeedPreferredHeight;
+        const appliedHeight = Math.min(availableHeight, Math.max(minimumHeight, preferredHeight));
         playbackFeed.style.height = `${appliedHeight}px`;
         playbackFeed.classList.add("user-resized");
       } else {
@@ -645,6 +650,14 @@ function getDatePlaybackCadenceMilliseconds() {
   return seconds * 1000;
 }
 
+function getDatePlaybackHighlightDurationMilliseconds() {
+  const seconds = Math.max(
+    0.1,
+    Number(document.getElementById("date-playback-highlight-duration")?.value) || DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS
+  );
+  return seconds * 1000;
+}
+
 function getStoredDatePlaybackSettings() {
   try {
     return JSON.parse(localStorage.getItem(DATE_PLAYBACK_STORAGE_KEY) || "null") || {};
@@ -661,6 +674,7 @@ function saveDatePlaybackSettings() {
       stepValue: Math.max(1, Number(document.getElementById("date-playback-step-value")?.value) || 1),
       stepUnit: document.getElementById("date-playback-step-unit")?.value || "days",
       cadence: Math.max(0.1, Number(document.getElementById("date-playback-cadence")?.value) || 1),
+      highlightDuration: Math.max(0.1, Number(document.getElementById("date-playback-highlight-duration")?.value) || DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS),
       rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative",
       liveView: document.getElementById("date-playback-live-view")?.checked === true,
       collapsed: document.getElementById("date-playback-collapse")?.getAttribute("aria-expanded") === "false",
@@ -756,14 +770,14 @@ function runDatePlaybackFlashAnimation() {
 
 function startDatePlaybackNodeFlash(node) {
   if (!graph?.hasNode(node)) return;
-  datePlaybackNodeFlashDeadlines.set(node, Date.now() + DATE_PLAYBACK_FLASH_DURATION_MS);
+  datePlaybackNodeFlashDeadlines.set(node, Date.now() + getDatePlaybackHighlightDurationMilliseconds());
   if (datePlaybackFlashFrame === null) {
     datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
   }
 }
 
 function startDatePlaybackFlash(edge) {
-  datePlaybackFlashDeadlines.set(edge, Date.now() + DATE_PLAYBACK_FLASH_DURATION_MS);
+  datePlaybackFlashDeadlines.set(edge, Date.now() + getDatePlaybackHighlightDurationMilliseconds());
   if (datePlaybackFlashFrame === null) {
     datePlaybackFlashFrame = requestAnimationFrame(runDatePlaybackFlashAnimation);
   }
@@ -1227,6 +1241,7 @@ function initializeDatePlaybackControls() {
   const stepValue = document.getElementById("date-playback-step-value");
   const stepUnit = document.getElementById("date-playback-step-unit");
   const cadence = document.getElementById("date-playback-cadence");
+  const highlightDuration = document.getElementById("date-playback-highlight-duration");
   const rangeMode = document.getElementById("date-playback-range-mode");
   const liveView = document.getElementById("date-playback-live-view");
   const sortToggle = document.getElementById("date-playback-sort-toggle");
@@ -1234,6 +1249,11 @@ function initializeDatePlaybackControls() {
   if (stepValue && Number(storedSettings.stepValue) >= 1) stepValue.value = String(storedSettings.stepValue);
   if (stepUnit && ["days", "hours", "minutes", "seconds"].includes(storedSettings.stepUnit)) stepUnit.value = storedSettings.stepUnit;
   if (cadence && Number(storedSettings.cadence) >= 0.1) cadence.value = String(storedSettings.cadence);
+  if (highlightDuration) {
+    highlightDuration.value = String(Number(storedSettings.highlightDuration) >= 0.1
+      ? storedSettings.highlightDuration
+      : DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS);
+  }
   if (rangeMode) rangeMode.value = ["window", "cumulative"].includes(storedSettings.rangeMode)
     ? storedSettings.rangeMode
     : "cumulative";
@@ -1312,7 +1332,7 @@ function initializeDatePlaybackControls() {
     clearDatePlaybackFocus();
     if (feed) feed.hidden = true;
   });
-  ["date-playback-step-value", "date-playback-step-unit", "date-playback-cadence", "date-playback-range-mode"].forEach(id => {
+  ["date-playback-step-value", "date-playback-step-unit", "date-playback-cadence", "date-playback-highlight-duration", "date-playback-range-mode"].forEach(id => {
     document.getElementById(id)?.addEventListener("change", () => {
       if (datePlaybackDirection) pauseDatePlayback("Settings changed — press play to resume");
       if (["date-playback-step-value", "date-playback-step-unit"].includes(id)) updateDateSliderStep();

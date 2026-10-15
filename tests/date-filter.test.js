@@ -55,6 +55,7 @@ assert.match(source, /panel\.addEventListener\("toggle", \(\) => \{[\s\S]*?prese
 assert.match(source, /collapse\?\.addEventListener\("click", \(\) => \{[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
 assert.doesNotMatch(source, /function isDesktopDatePlayback\(\)/);
 assert.match(source, /playbackFeed\.classList\.contains\("sorting"\) \? 360 : 180/);
+assert.match(source, /Math\.max\(datePlaybackFeedPreferredHeight, maximumFeedHeight\)/);
 assert.match(source, /function normalizeDatePlaybackSortRules\(rules\)/);
 assert.match(source, /function sortDatePlaybackEdges\(edges, direction\)/);
 assert.match(source, /"date-minute": "Date — minute"/);
@@ -63,9 +64,14 @@ assert.match(source, /if \(kind === "date-minute"\) return roundTimestampUp\(tim
 assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
-assert.match(source, /const DATE_PLAYBACK_FLASH_DURATION_MS = 2000/);
+assert.match(source, /const DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS = 2/);
+assert.match(source, /function getDatePlaybackHighlightDurationMilliseconds\(\)/);
+assert.match(source, /highlightDuration: Math\.max\(0\.1,/);
+assert.match(source, /storedSettings\.highlightDuration/);
+assert.match(source, /Date\.now\(\) \+ getDatePlaybackHighlightDurationMilliseconds\(\)/);
+assert.match(html, /id="date-playback-highlight-duration"[^>]*value="2"/);
 assert.match(source, /const datePlaybackNodeFlashDeadlines = new Map\(\)/);
-assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ DATE_PLAYBACK_FLASH_DURATION_MS\)/);
+assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ getDatePlaybackHighlightDurationMilliseconds\(\)\)/);
 assert.match(source, /function runDatePlaybackFlashAnimation\(\)/);
 assert.match(source, /function highlightLatestDatePlaybackFlow\(edges, direction\)/);
 assert.match(source, /revealedEdges\.forEach\(startDatePlaybackFlash\)/);
