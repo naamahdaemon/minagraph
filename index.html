@@ -691,6 +691,24 @@
               <span id="date-window-shift-value">Select a shorter period to move it</span>
             </div>
 
+            <div id="date-playback-primary-controls" hidden>
+              <div class="date-playback-actions" role="group" aria-label="Date playback controls">
+                <button id="date-playback-step-backward" class="date-playback-step-button" type="button" title="Step backward" aria-label="Step backward"><span aria-hidden="true">◀|</span></button>
+                <button id="date-playback-reverse" type="button" title="Play backward" aria-label="Play backward"><span aria-hidden="true">◀</span></button>
+                <button id="date-playback-trim-start" class="date-playback-step-button" type="button" title="Move lower bound forward" aria-label="Move lower bound forward"><span aria-hidden="true">|▶</span></button>
+                <button id="date-playback-pause" type="button" title="Pause" aria-label="Pause"><span class="date-playback-pause-icon" aria-hidden="true"></span></button>
+                <button id="date-playback-trim-end" class="date-playback-step-button" type="button" title="Move upper bound backward" aria-label="Move upper bound backward"><span aria-hidden="true">◀|</span></button>
+                <button id="date-playback-forward" type="button" title="Play forward" aria-label="Play forward"><span aria-hidden="true">▶</span></button>
+                <button id="date-playback-step-forward" class="date-playback-step-button" type="button" title="Step forward" aria-label="Step forward"><span aria-hidden="true">|▶</span></button>
+              </div>
+              <div id="date-playback-status" aria-live="polite">Paused — manual controls enabled</div>
+            </div>
+
+            <div id="date-filter-labels">
+              <span id="slicer-start-label">From: --</span>
+              <span id="slicer-end-label">To: --</span>
+            </div>
+
             <section id="date-playback-controls" aria-label="Advanced date playback">
               <div class="date-playback-heading">
                 <label class="date-playback-mode-toggle">
@@ -744,23 +762,9 @@
                     <span>Live View</span>
                   </label>
                 </div>
-                <div class="date-playback-actions" role="group" aria-label="Date playback controls">
-                  <button id="date-playback-step-backward" class="date-playback-step-button" type="button" title="Step backward" aria-label="Step backward"><span aria-hidden="true">◀|</span></button>
-                  <button id="date-playback-reverse" type="button" title="Play backward" aria-label="Play backward"><span aria-hidden="true">◀</span></button>
-                  <button id="date-playback-trim-start" class="date-playback-step-button" type="button" title="Move lower bound forward" aria-label="Move lower bound forward"><span aria-hidden="true">|▶</span></button>
-                  <button id="date-playback-pause" type="button" title="Pause" aria-label="Pause"><span class="date-playback-pause-icon" aria-hidden="true"></span></button>
-                  <button id="date-playback-trim-end" class="date-playback-step-button" type="button" title="Move upper bound backward" aria-label="Move upper bound backward"><span aria-hidden="true">◀|</span></button>
-                  <button id="date-playback-forward" type="button" title="Play forward" aria-label="Play forward"><span aria-hidden="true">▶</span></button>
-                  <button id="date-playback-step-forward" class="date-playback-step-button" type="button" title="Step forward" aria-label="Step forward"><span aria-hidden="true">|▶</span></button>
-                </div>
-                <div id="date-playback-status" aria-live="polite">Paused — manual controls enabled</div>
               </div>
             </section>
 
-            <div id="date-filter-labels">
-              <span id="slicer-start-label">From: --</span>
-              <span id="slicer-end-label">To: --</span>
-            </div>
           </div>
         </details>
       </div>
