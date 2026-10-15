@@ -117,6 +117,11 @@ function loadPersistedNodeCustomColors() {
 
 const persistedNodeCustomColors = loadPersistedNodeCustomColors();
 
+function getNodeCustomColorStorageId(node) {
+  const id = String(node ?? "");
+  return /^0x[0-9a-f]{40}$/i.test(id) ? id.toLowerCase() : id;
+}
+
 function savePersistedNodeCustomColors() {
   try {
     localStorage.setItem(NODE_CUSTOM_COLOR_STORAGE_KEY, JSON.stringify(persistedNodeCustomColors));
@@ -127,19 +132,28 @@ function savePersistedNodeCustomColors() {
 
 function setPersistedNodeCustomColor(node, color, { save = true } = {}) {
   if (node === null || node === undefined || !/^#[0-9a-f]{6}$/i.test(String(color || ""))) return;
-  persistedNodeCustomColors[String(node)] = String(color).toLowerCase();
+  persistedNodeCustomColors[getNodeCustomColorStorageId(node)] = String(color).toLowerCase();
   if (save) savePersistedNodeCustomColors();
 }
 
 function removePersistedNodeCustomColor(node) {
   if (node === null || node === undefined) return;
-  delete persistedNodeCustomColors[String(node)];
+  delete persistedNodeCustomColors[getNodeCustomColorStorageId(node)];
   savePersistedNodeCustomColors();
 }
 
 function getPersistedNodeCustomColor(node) {
-  const color = persistedNodeCustomColors[String(node)] || "";
+  const color = persistedNodeCustomColors[getNodeCustomColorStorageId(node)] || "";
   return /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+}
+
+function applyPersistedNodeCustomColor(node) {
+  if (!graph?.hasNode(node)) return null;
+  const color = getPersistedNodeCustomColor(node);
+  if (!color) return null;
+  graph.setNodeAttribute(node, "customColor", color);
+  graph.setNodeAttribute(node, "color", color);
+  return color;
 }
 
 function ensureNodeColorMenu() {
@@ -6596,6 +6610,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         graph.setNodeAttribute(key, 'chains', [...existingChains, chain]);
       }
     }
+    applyPersistedNodeCustomColor(key);
   };
 
   for (const tx of transactions) {
@@ -9120,6 +9135,11 @@ function importJSON(file, mode="", iterations=500) {
       data.nodes.forEach(n => {
         if (typeof n.chains === "string") {
           n.chains = [n.chains];
+        }
+        const persistedCustomColor = getPersistedNodeCustomColor(n.id);
+        if (!n.customColor && persistedCustomColor) {
+          n.customColor = persistedCustomColor;
+          n.color = persistedCustomColor;
         }
         graph.addNode(n.id, n);
         if (n.customColor) {

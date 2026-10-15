@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'scripts', 'script.js'), 'utf8');
@@ -15,6 +16,8 @@ assert.match(source, /data-node-color-reset>Reset color/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
 assert.match(source, /const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1"/);
 assert.match(source, /function setPersistedNodeCustomColor\(node, color/);
+assert.match(source, /function applyPersistedNodeCustomColor\(node\)/);
+assert.match(source, /applyPersistedNodeCustomColor\(key\)/);
 assert.match(source, /setPersistedNodeCustomColor\(nodeColorMenuNode, color\)/);
 assert.match(source, /removePersistedNodeCustomColor\(nodeColorMenuNode\)/);
 assert.match(source, /const customColor = data\.customColor \|\| getPersistedNodeCustomColor\(node\)/);
@@ -56,6 +59,25 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v170/);
+assert.match(worker, /mina-graph-explorer-v171/);
+
+const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
+const persistenceEnd = source.indexOf('function ensureNodeColorMenu');
+const persistenceSource = source.slice(persistenceStart, persistenceEnd);
+const storedValues = new Map();
+const context = {
+  console,
+  localStorage: {
+    getItem: key => storedValues.get(key) ?? null,
+    setItem: (key, value) => storedValues.set(key, value),
+  },
+};
+vm.runInNewContext(`${persistenceSource}\n;globalThis.persistenceApi = { setPersistedNodeCustomColor, getPersistedNodeCustomColor, removePersistedNodeCustomColor };`, context);
+const evmAddress = '0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD';
+context.persistenceApi.setPersistedNodeCustomColor(evmAddress, '#FF1744');
+assert.equal(context.persistenceApi.getPersistedNodeCustomColor(evmAddress.toLowerCase()), '#ff1744');
+assert.match(storedValues.get('minagraph-node-custom-colors-v1'), /#ff1744/);
+context.persistenceApi.removePersistedNodeCustomColor(evmAddress.toLowerCase());
+assert.equal(context.persistenceApi.getPersistedNodeCustomColor(evmAddress), null);
 
 console.log('Node color context menu tests passed');
