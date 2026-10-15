@@ -165,7 +165,7 @@ function initializeNodeColorFilters() {
     section.className = "legend-section";
     section.innerHTML = `<div class="legend-toggle" data-target="#node-color-filter" style="cursor:pointer;"><em>▶ Node Colors</em></div>
       <div id="node-color-filter" style="display:none;">
-        <p class="node-color-filter-hint">Select one or more custom node colors.</p>
+        <p class="node-color-filter-hint">Select one or more node colors.</p>
         <div id="node-color-filter-swatches" class="node-color-filter-swatches" role="group" aria-label="Filter nodes by custom color"></div>
       </div>`;
     directionSection.before(section, document.createElement("hr"));
@@ -481,6 +481,7 @@ function syncNodeDirectionFilterControls() {
   const hasSelection = Boolean(selectedNode && graph?.hasNode(selectedNode));
   document.querySelectorAll("[data-node-direction]").forEach(button => {
     const mode = button.dataset.nodeDirection;
+    button.textContent = mode === "incoming" ? "In" : mode === "outgoing" ? "Out" : "All";
     const isChosen = mode === selectedNodeDirectionFilter;
     const isActive = hasSelection ? isChosen : mode === "all";
     const isArmed = !hasSelection && isChosen && mode !== "all";
@@ -3337,7 +3338,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!target) return;
 
       const isVisible = target.style.display !== 'none';
-      target.style.display = isVisible ? 'none' : 'block';
+      target.style.display = isVisible ? 'none' : (target.classList.contains('legend-pill-list') ? 'grid' : 'block');
 
       // Update toggle icon (▶ or ▼)
       toggle.innerHTML = `<em>${isVisible ? '▶' : '▼'} ${toggle.textContent.slice(2)}</em>`;

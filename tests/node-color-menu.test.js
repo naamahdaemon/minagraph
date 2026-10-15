@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'scripts', 'script.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'style', 'style.css'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
 
@@ -31,8 +32,14 @@ assert.match(source, /if \(nodeColorFilter\.has\(color\)\) nodeColorFilter\.dele
 assert.match(source, /else nodeColorFilter\.add\(color\)/);
 assert.match(source, /function nodeMatchesActiveColorFilter\(node\)/);
 assert.match(source, /edgeMatchesActiveColorFilter\(source, target\)/);
-assert.match(css, /\.node-color-filter-swatches\s*\{[\s\S]*?grid-template-columns: repeat\(5, 28px\)/);
+assert.match(css, /\.node-color-filter-swatches\s*\{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(html, /id="command-types" class="legend-pill-list"/);
+assert.match(html, /id="blockchain-types" class="legend-pill-list"/);
+assert.match(css, /\.legend-pill-list\s*\{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+assert.match(source, /Select one or more node colors\./);
+assert.match(source, /mode === "incoming" \? "In" : mode === "outgoing" \? "Out" : "All"/);
+assert.match(css, /width: min\(250px, calc\(100vw - 16px\)\)/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v165/);
+assert.match(worker, /mina-graph-explorer-v167/);
 
 console.log('Node color context menu tests passed');
