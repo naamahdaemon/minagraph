@@ -74,6 +74,7 @@ let graph, renderer;
 let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
+let strictTouchFocusedNode = null;
 let selectedNodeDirectionFilter = "all";
 let nodeColorMenuNode = null;
 let showNodeTransactionsChronologically = false;
@@ -383,6 +384,10 @@ function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
   );
 }
 
+function edgeMatchesTimelineSelection(edge) {
+  return datePlaybackFocusedEdges.size === 0 || datePlaybackFocusedEdges.has(edge);
+}
+
 function nodeMatchesSelectedNodeDirection(node) {
   if (!selectedNode || selectedNodeDirectionFilter === "all" || !graph?.hasNode(selectedNode)) return true;
   if (node === selectedNode) return true;
@@ -392,19 +397,42 @@ function nodeMatchesSelectedNodeDirection(node) {
   });
 }
 
+function edgeMatchesStrictTouchFocus(edge, focusNode = strictTouchFocusedNode) {
+  if (!focusNode || !graph?.hasNode(focusNode) || !graph?.hasEdge(edge)) return false;
+  const source = graph.source(edge);
+  const target = graph.target(edge);
+  return (source === focusNode || target === focusNode) && graphEdgeMatchesActiveView(edge, focusNode);
+}
+
+function nodeMatchesStrictTouchFocus(node, focusNode = strictTouchFocusedNode, allowedEdges = null) {
+  if (!focusNode || !graph?.hasNode(focusNode)) return true;
+  if (node === focusNode) return true;
+  return graph.edges(focusNode).some(edge =>
+    (!allowedEdges || allowedEdges.has(edge)) &&
+    edgeMatchesStrictTouchFocus(edge, focusNode) &&
+    (graph.source(edge) === node || graph.target(edge) === node)
+  );
+}
+
 function syncNodeDirectionFilterControls() {
   const hasSelection = Boolean(selectedNode && graph?.hasNode(selectedNode));
   document.querySelectorAll("[data-node-direction]").forEach(button => {
     const mode = button.dataset.nodeDirection;
-    const isActive = mode === selectedNodeDirectionFilter;
+    const isChosen = mode === selectedNodeDirectionFilter;
+    const isActive = hasSelection ? isChosen : mode === "all";
+    const isArmed = !hasSelection && isChosen && mode !== "all";
     button.classList.toggle("active", isActive);
+    button.classList.toggle("armed", isArmed);
     button.setAttribute("aria-pressed", String(isActive));
+    button.title = isArmed ? "This direction will apply when a node is selected." : "";
   });
   const hint = document.getElementById("node-direction-filter-hint");
   if (hint) {
     hint.textContent = hasSelection
       ? "Filtering links relative to the selected node."
-      : "Choose a direction now; it will apply when a node is selected.";
+      : selectedNodeDirectionFilter === "all"
+        ? "Choose a direction now; it will apply when a node is selected."
+        : `${selectedNodeDirectionFilter === "incoming" ? "Incoming" : "Outgoing"} is ready and will apply when a node is selected.`;
   }
 }
 
@@ -415,10 +443,17 @@ function setSelectedNodeDirectionFilter(mode) {
   refreshLegendFilteredViews();
 }
 
+function refreshSelectedNodePanelIfOpen() {
+  const panel = document.getElementById("side-panel");
+  if (panel?.classList.contains("open") && selectedNode && graph?.hasNode(selectedNode)) {
+    showNodePanel(selectedNode, false);
+  }
+}
+
 function refreshLegendFilteredViews() {
   rebuildEdgeVisualSizes();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
-  if (selectedNode && graph?.hasNode(selectedNode)) showNodePanel(selectedNode, false);
+  refreshSelectedNodePanelIfOpen();
   refreshDatePlaybackFeedForCurrentRange();
 }
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
@@ -723,12 +758,14 @@ function formatDatePlaybackParty(name, key) {
 
 function getDatePlaybackFocus() {
   if (!graph || datePlaybackFocusedEdges.size === 0) return null;
-  const edges = new Set([...datePlaybackFocusedEdges].filter(edge => graph.hasEdge(edge)));
-  if (edges.size !== datePlaybackFocusedEdges.size) {
+  const existingEdges = new Set([...datePlaybackFocusedEdges].filter(edge => graph.hasEdge(edge)));
+  if (existingEdges.size !== datePlaybackFocusedEdges.size) {
     datePlaybackFocusedEdges.clear();
-    edges.forEach(edge => datePlaybackFocusedEdges.add(edge));
+    existingEdges.forEach(edge => datePlaybackFocusedEdges.add(edge));
   }
-  if (edges.size === 0) return null;
+  if (existingEdges.size === 0) return null;
+  const referenceNode = strictTouchFocusedNode || selectedNode;
+  const edges = new Set([...existingEdges].filter(edge => graphEdgeMatchesActiveView(edge, referenceNode)));
   const nodes = new Set();
   edges.forEach(edge => {
     nodes.add(graph.source(edge));
@@ -811,6 +848,7 @@ function clearDatePlaybackFocus({ refresh = true } = {}) {
   document.querySelectorAll(".date-playback-transaction.active").forEach(item => item.classList.remove("active"));
   const clearButton = document.getElementById("date-playback-clear-focus");
   if (clearButton) clearButton.hidden = true;
+  refreshSelectedNodePanelIfOpen();
   if (refresh) renderer?.refresh?.();
 }
 
@@ -828,6 +866,7 @@ function focusDatePlaybackTransaction(edge) {
   });
   const clearButton = document.getElementById("date-playback-clear-focus");
   if (clearButton) clearButton.hidden = datePlaybackFocusedEdges.size === 0;
+  refreshSelectedNodePanelIfOpen();
   renderer?.refresh?.();
 }
 
@@ -856,12 +895,11 @@ function handleDatePlaybackTransactionTouch(edge) {
   }
 
   focusDatePlaybackTransaction(edge);
-  if (node && graph.hasNode(node)) {
-    selectedNode = node;
-    setNodePanelOpen(false);
-    syncNodeDirectionFilterControls();
-    renderer?.refresh?.();
-  }
+  // The first tap filters by transaction only. Selecting an endpoint here can
+  // leave the generic node focus active if a delayed synthetic click toggles
+  // the transaction off, which dims unrelated nodes instead of hiding them.
+  setNodePanelOpen(false);
+  renderer?.refresh?.();
 }
 
 function getTransactionsEnteringDateRange(previousRange, nextRange) {
@@ -885,7 +923,9 @@ function getTransactionsVisibleInDateRange(range = currentRange) {
     const source = graph.source(edge);
     const target = graph.target(edge);
     return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
-      transactionMatchesActiveLegendFilters(attrs) && edgeMatchesSelectedNodeDirection(source, target);
+      transactionMatchesActiveLegendFilters(attrs) &&
+      edgeMatchesSelectedNodeDirection(source, target) &&
+      (!strictTouchFocusedNode || edgeMatchesStrictTouchFocus(edge));
   });
 }
 
@@ -1057,13 +1097,6 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
   list.replaceChildren();
   const visibleEdgeIds = new Set(edges);
   const newEdgeIds = new Set(newEdges);
-  [...datePlaybackFocusedEdges].forEach(edge => {
-    if (!visibleEdgeIds.has(edge)) {
-      datePlaybackFocusedEdges.delete(edge);
-      stopDatePlaybackFlash(edge);
-    }
-  });
-
   const orderedEdges = sortDatePlaybackEdges([...edges], direction);
   highlightLatestDatePlaybackFlow(newEdges, direction);
 
@@ -1099,6 +1132,8 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
     detailsLine.append(transactionKind, transactionAmount);
     button.append(meta, route, detailsLine);
     let touchCandidate = null;
+    let suppressSyntheticClick = false;
+    let suppressSyntheticClickTimer = null;
     button.addEventListener("pointerdown", event => {
       if (event.pointerType !== "touch") return;
       event.stopPropagation();
@@ -1114,12 +1149,20 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
       if (!candidate || candidate.id !== event.pointerId || Date.now() - candidate.startedAt > 600) return;
       event.preventDefault();
       event.stopPropagation();
+      suppressSyntheticClick = true;
+      clearTimeout(suppressSyntheticClickTimer);
+      suppressSyntheticClickTimer = setTimeout(() => { suppressSyntheticClick = false; }, 2000);
       handleDatePlaybackTransactionTouch(edge);
     });
     button.addEventListener("pointercancel", () => { touchCandidate = null; });
     button.addEventListener("click", event => {
       event.stopPropagation();
-      if (Date.now() - datePlaybackLastHandledTouchAt < 700) return;
+      const comesFromTouch = event.sourceCapabilities?.firesTouchEvents === true;
+      if (suppressSyntheticClick || comesFromTouch || Date.now() - datePlaybackLastHandledTouchAt < 2000) {
+        suppressSyntheticClick = false;
+        clearTimeout(suppressSyntheticClickTimer);
+        return;
+      }
       focusDatePlaybackTransaction(edge);
     });
     list.append(button);
@@ -6876,7 +6919,8 @@ function getNodeTransactionRenderContext(node) {
     sort: nodeTransactionSort,
     range: currentRange,
     commandTypes: [...commandTypeFilter].sort(),
-    chains: [...chainFilter].sort()
+    chains: [...chainFilter].sort(),
+    timelineEdges: [...datePlaybackFocusedEdges].sort()
   });
 }
 
@@ -7591,7 +7635,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   const cachedWatchState = currentWatchIcon?.title === "Unwatch address";
   const data = graph.getNodeAttributes(node);
   const visibleEdges = graph.edges(node).filter(edge =>
-    graphEdgeMatchesActiveView(edge, node)
+    graphEdgeMatchesActiveView(edge, node) && edgeMatchesTimelineSelection(edge)
   );
   resetNodeTransactionPaginationIfNeeded(node);
   const neighbors = [...new Set(visibleEdges.map(edge => {
@@ -7963,9 +8007,12 @@ function setupReducers() {
     if (playbackFocus && !playbackFocus.nodes.has(node)) {
       return { ...data, hidden: true };
     }
+    if (strictTouchFocusedNode && !nodeMatchesStrictTouchFocus(node, strictTouchFocusedNode, playbackFocus?.edges)) {
+      return { ...data, hidden: true };
+    }
     if (!playbackFocus && !nodeMatchesSelectedNodeDirection(node)) return { ...data, hidden: true };
 
-    const focusCandidate = playbackFocus ? null : (hoveredNode || selectedNode);
+    const focusCandidate = strictTouchFocusedNode || (playbackFocus ? null : (hoveredNode || selectedNode));
     const focusNode = focusCandidate && graph.hasNode(focusCandidate) ? focusCandidate : null;
     const neighbors = focusNode ? new Set(graph.neighbors(focusNode)) : null;
     const isFocus = focusNode === node;
@@ -8192,6 +8239,9 @@ function setupReducers() {
       };
 
     const playbackFocus = getDatePlaybackFocus();
+    if (strictTouchFocusedNode && !edgeMatchesStrictTouchFocus(edge)) {
+      return { ...data, hidden: true };
+    }
     if (playbackFocus) {
       if (!playbackFocus.edges.has(edge)) return { ...data, hidden: true };
       const flashing = isDatePlaybackFlashVisible(edge);
@@ -8312,7 +8362,9 @@ function setupInteractions() {
     } else {
       setNodePanelOpen(false);
       selectedNode = node;
+      strictTouchFocusedNode = node;
       syncNodeDirectionFilterControls();
+      refreshDatePlaybackFeedForCurrentRange();
     }
     renderer.refresh();
   };
@@ -8320,12 +8372,16 @@ function setupInteractions() {
   const findNearestTouchableNode = event => {
     if (window.innerWidth > 768 || !graph?.order) return null;
     const position = getEventClientPosition(event);
+    const containerBounds = interactionContainer.getBoundingClientRect();
+    const pointerX = position.x - containerBounds.left;
+    const pointerY = position.y - containerBounds.top;
     let nearestNode = null;
     let nearestDistance = Infinity;
     graph.forEachNode(node => {
       const displayData = renderer.getNodeDisplayData(node);
       if (!displayData || displayData.hidden) return;
-      const distance = Math.hypot(displayData.x - position.x, displayData.y - position.y);
+      const viewportPosition = renderer.framedGraphToViewport({ x: displayData.x, y: displayData.y });
+      const distance = Math.hypot(viewportPosition.x - pointerX, viewportPosition.y - pointerY);
       const touchRadius = Math.max(22, Number(displayData.size || 0) + 10);
       if (distance <= touchRadius && distance < nearestDistance) {
         nearestNode = node;
@@ -8426,6 +8482,7 @@ function setupInteractions() {
     }
 
     selectedNode = node;
+    strictTouchFocusedNode = null;
     showNodePanel(node);
     renderer.refresh();
   });
@@ -10271,9 +10328,7 @@ function applyDateFilter() {
 
   rebuildEdgeVisualSizes();
 
-  if (selectedNode && graph.hasNode(selectedNode)) {
-    showNodePanel(selectedNode, false);
-  }
+  refreshSelectedNodePanelIfOpen();
 
   renderer.refresh();
 }
@@ -10291,7 +10346,9 @@ function updateDateHistogramRange() {
 function hideNodePanel(options = {}) {
   setNodePanelOpen(false, options);
   selectedNode = null;
+  strictTouchFocusedNode = null;
   syncNodeDirectionFilterControls();
+  refreshDatePlaybackFeedForCurrentRange();
   renderer?.refresh();
 }
 

@@ -4,6 +4,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
+assert.match(source, /function edgeMatchesTimelineSelection\(edge\) \{\s*return datePlaybackFocusedEdges\.size === 0 \|\| datePlaybackFocusedEdges\.has\(edge\);\s*\}/);
+assert.match(source, /graphEdgeMatchesActiveView\(edge, node\) && edgeMatchesTimelineSelection\(edge\)/);
+assert.match(source, /timelineEdges: \[\.\.\.datePlaybackFocusedEdges\]\.sort\(\)/);
+assert.match(source, /function focusDatePlaybackTransaction\(edge\)[\s\S]*?refreshSelectedNodePanelIfOpen\(\);/);
 const helper = source.match(/function transactionMatchesActiveLegendFilters\(transaction\) \{[\s\S]*?\n\}/)?.[0];
 const directionHelper = source.match(/function edgeMatchesSelectedNodeDirection\(source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
 const activeViewHelper = source.match(/function edgeMatchesActiveView\(attributes, source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
