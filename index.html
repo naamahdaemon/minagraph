@@ -757,6 +757,19 @@
                       <option value="window">Sliding window</option>
                     </select>
                   </label>
+                  <label class="date-playback-mode-field date-playback-highlight-field">
+                    <span>Highlight duration</span>
+                    <span class="date-playback-input-group">
+                      <span class="date-playback-number-control">
+                        <input id="date-playback-highlight-duration" type="number" min="0.1" step="0.1" value="2">
+                        <span class="date-playback-number-buttons">
+                          <button type="button" data-number-target="date-playback-highlight-duration" data-number-delta="0.1" aria-label="Increase highlight duration">+</button>
+                          <button type="button" data-number-target="date-playback-highlight-duration" data-number-delta="-0.1" aria-label="Decrease highlight duration">−</button>
+                        </span>
+                      </span>
+                      <span class="date-playback-unit">seconds</span>
+                    </span>
+                  </label>
                   <label class="date-playback-live-toggle" title="Load recent transactions when a push notification concerns a node in the graph">
                     <input id="date-playback-live-view" type="checkbox">
                     <span>Live View</span>
