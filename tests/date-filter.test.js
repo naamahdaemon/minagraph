@@ -64,6 +64,12 @@ assert.match(source, /if \(kind === "date-minute"\) return roundTimestampUp\(tim
 assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
+assert.match(source, /function handleDatePlaybackTransactionTouch\(edge\)/);
+assert.match(source, /datePlaybackLastTouchTransaction\.edge === edge[\s\S]*?datePlaybackFocusedEdges\.has\(edge\)/);
+assert.match(source, /if \(isSecondTap && node && graph\.hasNode\(node\)\) \{\s*showNodePanel\(node\)/);
+assert.match(source, /pointerType !== "touch"/);
+assert.match(source, /Math\.hypot\(event\.clientX - touchCandidate\.x, event\.clientY - touchCandidate\.y\) > 12/);
+assert.match(source, /Date\.now\(\) - datePlaybackLastHandledTouchAt < 700/);
 assert.match(source, /const DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS = 2/);
 assert.match(source, /function getDatePlaybackHighlightDurationMilliseconds\(\)/);
 assert.match(source, /highlightDuration: Math\.max\(0\.1,/);

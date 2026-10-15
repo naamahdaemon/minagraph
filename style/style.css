@@ -1235,6 +1235,8 @@
       text-align: left;
       cursor: pointer;
       font: inherit;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(79, 195, 247, 0.2);
     }
 
     .date-playback-transaction.is-new {
@@ -2469,7 +2471,7 @@
 
       #date-playback-feed {
         --playback-feed-right: 10px;
-        --mobile-feed-row-height: 64px;
+        --mobile-feed-row-height: 72px;
         top: 58px;
         width: calc(100vw - 20px);
         max-height: 180px;

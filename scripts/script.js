@@ -470,6 +470,8 @@ const DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS = 2;
 let datePlaybackVisibleEdges = new Set();
 let datePlaybackFeedPinnedTop = true;
 let datePlaybackSortRules = [];
+let datePlaybackLastTouchTransaction = { edge: null, time: 0 };
+let datePlaybackLastHandledTouchAt = 0;
 const DATE_PLAYBACK_MAX_FEED_ITEMS = 100;
 const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback-settings";
 const DATE_PLAYBACK_FEED_HEIGHT_STORAGE_KEY = "minagraph-date-playback-feed-height";
@@ -829,6 +831,39 @@ function focusDatePlaybackTransaction(edge) {
   renderer?.refresh?.();
 }
 
+function getDatePlaybackTransactionNode(edge) {
+  if (!graph?.hasEdge(edge)) return null;
+  const source = graph.source(edge);
+  const target = graph.target(edge);
+  return selectedNode === source || selectedNode === target ? selectedNode : target;
+}
+
+function handleDatePlaybackTransactionTouch(edge) {
+  if (!graph?.hasEdge(edge)) return;
+  const now = Date.now();
+  const isSecondTap =
+    datePlaybackLastTouchTransaction.edge === edge &&
+    now - datePlaybackLastTouchTransaction.time < 1200 &&
+    datePlaybackFocusedEdges.has(edge);
+  datePlaybackLastTouchTransaction = { edge, time: now };
+  datePlaybackLastHandledTouchAt = now;
+  const node = getDatePlaybackTransactionNode(edge);
+
+  if (isSecondTap && node && graph.hasNode(node)) {
+    showNodePanel(node);
+    renderer?.refresh?.();
+    return;
+  }
+
+  focusDatePlaybackTransaction(edge);
+  if (node && graph.hasNode(node)) {
+    selectedNode = node;
+    setNodePanelOpen(false);
+    syncNodeDirectionFilterControls();
+    renderer?.refresh?.();
+  }
+}
+
 function getTransactionsEnteringDateRange(previousRange, nextRange) {
   if (!graph?.edges) return [];
   const [previousMin, previousMax] = previousRange.map(Number);
@@ -1063,7 +1098,30 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
     transactionAmount.textContent = amount;
     detailsLine.append(transactionKind, transactionAmount);
     button.append(meta, route, detailsLine);
-    button.addEventListener("click", () => focusDatePlaybackTransaction(edge));
+    let touchCandidate = null;
+    button.addEventListener("pointerdown", event => {
+      if (event.pointerType !== "touch") return;
+      event.stopPropagation();
+      touchCandidate = { id: event.pointerId, x: event.clientX, y: event.clientY, startedAt: Date.now() };
+    }, { passive: true });
+    button.addEventListener("pointermove", event => {
+      if (!touchCandidate || touchCandidate.id !== event.pointerId) return;
+      if (Math.hypot(event.clientX - touchCandidate.x, event.clientY - touchCandidate.y) > 12) touchCandidate = null;
+    }, { passive: true });
+    button.addEventListener("pointerup", event => {
+      const candidate = touchCandidate;
+      touchCandidate = null;
+      if (!candidate || candidate.id !== event.pointerId || Date.now() - candidate.startedAt > 600) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleDatePlaybackTransactionTouch(edge);
+    });
+    button.addEventListener("pointercancel", () => { touchCandidate = null; });
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      if (Date.now() - datePlaybackLastHandledTouchAt < 700) return;
+      focusDatePlaybackTransaction(edge);
+    });
     list.append(button);
   });
 
