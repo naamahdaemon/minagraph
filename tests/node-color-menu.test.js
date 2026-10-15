@@ -13,8 +13,14 @@ assert.equal((source.match(/value: "#[0-9a-f]{6}", label: "Flash /g) || []).leng
 assert.match(source, /function ensureNodeColorMenu\(\)/);
 assert.match(source, /data-node-color-reset>Reset color/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
+assert.match(source, /const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1"/);
+assert.match(source, /function setPersistedNodeCustomColor\(node, color/);
+assert.match(source, /setPersistedNodeCustomColor\(nodeColorMenuNode, color\)/);
+assert.match(source, /removePersistedNodeCustomColor\(nodeColorMenuNode\)/);
+assert.match(source, /const customColor = data\.customColor \|\| getPersistedNodeCustomColor\(node\)/);
+assert.match(source, /setPersistedNodeCustomColor\(n\.id, n\.customColor, \{ save: false \}\)/);
 assert.match(source, /graph\.removeNodeAttribute\(nodeColorMenuNode, "customColor"\)/);
-assert.match(source, /graph\.setNodeAttribute\(node, "color", data\.customColor \|\| color\)/);
+assert.match(source, /graph\.setNodeAttribute\(node, "color", customColor \|\| color\)/);
 assert.match(source, /color: attr\.customColor \|\| attr\.originalColor \|\| attr\.color/);
 assert.match(source, /if \(data\.customColor\) \{\s*glowColor = data\.customColor/);
 assert.match(source, /renderer\.on\("rightClickNode"/);
@@ -50,6 +56,6 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v169/);
+assert.match(worker, /mina-graph-explorer-v170/);
 
 console.log('Node color context menu tests passed');
