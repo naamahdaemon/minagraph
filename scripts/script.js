@@ -86,6 +86,7 @@ let nodeTransactionRenderContext = "";
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
 const nodeColorFilter = new Set();
+const NODE_DEFAULT_COLOR_FILTER = "__default__";
 const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1";
 const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ff1744", label: "Flash red" },
@@ -227,7 +228,10 @@ function initializeNodeColorFilters() {
   }
   if (!container || container.dataset.initialized === "true") return;
   container.dataset.initialized = "true";
-  container.innerHTML = NODE_CUSTOM_COLORS.map(color => `<button type="button" data-node-color-filter="${color.value}"
+  container.innerHTML = `<button type="button" class="node-color-filter-default"
+    data-node-color-filter="${NODE_DEFAULT_COLOR_FILTER}" aria-label="Filter nodes without a custom color"
+    title="Nodes without a custom color" aria-pressed="false">Default color</button>` +
+    NODE_CUSTOM_COLORS.map(color => `<button type="button" data-node-color-filter="${color.value}"
     aria-label="Filter ${color.label}" title="${color.label}" aria-pressed="false"
     style="--node-swatch:${color.value}"></button>`).join("");
   container.addEventListener("click", event => {
@@ -485,7 +489,9 @@ function nodeMatchesActiveColorFilter(node) {
   if (nodeColorFilter.size === 0) return true;
   if (!graph?.hasNode(node)) return false;
   const color = String(graph.getNodeAttribute(node, "customColor") || "").toLowerCase();
-  return nodeColorFilter.has(color);
+  return color
+    ? nodeColorFilter.has(color)
+    : nodeColorFilter.has(NODE_DEFAULT_COLOR_FILTER);
 }
 
 function edgeMatchesActiveColorFilter(source, target) {

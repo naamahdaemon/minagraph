@@ -1803,6 +1803,23 @@
       transform: scale(1.08);
     }
 
+    .node-color-filter-swatches .node-color-filter-default {
+      grid-column: 1 / -1;
+      width: 100%;
+      height: 28px;
+      border-radius: 7px;
+      background: repeating-linear-gradient(135deg, #30383e 0 7px, #46525a 7px 14px);
+      color: #f4f7f9;
+      box-shadow: none;
+      font: 700 0.72rem/1 'Coda', sans-serif;
+    }
+
+    .node-color-filter-swatches .node-color-filter-default.active {
+      background: #087da8;
+      color: #fff;
+      transform: none;
+    }
+
     body[data-theme="light"] .node-color-filter-hint {
       color: #46545d;
     }
@@ -1812,6 +1829,19 @@
     }
 
     body[data-theme="light"] .node-color-filter-swatches button.active {
+      outline-color: #172026;
+    }
+
+    body[data-theme="light"] .node-color-filter-swatches .node-color-filter-default {
+      border-color: #6f818b;
+      background: repeating-linear-gradient(135deg, #fff 0 7px, #e6eef2 7px 14px);
+      color: #263a44;
+    }
+
+    body[data-theme="light"] .node-color-filter-swatches .node-color-filter-default.active {
+      border-color: #087da8;
+      background: #087da8;
+      color: #fff;
       outline-color: #172026;
     }
 
