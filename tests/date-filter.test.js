@@ -65,7 +65,7 @@ assert.match(source, /Math\.ceil\(Math\.abs\(numericAmount\) \/ 10\) \* 10/);
 assert.match(source, /sortRules: datePlaybackSortRules/);
 assert.match(source, /transactionAmount\.className = "date-playback-transaction-amount"/);
 assert.match(source, /function handleDatePlaybackTransactionTouch\(edge\)/);
-assert.match(source, /transactionMatchesActiveLegendFilters\(attrs\) &&\s*edgeMatchesSelectedNodeDirection\(source, target\) &&\s*edgeMatchesActiveColorFilter\(source, target\) &&\s*\(!strictTouchFocusedNode \|\| edgeMatchesStrictTouchFocus\(edge\)\)/);
+assert.match(source, /transactionMatchesActiveLegendFilters\(attrs\) &&\s*edgeMatchesSelectedNodeDirection\(source, target\) &&\s*edgeMatchesMultiSelection\(source, target\) &&\s*edgeMatchesActiveColorFilter\(source, target\) &&\s*\(!strictTouchFocusedNode \|\| edgeMatchesStrictTouchFocus\(edge\)\)/);
 assert.match(source, /const existingEdges = new Set\(\[\.\.\.datePlaybackFocusedEdges\]\.filter\(edge => graph\.hasEdge\(edge\)\)\);/);
 assert.match(source, /const referenceNode = strictTouchFocusedNode \|\| selectedNode;/);
 assert.match(source, /const edges = new Set\(\[\.\.\.existingEdges\]\.filter\(edge => graphEdgeMatchesActiveView\(edge, referenceNode\)\)\);/);

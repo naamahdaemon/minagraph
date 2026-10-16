@@ -86,6 +86,11 @@ let hoveredNode = null;
 let searchQuery = "";
 let selectedNode = null;
 let strictTouchFocusedNode = null;
+let multiSelectionEnabled = false;
+let multiSelectionActivationMode = null;
+let suppressGraphStageClickUntil = 0;
+const manuallyMultiSelectedNodes = new Set();
+const timelineMultiSelectedNodes = new Set();
 let selectedNodeDirectionFilter = "all";
 let nodeColorMenuNode = null;
 let showNodeTransactionsChronologically = false;
@@ -509,10 +514,34 @@ function edgeMatchesActiveColorFilter(source, target) {
   return nodeMatchesActiveColorFilter(source) && nodeMatchesActiveColorFilter(target);
 }
 
+function getMultiSelectedNodes() {
+  const selected = new Set();
+  for (const node of manuallyMultiSelectedNodes) if (graph?.hasNode(node)) selected.add(node);
+  for (const node of timelineMultiSelectedNodes) if (graph?.hasNode(node)) selected.add(node);
+  return selected;
+}
+
+function edgeMatchesMultiSelection(source, target) {
+  if (!multiSelectionEnabled) return true;
+  const selected = getMultiSelectedNodes();
+  return selected.size === 0 || selected.has(source) || selected.has(target);
+}
+
+function nodeMatchesMultiSelection(node) {
+  if (!multiSelectionEnabled || !graph?.hasNode(node)) return true;
+  const selected = getMultiSelectedNodes();
+  if (selected.size === 0 || selected.has(node)) return true;
+  return graph.edges(node).some(edge => {
+    if (!graph.hasEdge(edge)) return false;
+    return edgeMatchesMultiSelection(graph.source(edge), graph.target(edge));
+  });
+}
+
 function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
   return attributes?.hidden !== true &&
     transactionMatchesActiveLegendFilters(attributes) &&
     edgeMatchesSelectedNodeDirection(source, target, referenceNode) &&
+    edgeMatchesMultiSelection(source, target) &&
     edgeMatchesActiveColorFilter(source, target);
 }
 
@@ -539,6 +568,7 @@ function getActiveGraphSubset() {
   graph.forEachEdge((edge, attributes, source, target) => {
     if (attributes.hidden === true || !transactionMatchesActiveLegendFilters(attributes)) return;
     if (!edgeMatchesActiveColorFilter(source, target)) return;
+    if (!edgeMatchesMultiSelection(source, target)) return;
     if (playbackFocus && !playbackFocus.edges.has(edge)) return;
     if (!edgeMatchesFocusedGraphSubset(source, target, focusNode)) return;
     if (!playbackFocus && !edgeMatchesSelectedNodeDirection(source, target)) return;
@@ -552,7 +582,8 @@ function getActiveGraphSubset() {
     playbackFocus ||
     focusNode ||
     commandTypeFilter.size > 0 ||
-    chainFilter.size > 0
+    chainFilter.size > 0 ||
+    (multiSelectionEnabled && getMultiSelectedNodes().size > 0)
   );
   const nodes = new Set(edgeNodes);
   if (!relationshipFilterActive) {
@@ -1187,6 +1218,7 @@ function stopDatePlaybackFlash(edge) {
 
 function clearDatePlaybackFocus({ refresh = true } = {}) {
   datePlaybackFocusedEdges.clear();
+  timelineMultiSelectedNodes.clear();
   datePlaybackFlashDeadlines.clear();
   datePlaybackNodeFlashDeadlines.clear();
   datePlaybackAutoFlashEdge = null;
@@ -1207,6 +1239,14 @@ function focusDatePlaybackTransaction(edge) {
   } else {
     datePlaybackFocusedEdges.add(edge);
     startDatePlaybackFlash(edge);
+  }
+  timelineMultiSelectedNodes.clear();
+  if (multiSelectionEnabled) {
+    datePlaybackFocusedEdges.forEach(focusedEdge => {
+      if (!graph?.hasEdge(focusedEdge)) return;
+      timelineMultiSelectedNodes.add(graph.source(focusedEdge));
+      timelineMultiSelectedNodes.add(graph.target(focusedEdge));
+    });
   }
   document.querySelectorAll(".date-playback-transaction").forEach(item => {
     item.classList.toggle("active", datePlaybackFocusedEdges.has(item.dataset.edgeId));
@@ -1272,6 +1312,7 @@ function getTransactionsVisibleInDateRange(range = currentRange) {
     return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
       transactionMatchesActiveLegendFilters(attrs) &&
       edgeMatchesSelectedNodeDirection(source, target) &&
+      edgeMatchesMultiSelection(source, target) &&
       edgeMatchesActiveColorFilter(source, target) &&
       (!strictTouchFocusedNode || edgeMatchesStrictTouchFocus(edge));
   });
@@ -7987,6 +8028,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
 }
 
 function showNodePanel(node, refreshExternalStatus = true) {
+  if (multiSelectionEnabled) return;
   //rebuildTransactionsByNeighbor();
   const panel = document.getElementById("side-panel");
   const previouslySelectedNode = selectedNode;
@@ -8364,6 +8406,7 @@ function setupReducers() {
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
     if (!nodeMatchesActiveColorFilter(node)) return { ...data, hidden: true };
+    if (!nodeMatchesMultiSelection(node)) return { ...data, hidden: true };
     const playbackFocus = getDatePlaybackFocus();
     if (playbackFocus && !playbackFocus.nodes.has(node)) {
       return { ...data, hidden: true };
@@ -8445,6 +8488,23 @@ function setupReducers() {
         forceLabelColor: true,
         size: defaultSize * 1.8,
         zIndex: 10
+      };
+    }
+
+    if (multiSelectionEnabled && getMultiSelectedNodes().has(node)) {
+      return {
+        ...data,
+        color: glowColor,
+        overrideColor: glowColor,
+        label: renderedLabel,
+        labelSize: 36,
+        labelColor: { color: isLightTheme() ? "#000" : "#fff" },
+        forceLabelColor: true,
+        size: defaultSize * 1.8,
+        borderColor: "#4fc3f7",
+        borderSize: 14,
+        opacity: 1,
+        zIndex: 8
       };
     }
 
@@ -8563,7 +8623,7 @@ function setupReducers() {
 
     data = { ...data, type: showEdgeDirections ? "arrow" : "line" };
 
-    const focusNode = hoveredNode || selectedNode;
+    const focusNode = multiSelectionEnabled ? null : (hoveredNode || selectedNode);
     const command = data.command_type || data.label;
     const visualSize = edgeThicknessMode === "uniform"
       ? DEFAULT_EDGE_SIZE
@@ -8574,6 +8634,7 @@ function setupReducers() {
     const sourceNode = graph.getNodeAttributes(source);
     const targetNode = graph.getNodeAttributes(target);
     if (!edgeMatchesActiveColorFilter(source, target)) return { ...data, hidden: true };
+    if (!edgeMatchesMultiSelection(source, target)) return { ...data, hidden: true };
 
     // Base color by type
     let baseColor = "#666";
@@ -8658,12 +8719,232 @@ function setupReducers() {
   });
 }
 
+function syncTimelineNodesToMultiSelection() {
+  timelineMultiSelectedNodes.clear();
+  if (!multiSelectionEnabled) return;
+  datePlaybackFocusedEdges.forEach(edge => {
+    if (!graph?.hasEdge(edge)) return;
+    timelineMultiSelectedNodes.add(graph.source(edge));
+    timelineMultiSelectedNodes.add(graph.target(edge));
+  });
+}
+
+function refreshMultiSelectionViews() {
+  syncNodeDirectionFilterControls();
+  refreshDatePlaybackFeedForCurrentRange();
+  renderer?.refresh?.();
+  updateGraphMultiSelectionMenu();
+}
+
+function setMultiSelectionEnabled(enabled, { clear = false, mode = "explicit" } = {}) {
+  multiSelectionEnabled = Boolean(enabled);
+  multiSelectionActivationMode = multiSelectionEnabled ? mode : null;
+  selectedNode = null;
+  strictTouchFocusedNode = null;
+  setNodePanelOpen(false);
+  if (!multiSelectionEnabled || clear) {
+    manuallyMultiSelectedNodes.clear();
+    timelineMultiSelectedNodes.clear();
+  } else {
+    syncTimelineNodesToMultiSelection();
+  }
+  refreshMultiSelectionViews();
+}
+
+function resetMultiSelectionState() {
+  multiSelectionEnabled = false;
+  multiSelectionActivationMode = null;
+  manuallyMultiSelectedNodes.clear();
+  timelineMultiSelectedNodes.clear();
+  closeGraphMultiSelectionMenu();
+}
+
+function toggleMultiSelectedNode(node) {
+  if (!graph?.hasNode(node)) return;
+  if (!multiSelectionEnabled) setMultiSelectionEnabled(true);
+  if (getMultiSelectedNodes().has(node)) {
+    manuallyMultiSelectedNodes.delete(node);
+    timelineMultiSelectedNodes.delete(node);
+    for (const edge of [...datePlaybackFocusedEdges]) {
+      if (!graph.hasEdge(edge) || graph.source(edge) === node || graph.target(edge) === node) {
+        datePlaybackFocusedEdges.delete(edge);
+        stopDatePlaybackFlash(edge);
+      }
+    }
+    document.querySelectorAll(".date-playback-transaction").forEach(item => {
+      item.classList.toggle("active", datePlaybackFocusedEdges.has(item.dataset.edgeId));
+    });
+    const clearButton = document.getElementById("date-playback-clear-focus");
+    if (clearButton) clearButton.hidden = datePlaybackFocusedEdges.size === 0;
+    syncTimelineNodesToMultiSelection();
+  } else {
+    manuallyMultiSelectedNodes.add(node);
+  }
+  refreshMultiSelectionViews();
+}
+
+function ensureGraphMultiSelectionMenu() {
+  let menu = document.getElementById("graph-multi-selection-menu");
+  if (menu) return menu;
+  menu = document.createElement("div");
+  menu.id = "graph-multi-selection-menu";
+  menu.className = "graph-multi-selection-menu";
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `
+    <div class="graph-multi-selection-title">Node selection</div>
+    <button type="button" class="graph-multi-selection-toggle" role="switch" aria-checked="false">Multi-selection</button>
+    <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
+    <button type="button" data-multi-selection-action="delete-selected">Delete selected nodes</button>
+    <button type="button" data-multi-selection-action="delete-unselected">Delete unselected nodes</button>
+  `;
+  document.body.append(menu);
+  menu.querySelector(".graph-multi-selection-toggle").addEventListener("click", event => {
+    event.stopPropagation();
+    setMultiSelectionEnabled(!multiSelectionEnabled, { clear: multiSelectionEnabled, mode: "explicit" });
+  });
+  menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      deleteNodesFromMultiSelection(button.dataset.multiSelectionAction === "delete-selected");
+    });
+  });
+  return menu;
+}
+
+function updateGraphMultiSelectionMenu() {
+  const menu = document.getElementById("graph-multi-selection-menu");
+  if (!menu) return;
+  const selectedCount = getMultiSelectedNodes().size;
+  const toggle = menu.querySelector(".graph-multi-selection-toggle");
+  toggle?.setAttribute("aria-checked", String(multiSelectionEnabled));
+  toggle?.classList.toggle("is-active", multiSelectionEnabled);
+  const count = menu.querySelector(".graph-multi-selection-count");
+  if (count) count.textContent = `${selectedCount} node${selectedCount === 1 ? "" : "s"} selected`;
+  menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
+    button.disabled = !multiSelectionEnabled || selectedCount === 0;
+  });
+}
+
+function showGraphMultiSelectionMenu(clientX, clientY) {
+  hideNodeColorMenu();
+  const menu = ensureGraphMultiSelectionMenu();
+  updateGraphMultiSelectionMenu();
+  menu.hidden = false;
+  const margin = 8;
+  const bounds = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(margin, Math.min(clientX, window.innerWidth - bounds.width - margin))}px`;
+  menu.style.top = `${Math.max(margin, Math.min(clientY, window.innerHeight - bounds.height - margin))}px`;
+}
+
+function closeGraphMultiSelectionMenu() {
+  const menu = document.getElementById("graph-multi-selection-menu");
+  if (menu) menu.hidden = true;
+}
+
+function removeOrphanedGraphNodes() {
+  if (!graph) return [];
+  const orphanedNodes = graph.nodes().filter(node => graph.degree(node) === 0);
+  orphanedNodes.forEach(node => {
+    if (graph.hasNode(node)) graph.dropNode(node);
+  });
+  if (selectedNode && !graph.hasNode(selectedNode)) selectedNode = null;
+  if (hoveredNode && !graph.hasNode(hoveredNode)) hoveredNode = null;
+  if (strictTouchFocusedNode && !graph.hasNode(strictTouchFocusedNode)) strictTouchFocusedNode = null;
+  return orphanedNodes;
+}
+
+function deleteNodesFromMultiSelection(deleteSelected) {
+  const selected = getMultiSelectedNodes();
+  if (!multiSelectionEnabled || selected.size === 0 || !graph) return;
+  const nodesToDelete = graph.nodes().filter(node => deleteSelected ? selected.has(node) : !selected.has(node));
+  if (nodesToDelete.length === 0) return;
+  const label = deleteSelected ? "selected" : "unselected";
+  if (!confirm(`Delete ${nodesToDelete.length} ${label} node${nodesToDelete.length === 1 ? "" : "s"} from the graph?`)) return;
+  if (isLayoutRunning) stopLayoutInWorker();
+  nodesToDelete.forEach(node => {
+    if (graph.hasNode(node)) graph.dropNode(node);
+  });
+  removeOrphanedGraphNodes();
+  for (const node of [...manuallyMultiSelectedNodes]) if (!graph.hasNode(node)) manuallyMultiSelectedNodes.delete(node);
+  for (const node of [...timelineMultiSelectedNodes]) if (!graph.hasNode(node)) timelineMultiSelectedNodes.delete(node);
+  for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
+  rebuildTransactionsByNeighbor();
+  rebuildEdgeVisualSizes();
+  if (deleteSelected) setMultiSelectionEnabled(false, { clear: true });
+  else refreshMultiSelectionViews();
+  closeGraphMultiSelectionMenu();
+}
+
+function setupNativeGraphStageGestures() {
+  if (document.documentElement.dataset.graphStageGesturesInitialized === "true") return;
+  document.documentElement.dataset.graphStageGesturesInitialized = "true";
+
+  let desktopLongPressTimer = null;
+  let desktopLongPressStart = null;
+
+  const clearDesktopLongPress = () => {
+    if (desktopLongPressTimer !== null) clearTimeout(desktopLongPressTimer);
+    desktopLongPressTimer = null;
+    desktopLongPressStart = null;
+  };
+  const getGraphCanvasContext = event => {
+    const canvas = event.target?.closest?.("#sigma-container canvas");
+    const container = document.getElementById("sigma-container");
+    if (!canvas || !container || !renderer || !container.contains(canvas)) return null;
+    const bounds = container.getBoundingClientRect();
+    const position = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    return {
+      node: renderer.getNodeAtPosition?.(position) || null,
+      clientX: event.clientX,
+      clientY: event.clientY
+    };
+  };
+
+  // Capture before Sigma: Firefox and Chromium do not consistently forward
+  // native contextmenu events through Sigma's rightClickStage abstraction.
+  document.addEventListener("contextmenu", event => {
+    const context = getGraphCanvasContext(event);
+    if (!context) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (context.node && graph?.hasNode(context.node)) {
+      showNodeColorMenu(context.node, context.clientX, context.clientY);
+    } else {
+      showGraphMultiSelectionMenu(context.clientX, context.clientY);
+    }
+  }, true);
+
+  document.addEventListener("pointerdown", event => {
+    clearDesktopLongPress();
+    if (event.pointerType === "touch" || event.button !== 0) return;
+    const context = getGraphCanvasContext(event);
+    if (!context || context.node) return;
+    desktopLongPressStart = { x: event.clientX, y: event.clientY };
+    desktopLongPressTimer = setTimeout(() => {
+      desktopLongPressTimer = null;
+      suppressGraphStageClickUntil = Date.now() + 700;
+      showGraphMultiSelectionMenu(context.clientX, context.clientY);
+    }, 600);
+  }, true);
+
+  document.addEventListener("pointermove", event => {
+    if (!desktopLongPressStart) return;
+    if (Math.hypot(event.clientX - desktopLongPressStart.x, event.clientY - desktopLongPressStart.y) > 10) {
+      clearDesktopLongPress();
+    }
+  }, true);
+  document.addEventListener("pointerup", clearDesktopLongPress, true);
+  document.addEventListener("pointercancel", clearDesktopLongPress, true);
+}
+
 function setupInteractions() {
   // Importing data reuses the current Sigma renderer. Never stack another set
   // of click/drag handlers on that same instance: a single stage click would
   // otherwise reveal the fullscreen UI and immediately hide it again.
   if (!renderer || interactionInitializedRenderers.has(renderer)) return;
   interactionInitializedRenderers.add(renderer);
+  setupNativeGraphStageGestures();
 
   // State for drag'n'drop
   let draggedNode   = null;
@@ -8672,11 +8953,16 @@ function setupInteractions() {
   let dragOwnsCustomBBox = false;
   let suppressNodeClick = false;
   let nodeLongPressTimer = null;
+  let stageLongPressTimer = null;
+  let stageLongPressStart = null;
   let ignoreStageClickUntil = 0;
+  let lastSigmaNodeContextMenuAt = 0;
+  let lastSigmaStageContextMenuAt = 0;
   let lastTouchNodeClick = { node: null, time: 0, source: null };
   const nodeDetailsSecondTapWindowMs = 1800;
   let dragStartPos = { x: 0, y: 0 };
   const interactionContainer = renderer.getContainer();
+  const sigmaMouseCanvas = renderer.getCanvases?.().mouse || interactionContainer.querySelector(".sigma-mouse");
 
   const isNativeTouchInteraction = event =>
     event?.original?.type?.startsWith("touch") === true ||
@@ -8699,6 +8985,58 @@ function setupInteractions() {
     if (nodeLongPressTimer !== null) clearTimeout(nodeLongPressTimer);
     nodeLongPressTimer = null;
   };
+  const cancelStageLongPress = () => {
+    if (stageLongPressTimer !== null) clearTimeout(stageLongPressTimer);
+    stageLongPressTimer = null;
+    stageLongPressStart = null;
+  };
+
+  if (sigmaMouseCanvas && sigmaMouseCanvas.dataset.multiSelectionMouseGestures !== "true") {
+    sigmaMouseCanvas.dataset.multiSelectionMouseGestures = "true";
+    let mouseLongPressTimer = null;
+    let mouseLongPressStart = null;
+    const clearMouseLongPress = () => {
+      if (mouseLongPressTimer !== null) clearTimeout(mouseLongPressTimer);
+      mouseLongPressTimer = null;
+      mouseLongPressStart = null;
+    };
+    const getMouseCanvasTarget = event => {
+      const bounds = interactionContainer.getBoundingClientRect();
+      const position = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      return {
+        node: renderer.getNodeAtPosition?.(position) || null,
+        clientX: event.clientX,
+        clientY: event.clientY
+      };
+    };
+
+    sigmaMouseCanvas.addEventListener("mousedown", event => {
+      clearMouseLongPress();
+      const target = getMouseCanvasTarget(event);
+      if (event.button === 2) {
+        event.preventDefault();
+        if (target.node && graph.hasNode(target.node)) showNodeColorMenu(target.node, target.clientX, target.clientY);
+        else showGraphMultiSelectionMenu(target.clientX, target.clientY);
+        return;
+      }
+      if (event.button !== 0 || target.node) return;
+      mouseLongPressStart = { x: event.clientX, y: event.clientY };
+      mouseLongPressTimer = setTimeout(() => {
+        mouseLongPressTimer = null;
+        suppressGraphStageClickUntil = Date.now() + 700;
+        showGraphMultiSelectionMenu(target.clientX, target.clientY);
+      }, 600);
+    }, true);
+    sigmaMouseCanvas.addEventListener("mousemove", event => {
+      if (!mouseLongPressStart) return;
+      if (Math.hypot(event.clientX - mouseLongPressStart.x, event.clientY - mouseLongPressStart.y) > 10) {
+        clearMouseLongPress();
+      }
+    }, true);
+    sigmaMouseCanvas.addEventListener("mouseup", clearMouseLongPress, true);
+    sigmaMouseCanvas.addEventListener("mouseleave", clearMouseLongPress, true);
+    sigmaMouseCanvas.addEventListener("contextmenu", event => event.preventDefault(), true);
+  }
 
   const cancelDrag = () => {
     cancelNodeLongPress();
@@ -8785,6 +9123,8 @@ function setupInteractions() {
 
   // Click on the background to hide the panel
   renderer.on("clickStage", ({ event }) => {
+    if (Date.now() <= ignoreStageClickUntil || Date.now() <= suppressGraphStageClickUntil) return;
+    closeGraphMultiSelectionMenu();
     if (isFullscreen && fullscreenUiVisible) {
       setFullscreenUiVisible(false);
       return;
@@ -8799,16 +9139,14 @@ function setupInteractions() {
         lastTouchNodeClick.source === "native" &&
         Date.now() - lastTouchNodeClick.time < 250;
       if (!compatibilityDuplicate) {
-        activateTouchedNode(nearbyTouchNode, isNativeTouchInteraction(event) ? "native" : "compatibility");
+        if (multiSelectionEnabled) toggleMultiSelectedNode(nearbyTouchNode);
+        else activateTouchedNode(nearbyTouchNode, isNativeTouchInteraction(event) ? "native" : "compatibility");
       }
       return;
     }
     if (isFullscreen && Date.now() > suppressFullscreenUiRevealUntil && qualifiedStageReveal) {
       lastQualifiedGraphTouchTapAt = 0;
       setFullscreenUiVisible(true, { openSidebar: false });
-      return;
-    }
-    if (Date.now() <= ignoreStageClickUntil) {
       return;
     }
     hideNodePanel();
@@ -8836,6 +9174,22 @@ function setupInteractions() {
     }
     ignoreStageClickUntil = Date.now() + 150;
 
+    const ctrlSelection = event?.original?.ctrlKey === true;
+    if (ctrlSelection) {
+      if (!multiSelectionEnabled) setMultiSelectionEnabled(true, { mode: "ctrl" });
+      toggleMultiSelectedNode(node);
+      return;
+    }
+
+    // A plain desktop click after a Ctrl selection returns immediately to the
+    // normal one-node interaction model.
+    if (!touchInteraction && multiSelectionEnabled && multiSelectionActivationMode === "ctrl") {
+      setMultiSelectionEnabled(false, { clear: true });
+    } else if (multiSelectionEnabled) {
+      toggleMultiSelectedNode(node);
+      return;
+    }
+
     // On touch, the first tap mirrors desktop hover/selection. A deliberate
     // second tap on the same node opens its details. Mouse clicks keep their
     // existing one-step behaviour.
@@ -8852,16 +9206,37 @@ function setupInteractions() {
 
   renderer.on("rightClickNode", ({ node, event }) => {
     if (!graph.hasNode(node)) return;
+    lastSigmaNodeContextMenuAt = Date.now();
     event.preventSigmaDefault?.();
     event.original?.preventDefault?.();
     const position = getEventClientPosition(event);
     showNodeColorMenu(node, position.x, position.y);
   });
 
-  if (interactionContainer.dataset.nodeColorContextInitialized !== "true") {
-    interactionContainer.dataset.nodeColorContextInitialized = "true";
-    interactionContainer.addEventListener("contextmenu", event => event.preventDefault());
-  }
+  renderer.on("rightClickStage", ({ event }) => {
+    lastSigmaStageContextMenuAt = Date.now();
+    event.preventSigmaDefault?.();
+    event.original?.preventDefault?.();
+    const position = getEventClientPosition(event);
+    showGraphMultiSelectionMenu(position.x, position.y);
+  });
+
+  renderer.on("downStage", ({ event }) => {
+    cancelStageLongPress();
+    const originalButton = event?.original?.button;
+    const isPrimaryDesktopPress = !isNativeTouchInteraction(event) && (originalButton === 0 || originalButton == null);
+    if ((!isNativeTouchInteraction(event) && !isPrimaryDesktopPress) || getTouchCount(event) > 1) return;
+    const position = getEventClientPosition(event);
+    stageLongPressStart = { x: position.x, y: position.y };
+    stageLongPressTimer = setTimeout(() => {
+      stageLongPressTimer = null;
+      ignoreStageClickUntil = Date.now() + 500;
+      showGraphMultiSelectionMenu(position.x, position.y);
+      navigator.vibrate?.(20);
+    }, 600);
+  });
+
+  renderer.on("upStage", cancelStageLongPress);
 
   // Keep tooltip following pointer. The container survives WebGL renderer
   // rebuilds, so this DOM listener must only be installed once.
@@ -8904,6 +9279,12 @@ function setupInteractions() {
 
   // During drag, move the node and detect “real” drag vs click
     renderer.on("moveBody", ({ event }) => {
+      if (stageLongPressStart) {
+        const position = getEventClientPosition(event);
+        if (Math.hypot(position.x - stageLongPressStart.x, position.y - stageLongPressStart.y) > 10) {
+          cancelStageLongPress();
+        }
+      }
       // If a second finger joins a node drag, hand the gesture back to Sigma's
       // camera immediately. In particular, do not prevent the pinch default.
       if (getTouchCount(event) > 1) {
@@ -8971,6 +9352,19 @@ function setupInteractions() {
 
   renderer.on("upNode", endDrag);
   renderer.on("upStage", endDrag);
+
+  if (interactionContainer.dataset.multiSelectionMenuInitialized !== "true") {
+    interactionContainer.dataset.multiSelectionMenuInitialized = "true";
+    document.addEventListener("pointerdown", event => {
+      const menu = document.getElementById("graph-multi-selection-menu");
+      if (menu && !menu.hidden && !menu.contains(event.target)) closeGraphMultiSelectionMenu();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      closeGraphMultiSelectionMenu();
+      if (multiSelectionEnabled) setMultiSelectionEnabled(false, { clear: true });
+    });
+  }
 }
 
 function setupSearch_old() {
@@ -9216,6 +9610,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     }
     hoveredNode = null;
     selectedNode = null;
+    resetMultiSelectionState();
   }
 
   totalSteps = 1;
@@ -9252,6 +9647,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     setNodePanelOpen(false);
     hoveredNode = null;
     selectedNode = null;      
+    resetMultiSelectionState();
 
     param = {
         zIndex: true,
@@ -9345,6 +9741,7 @@ function importJSON(file, mode="", iterations=500) {
 
   hoveredNode = null;
   selectedNode = null;
+  resetMultiSelectionState();
 
   const reader = new FileReader();
   const progressBar = document.getElementById("progress-bar");
