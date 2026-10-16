@@ -4371,6 +4371,156 @@
     color: #46545d !important;
   }
 
+  .adaptive-viewport-option {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 3px 2px 12px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+    cursor: pointer;
+  }
+
+  .adaptive-viewport-option input {
+    flex: 0 0 auto;
+    margin: 0 4px 0 0;
+  }
+
+  .adaptive-viewport-option > span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .adaptive-viewport-option strong {
+    color: inherit;
+    font-size: 0.86rem;
+  }
+
+  .adaptive-viewport-option small {
+    color: #aebbc2;
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+.adaptive-viewport-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 2px;
+}
+
+.adaptive-viewport-settings[hidden] {
+  display: none;
+}
+
+.adaptive-viewport-settings > label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.07);
+  color: #b9c2c7;
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+
+.adaptive-viewport-settings > label:last-child {
+  grid-column: 1 / -1;
+}
+
+.adaptive-viewport-settings > label > small {
+  color: #6dccf3;
+  font: inherit;
+  text-transform: lowercase;
+}
+
+.adaptive-number-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(127, 127, 127, 0.32);
+  border-radius: 7px;
+  background: #202326;
+}
+
+.adaptive-number-control input[data-adaptive-number] {
+  width: 100% !important;
+  min-width: 0;
+  height: 38px;
+  margin: 0 !important;
+  padding: 7px 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.adaptive-number-buttons {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  border-left: 1px solid rgba(127, 127, 127, 0.32);
+}
+
+.adaptive-number-buttons button {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(79, 195, 247, 0.08);
+  color: #7dd7fb;
+  cursor: pointer;
+}
+
+.adaptive-number-buttons button + button {
+  border-top: 1px solid rgba(127, 127, 127, 0.32);
+}
+
+.adaptive-number-buttons button:hover,
+.adaptive-number-buttons button:focus-visible {
+  background: rgba(79, 195, 247, 0.22);
+  outline: none;
+}
+
+.adaptive-number-buttons button span {
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+  transform: translateY(2px) rotate(45deg);
+}
+
+.adaptive-number-buttons button[data-adaptive-step="down"] span {
+  transform: translateY(-2px) rotate(225deg);
+}
+
+body[data-theme="light"] .adaptive-viewport-settings > label {
+  border-color: rgba(18, 116, 158, 0.22);
+  background: rgba(18, 116, 158, 0.045);
+  color: #36505c;
+}
+
+body[data-theme="light"] .adaptive-number-control {
+  border-color: rgba(18, 116, 158, 0.3);
+  background: #fff;
+}
+
+  body[data-theme="light"] .adaptive-viewport-option {
+    border-color: rgba(18, 116, 158, 0.22);
+  }
+
+  body[data-theme="light"] .adaptive-viewport-option small {
+    color: #526670;
+  }
+
   #graph-parameters-section .layout-parameter-label-help {
     cursor: help;
     border-radius: 3px;

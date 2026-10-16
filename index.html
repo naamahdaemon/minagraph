@@ -31,6 +31,7 @@
   <script src="./scripts/walletconnect-donations.bundle.js"></script>
   <script src="./scripts/bitcoin-adapter.js"></script>
   <script src="./scripts/mina-rosetta-adapter.js"></script>
+  <script src="./scripts/adaptive-viewport.js"></script>
 
   <script type="module" src="./scripts/fcm-init.js"></script>
   <script src="./scripts/script.js"></script>  
@@ -335,7 +336,67 @@
           </div>
         </div>
       </div>
-      
+      <!-- ADDITIONAL GRAPH PARAMETERS -->
+      <div class="foldable-section" id="additional-graph-parameters-section">
+        <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Additional Graph Params</h2></span><span class="arrow">▼</span></div>
+        <div class="foldable-content">
+          <label class="adaptive-viewport-option" for="adaptive-viewport-enabled">
+            <span>
+              <strong>Adaptive Viewport</strong>
+              <small>Optimize visible spacing and viewport occupation after each layout.</small>
+            </span>
+            <input type="checkbox" id="adaptive-viewport-enabled">
+          </label>
+          <div id="adaptive-viewport-settings" class="adaptive-viewport-settings" hidden>
+            <label title="Minimum target distance between nearby visible nodes.">MINIMUM SPACING <small>px</small>
+              <span class="adaptive-number-control">
+                <input id="adaptive-viewport-spacing" type="text" inputmode="numeric" data-adaptive-number data-min="16" data-max="180" data-step="4" value="64">
+                <span class="adaptive-number-buttons">
+                  <button type="button" data-adaptive-step="up" aria-label="Increase minimum spacing"><span></span></button>
+                  <button type="button" data-adaptive-step="down" aria-label="Decrease minimum spacing"><span></span></button>
+                </span>
+              </span>
+            </label>
+            <label title="Empty padding retained around the adapted graph.">VIEWPORT MARGIN <small>%</small>
+              <span class="adaptive-number-control">
+                <input id="adaptive-viewport-margin" type="text" inputmode="numeric" data-adaptive-number data-min="0" data-max="30" data-step="1" value="8">
+                <span class="adaptive-number-buttons">
+                  <button type="button" data-adaptive-step="up" aria-label="Increase viewport margin"><span></span></button>
+                  <button type="button" data-adaptive-step="down" aria-label="Decrease viewport margin"><span></span></button>
+                </span>
+              </span>
+            </label>
+            <label title="Strength used to retain the original layout geometry.">LAYOUT STABILITY <small>%</small>
+              <span class="adaptive-number-control">
+                <input id="adaptive-viewport-stability" type="text" inputmode="numeric" data-adaptive-number data-min="0" data-max="100" data-step="1" value="18">
+                <span class="adaptive-number-buttons">
+                  <button type="button" data-adaptive-step="up" aria-label="Increase layout stability"><span></span></button>
+                  <button type="button" data-adaptive-step="down" aria-label="Decrease layout stability"><span></span></button>
+                </span>
+              </span>
+            </label>
+            <label title="Maximum local displacement allowed for each node.">MAXIMUM MOVE <small>px</small>
+              <span class="adaptive-number-control">
+                <input id="adaptive-viewport-displacement" type="text" inputmode="numeric" data-adaptive-number data-min="16" data-max="300" data-step="4" value="120">
+                <span class="adaptive-number-buttons">
+                  <button type="button" data-adaptive-step="up" aria-label="Increase maximum move"><span></span></button>
+                  <button type="button" data-adaptive-step="down" aria-label="Decrease maximum move"><span></span></button>
+                </span>
+              </span>
+            </label>
+            <label title="Amount of bounded stretching applied to the under-used screen axis.">ASPECT ADAPTATION <small>%</small>
+              <span class="adaptive-number-control">
+                <input id="adaptive-viewport-aspect" type="text" inputmode="numeric" data-adaptive-number data-min="0" data-max="100" data-step="5" value="50">
+                <span class="adaptive-number-buttons">
+                  <button type="button" data-adaptive-step="up" aria-label="Increase aspect adaptation"><span></span></button>
+                  <button type="button" data-adaptive-step="down" aria-label="Decrease aspect adaptation"><span></span></button>
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- WATCHED / FAVORITES -->
       <div class="foldable-section">
         <div class="foldable-header"><span><h2 style="font-size: 16px; margin: 0px;">Watched / Favorites</h2></span><span class="arrow">▼</span></div>

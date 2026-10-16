@@ -158,9 +158,28 @@ assert.match(scriptSource, /if \(algorithm === "spacious"\) restoreInitialPositi
   "Spacious must restore initial positions after a worker failure");
 assert.match(scriptSource, /Spacious layout returned invalid positions; the graph was left unchanged/);
 assert.match(scriptSource, /const layoutScope = document\.getElementById\("layout-scope"\)\?\.value \|\| "all"/);
-assert.match(scriptSource, /graph\.edges\(\)\.filter\(edge => playbackFocus/,
-  "visible scope should snapshot the focused or actively filtered transactions");
-assert.match(scriptSource, /: graphEdgeMatchesActiveView\(edge\)/);
+assert.match(scriptSource, /function getActiveGraphSubset\(\)/,
+  "visible scope should be computed independently from the Adaptive Viewport toggle");
+assert.match(scriptSource, /if \(!edgeMatchesFocusedGraphSubset\(source, target, focusNode\)\) return/,
+  "visible scope should keep only links incident to the selected node, including direction All");
+const focusHelperMatch = scriptSource.match(/function edgeMatchesFocusedGraphSubset\(source, target, focusNode\) \{[\s\S]*?\n\}/);
+assert.ok(focusHelperMatch, "focused visible-scope helper should exist");
+const focusContext = {};
+require("node:vm").runInNewContext(`${focusHelperMatch[0]}; result = edgeMatchesFocusedGraphSubset;`, focusContext);
+assert.equal(focusContext.result("selected", "neighbor", "selected"), true);
+assert.equal(focusContext.result("neighbor", "selected", "selected"), true);
+assert.equal(focusContext.result("unrelated-a", "unrelated-b", "selected"), false);
+assert.equal(focusContext.result("unrelated-a", "unrelated-b", null), true);
+assert.match(scriptSource, /getVisibleNodeIds: getAdaptiveViewportNodeIds/,
+  "Adaptive Viewport should consume the same neutral visible subset as layouts");
+assert.match(scriptSource, /scope === "visible" \? getVisibleGraphNodeIds\(\) : \(graph\?\.nodes\(\) \|\| \[\]\)/,
+  "Adaptive Viewport should respect the persisted entire or visible layout scope");
+assert.match(scriptSource, /const visibleSubset = layoutScope === "visible" \? getActiveGraphSubset\(\) : null/,
+  "visible layouts should capture the complete active graph subset once per run");
+assert.match(scriptSource, /const layoutEdges = visibleSubset \? visibleSubset\.edges : graph\.edges\(\)/);
+assert.match(scriptSource, /const layoutNodeIds = visibleSubset \? visibleSubset\.nodes : graph\.nodes\(\)/);
+assert.match(scriptSource, /if \(!relationshipFilterActive\) \{[\s\S]*?graph\.forEachNode/,
+  "visible isolated nodes should remain eligible whenever no relationship filter excludes them");
 assert.match(scriptSource, /const nodes = layoutNodeIds\.map/,
   "workers should receive only nodes captured by the selected scope");
 assert.match(scriptSource, /layoutEdges\.filter\(id =>[\s\S]*?layoutNodeSet\.has\(graph\.source\(id\)\)/,

@@ -70,6 +70,17 @@ let totalSteps = 0;
 let currentStep = 0;
 let pause = false;
 let graph, renderer;
+let adaptiveViewportManager = null;
+const ADAPTIVE_VIEWPORT_STORAGE_KEY = "minagraph-adaptive-viewport-enabled";
+const ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY = "minagraph-adaptive-viewport-settings";
+const LAYOUT_SCOPE_STORAGE_KEY = "minagraph-layout-scope";
+const ADAPTIVE_VIEWPORT_DEFAULTS = Object.freeze({
+  minDistancePx: 64,
+  viewportMarginPercent: 0.08,
+  positionStability: 0.18,
+  maxDisplacementPx: 120,
+  aspectAdaptation: 0.5,
+});
 
 let hoveredNode = null;
 let searchQuery = "";
@@ -515,6 +526,211 @@ function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
   );
 }
 
+function edgeMatchesFocusedGraphSubset(source, target, focusNode) {
+  return !focusNode || source === focusNode || target === focusNode;
+}
+
+function getActiveGraphSubset() {
+  if (!graph) return { nodes: [], edges: [] };
+  const playbackFocus = getDatePlaybackFocus();
+  const focusNode = strictTouchFocusedNode || selectedNode;
+  const edges = [];
+  const edgeNodes = new Set();
+  graph.forEachEdge((edge, attributes, source, target) => {
+    if (attributes.hidden === true || !transactionMatchesActiveLegendFilters(attributes)) return;
+    if (!edgeMatchesActiveColorFilter(source, target)) return;
+    if (playbackFocus && !playbackFocus.edges.has(edge)) return;
+    if (!edgeMatchesFocusedGraphSubset(source, target, focusNode)) return;
+    if (!playbackFocus && !edgeMatchesSelectedNodeDirection(source, target)) return;
+    if (strictTouchFocusedNode && !edgeMatchesStrictTouchFocus(edge)) return;
+    edges.push(edge);
+    edgeNodes.add(source);
+    edgeNodes.add(target);
+  });
+
+  const relationshipFilterActive = Boolean(
+    playbackFocus ||
+    focusNode ||
+    commandTypeFilter.size > 0 ||
+    chainFilter.size > 0
+  );
+  const nodes = new Set(edgeNodes);
+  if (!relationshipFilterActive) {
+    graph.forEachNode((node, attributes) => {
+      if (attributes.hidden !== true && nodeMatchesActiveColorFilter(node)) nodes.add(node);
+    });
+  } else {
+    if (focusNode && graph.hasNode(focusNode) && graph.getNodeAttribute(focusNode, "hidden") !== true &&
+        nodeMatchesActiveColorFilter(focusNode)) nodes.add(focusNode);
+  }
+  return { nodes: [...nodes], edges };
+}
+
+function getVisibleGraphNodeIds() {
+  return getActiveGraphSubset().nodes;
+}
+
+function getAdaptiveViewportNodeIds() {
+  const scope = document.getElementById("layout-scope")?.value || "all";
+  return scope === "visible" ? getVisibleGraphNodeIds() : (graph?.nodes() || []);
+}
+
+function getGraphViewportElements() {
+  return [
+    document.getElementById("left-sidebar"),
+    document.getElementById("side-panel"),
+  ].filter(Boolean);
+}
+
+function getGraphViewportInsets() {
+  const container = renderer?.getContainer?.();
+  const dimensions = renderer?.getDimensions?.();
+  if (!container || !(dimensions?.width > 0 && dimensions?.height > 0)) {
+    return { left: 0, right: 0, top: 0, bottom: 0 };
+  }
+  const containerRect = container.getBoundingClientRect();
+  const insets = { left: 0, right: 0, top: 0, bottom: 0 };
+  const addPanelInset = (panel, side) => {
+    if (!panel?.classList.contains("open")) return;
+    const style = getComputedStyle(panel);
+    if (style.visibility === "hidden" || style.display === "none") return;
+    const rect = panel.getBoundingClientRect();
+    const verticalOverlap = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+    if (verticalOverlap < containerRect.height * 0.5) return;
+    const horizontalOverlap = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+    // Full-screen mobile drawers temporarily replace the graph rather than
+    // defining a meaningful sliver in which it should be fitted.
+    if (horizontalOverlap <= 0 || horizontalOverlap >= containerRect.width * 0.8) return;
+    if (side === "left" && rect.left <= containerRect.left + 1) insets.left = Math.max(insets.left, horizontalOverlap);
+    if (side === "right" && rect.right >= containerRect.right - 1) insets.right = Math.max(insets.right, horizontalOverlap);
+  };
+  addPanelInset(document.getElementById("left-sidebar"), "left");
+  addPanelInset(document.getElementById("side-panel"), "right");
+  return insets;
+}
+
+function syncAdaptiveViewportContext() {
+  if (!window.AdaptiveViewportManager) return;
+  if (!adaptiveViewportManager) {
+    adaptiveViewportManager = new window.AdaptiveViewportManager({
+      getVisibleNodeIds: getAdaptiveViewportNodeIds,
+      getViewportInsets: getGraphViewportInsets,
+      getViewportElements: getGraphViewportElements,
+      isBusy: () => isLayoutRunning,
+      isNodeFixed: (_node, attributes) => Boolean(attributes?.fixed || attributes?.pinned || attributes?.manuallyPositioned),
+      onViewportFit: () => centerGraphInViewport({ trackLayout: false }),
+    });
+  }
+  adaptiveViewportManager.setContext({ graph, renderer });
+}
+
+function initializeAdaptiveViewportControl() {
+  const checkbox = document.getElementById("adaptive-viewport-enabled");
+  if (!checkbox) return;
+  const settingsPanel = document.getElementById("adaptive-viewport-settings");
+  const inputs = {
+    minDistancePx: document.getElementById("adaptive-viewport-spacing"),
+    viewportMarginPercent: document.getElementById("adaptive-viewport-margin"),
+    positionStability: document.getElementById("adaptive-viewport-stability"),
+    maxDisplacementPx: document.getElementById("adaptive-viewport-displacement"),
+    aspectAdaptation: document.getElementById("adaptive-viewport-aspect"),
+  };
+  let enabled = false;
+  let savedSettings = { ...ADAPTIVE_VIEWPORT_DEFAULTS };
+  try {
+    enabled = localStorage.getItem(ADAPTIVE_VIEWPORT_STORAGE_KEY) === "true";
+    const stored = JSON.parse(localStorage.getItem(ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY) || "null");
+    if (stored && typeof stored === "object") savedSettings = { ...savedSettings, ...stored };
+  } catch (error) {
+    console.warn("Could not load Adaptive Viewport preference:", error);
+  }
+  inputs.minDistancePx.value = savedSettings.minDistancePx;
+  inputs.viewportMarginPercent.value = Math.round(savedSettings.viewportMarginPercent * 100);
+  inputs.positionStability.value = Math.round(savedSettings.positionStability * 100);
+  inputs.maxDisplacementPx.value = savedSettings.maxDisplacementPx;
+  inputs.aspectAdaptation.value = Math.round(savedSettings.aspectAdaptation * 100);
+
+  const readInput = (input, fallback) => {
+    const min = Number(input.dataset.min);
+    const max = Number(input.dataset.max);
+    const parsed = Number(String(input.value).replace(",", "."));
+    const value = Number.isFinite(parsed)
+      ? Math.max(min, Math.min(max, parsed))
+      : fallback;
+    input.value = value;
+    return value;
+  };
+  const readSettings = () => ({
+    minDistancePx: readInput(inputs.minDistancePx, ADAPTIVE_VIEWPORT_DEFAULTS.minDistancePx),
+    viewportMarginPercent: readInput(inputs.viewportMarginPercent, ADAPTIVE_VIEWPORT_DEFAULTS.viewportMarginPercent * 100) / 100,
+    positionStability: readInput(inputs.positionStability, ADAPTIVE_VIEWPORT_DEFAULTS.positionStability * 100) / 100,
+    maxDisplacementPx: readInput(inputs.maxDisplacementPx, ADAPTIVE_VIEWPORT_DEFAULTS.maxDisplacementPx),
+    aspectAdaptation: readInput(inputs.aspectAdaptation, ADAPTIVE_VIEWPORT_DEFAULTS.aspectAdaptation * 100) / 100,
+  });
+  const applySettings = ({ persist = true } = {}) => {
+    const settings = readSettings();
+    adaptiveViewportManager?.updateOptions(settings);
+    if (!persist) return;
+    try {
+      localStorage.setItem(ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch (error) {
+      console.warn("Could not save Adaptive Viewport settings:", error);
+    }
+  };
+  checkbox.checked = enabled;
+  settingsPanel.hidden = !enabled;
+  syncAdaptiveViewportContext();
+  applySettings({ persist: false });
+  adaptiveViewportManager?.setEnabled(enabled);
+  checkbox.addEventListener("change", () => {
+    settingsPanel.hidden = !checkbox.checked;
+    adaptiveViewportManager?.setEnabled(checkbox.checked);
+    try {
+      localStorage.setItem(ADAPTIVE_VIEWPORT_STORAGE_KEY, String(checkbox.checked));
+    } catch (error) {
+      console.warn("Could not save Adaptive Viewport preference:", error);
+    }
+  });
+  Object.values(inputs).forEach(input => input.addEventListener("change", () => applySettings()));
+  Object.values(inputs).forEach(input => input.addEventListener("keydown", event => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const step = Number(input.dataset.step) || 1;
+    const current = Number(String(input.value).replace(",", ".")) || 0;
+    input.value = current + (event.key === "ArrowUp" ? step : -step);
+    applySettings();
+  }));
+  settingsPanel.querySelectorAll("[data-adaptive-step]").forEach(button => {
+    button.addEventListener("click", () => {
+      const input = button.closest(".adaptive-number-control")?.querySelector("input[data-adaptive-number]");
+      if (!input) return;
+      const step = Number(input.dataset.step) || 1;
+      const current = Number(String(input.value).replace(",", ".")) || 0;
+      input.value = current + (button.dataset.adaptiveStep === "up" ? step : -step);
+      applySettings();
+    });
+  });
+}
+
+function initializeLayoutScopePersistence() {
+  const select = document.getElementById("layout-scope");
+  if (!select) return;
+  try {
+    const saved = localStorage.getItem(LAYOUT_SCOPE_STORAGE_KEY);
+    if (saved === "all" || saved === "visible") select.value = saved;
+  } catch (error) {
+    console.warn("Could not load layout scope preference:", error);
+  }
+  select.addEventListener("change", () => {
+    try {
+      localStorage.setItem(LAYOUT_SCOPE_STORAGE_KEY, select.value);
+    } catch (error) {
+      console.warn("Could not save layout scope preference:", error);
+    }
+    adaptiveViewportManager?.schedule("layout-scope", { immediate: true });
+  });
+}
+
 function edgeMatchesTimelineSelection(edge) {
   return datePlaybackFocusedEdges.size === 0 || datePlaybackFocusedEdges.has(edge);
 }
@@ -585,6 +801,7 @@ function refreshSelectedNodePanelIfOpen() {
 function refreshLegendFilteredViews() {
   rebuildEdgeVisualSizes();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
+  adaptiveViewportManager?.schedule("filter");
   refreshSelectedNodePanelIfOpen();
   refreshDatePlaybackFeedForCurrentRange();
 }
@@ -2239,6 +2456,7 @@ function rebuildSigmaRendererAfterContextLoss() {
   try {
     container.replaceChildren();
     renderer = new Sigma(graph, container, settings);
+    syncAdaptiveViewportContext();
     if (customBBox) renderer.setCustomBBox(customBBox);
     renderer.getCamera().setState(cameraState);
     bindSigmaRenderingRecovery();
@@ -2718,6 +2936,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // The command bar must remain interactive even while Sigma is still loading
   // or recovering its renderer.
   setupSearch();
+  initializeLayoutScopePersistence();
+  initializeAdaptiveViewportControl();
   initializeNodeExplorerMenuDismissal();
   algorithmSelect = document.getElementById("layout-algorithm");
   initializeLayoutParameterHelp();
@@ -3902,6 +4122,7 @@ class LayoutController {
     currentLayout = null;
     recenterAfterLayout = false;
     setLayoutUiState("stopped", message);
+    adaptiveViewportManager?.resume("layout-stop");
   }
 
   run({ iterationsOverride = null, origin = "manual" } = {}) {
@@ -3917,6 +4138,8 @@ class LayoutController {
       showErrorPopup(message);
       return;
     }
+
+    adaptiveViewportManager?.suspend();
 
     const requestedIterations = Math.max(1, iterationsOverride ?? (parseInt(document.getElementById("layout-iterations").value, 10) || 5000));
     const gravity = Math.max(0, parseFloat(document.getElementById("layout-gravity").value) || 0.01);
@@ -3948,26 +4171,9 @@ class LayoutController {
       settings.repulsionMultiplier = parseFloat(document.getElementById("layout-repulsion")?.value) || 1;
     }
 
-    const playbackFocus = getDatePlaybackFocus();
-    const layoutEdges = layoutScope === "visible"
-      ? graph.edges().filter(edge => playbackFocus
-          ? playbackFocus.edges.has(edge)
-          : graphEdgeMatchesActiveView(edge))
-      : graph.edges();
-    const layoutNodeIds = layoutScope === "visible"
-      ? [...layoutEdges.reduce((nodes, edge) => {
-          const source = graph.source(edge);
-          const target = graph.target(edge);
-          if (graph.getNodeAttribute(source, "hidden") !== true) nodes.add(source);
-          if (graph.getNodeAttribute(target, "hidden") !== true) nodes.add(target);
-          return nodes;
-        }, new Set())]
-      : graph.nodes();
-    if (layoutScope === "visible" && graph.size === 0) {
-      graph.forEachNode((node, attributes) => {
-        if (attributes.hidden !== true) layoutNodeIds.push(node);
-      });
-    }
+    const visibleSubset = layoutScope === "visible" ? getActiveGraphSubset() : null;
+    const layoutEdges = visibleSubset ? visibleSubset.edges : graph.edges();
+    const layoutNodeIds = visibleSubset ? visibleSubset.nodes : graph.nodes();
     const layoutNodeSet = new Set(layoutNodeIds);
 
     if (previousLayout === "ord" && algorithm !== "ord") {
@@ -4085,6 +4291,16 @@ class LayoutController {
         isLayoutRunning = false;
         worker.terminate();
         setLayoutUiState("completed", "100%");
+        // Sigma updates its normalized extent and camera matrix on the frames
+        // following the last worker positions. Resume adaptive fitting only
+        // after both frames, matching the stable state otherwise reached by a
+        // browser resize.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (runId !== this.runId || isLayoutRunning) return;
+          renderer?.refresh();
+          if (adaptiveViewportManager?.enabled) adaptiveViewportManager.resume("layout-complete");
+          else centerGraphInViewport({ trackLayout: false });
+        }));
         if (recenterAfterLayout) {
           recenterAfterLayout = false;
           requestAnimationFrame(() => centerGraphInViewport({ trackLayout: false }));
@@ -4139,18 +4355,12 @@ function calculateNormalizedCenter(allPositions, visiblePositions) {
 function getRecenteringNodePositions() {
   const allPositions = [];
   const visiblePositions = [];
-  const hasLegendFilters = commandTypeFilter.size > 0 || chainFilter.size > 0;
+  const centeredNodes = new Set(getAdaptiveViewportNodeIds());
 
   graph.forEachNode((node, attributes) => {
     const position = { x: Number(attributes.x), y: Number(attributes.y) };
     allPositions.push(position);
-    if (attributes.hidden === true) return;
-
-    const matchesLegend = !hasLegendFilters || graph.edges(node).some(edge => {
-      const edgeAttributes = graph.getEdgeAttributes(edge);
-      return edgeAttributes.hidden !== true && transactionMatchesActiveLegendFilters(edgeAttributes);
-    });
-    if (matchesLegend) visiblePositions.push(position);
+    if (centeredNodes.has(node)) visiblePositions.push(position);
   });
   return { allPositions, visiblePositions: visiblePositions.length > 0 ? visiblePositions : allPositions };
 }
@@ -4168,17 +4378,10 @@ function applyGraphRecentering() {
   const { allPositions, visiblePositions } = getRecenteringNodePositions();
   const graphCenter = calculateNormalizedCenter(allPositions, visiblePositions);
   const dimensions = renderer.getDimensions();
-  const sidePanel = document.getElementById("side-panel");
-  const coveredWidth = sidePanel?.classList.contains("open")
-    ? getSidePanelCoveredWidth(
-        sidePanel.offsetWidth,
-        dimensions.width,
-        window.matchMedia("(max-width: 768px)").matches
-      )
-    : 0;
+  const insets = getGraphViewportInsets();
   const desiredViewportCenter = {
-    x: Math.max(0, dimensions.width - coveredWidth) / 2,
-    y: dimensions.height / 2
+    x: insets.left + Math.max(0, dimensions.width - insets.left - insets.right) / 2,
+    y: insets.top + Math.max(0, dimensions.height - insets.top - insets.bottom) / 2
   };
   const centeredState = { ...graphCenter, ratio, angle };
   const pointAtDesiredCenter = renderer.viewportToFramedGraph(desiredViewportCenter, {
@@ -8123,6 +8326,7 @@ function initRenderer() {
   //renderer = new Sigma(graph, container);
 
   renderer = new Sigma(graph,container,param);
+  syncAdaptiveViewportContext();
   bindSigmaRenderingRecovery();
   renderer.setSetting("defaultNodeBorderColor", "#fff");
   renderer.setSetting("defaultNodeBorderSize", 40);
@@ -8451,10 +8655,12 @@ function setupInteractions() {
   let isDragging = false;  
   let hasMoved = false;
   let dragOwnsCustomBBox = false;
+  let adaptiveViewportSuspendedForDrag = false;
   let suppressNodeClick = false;
   let nodeLongPressTimer = null;
   let ignoreStageClickUntil = 0;
   let lastTouchNodeClick = { node: null, time: 0, source: null };
+  const nodeDetailsSecondTapWindowMs = 1800;
   let dragStartPos = { x: 0, y: 0 };
   const interactionContainer = renderer.getContainer();
 
@@ -8492,17 +8698,25 @@ function setupInteractions() {
     draggedNode = null;
     isDragging = false;
     hasMoved = false;
+    if (adaptiveViewportSuspendedForDrag) {
+      adaptiveViewportSuspendedForDrag = false;
+      adaptiveViewportManager?.resume("drag-cancelled");
+    }
   };
 
   const activateTouchedNode = (node, source = "native") => {
     if (!graph.hasNode(node)) return;
     const now = Date.now();
-    const isSecondTouchTap = lastTouchNodeClick.node === node && now - lastTouchNodeClick.time < 1200;
+    const isSecondTouchTap = lastTouchNodeClick.node === node && now - lastTouchNodeClick.time < nodeDetailsSecondTapWindowMs;
     lastTouchNodeClick = { node, time: now, source };
     ignoreStageClickUntil = now + 150;
     if (isSecondTouchTap) {
       showNodePanel(node);
     } else {
+      // Keep the node and camera stable during the deliberate second-tap
+      // window. The first selection can otherwise trigger an adaptive refit
+      // before the user has time to tap the same node again.
+      adaptiveViewportManager?.defer(nodeDetailsSecondTapWindowMs + 100);
       setNodePanelOpen(false);
       selectedNode = node;
       strictTouchFocusedNode = node;
@@ -8698,6 +8912,10 @@ function setupInteractions() {
     if (!hasMoved && Math.hypot(dx, dy) > dragTolerance) {
       cancelNodeLongPress();
       hasMoved = true;
+      if (adaptiveViewportManager?.enabled) {
+        adaptiveViewportSuspendedForDrag = true;
+        adaptiveViewportManager.suspend();
+      }
       graph.setNodeAttribute(draggedNode, "highlighted", true);
       if (!renderer.getCustomBBox()) {
         renderer.setCustomBBox(renderer.getBBox());
@@ -8734,6 +8952,9 @@ function setupInteractions() {
 
     if (hasMoved) {
       suppressNodeClick = true;
+      if (draggedNode && graph.hasNode(draggedNode)) {
+        graph.setNodeAttribute(draggedNode, "manuallyPositioned", true);
+      }
       // A manual drag is an explicit placement choice. Keep the node where it
       // was dropped; the user can still reorganize the whole graph with the
       // Apply Layout command.
@@ -8744,6 +8965,10 @@ function setupInteractions() {
     isDragging   = false;
     draggedNode  = null;
     hasMoved     = false;
+    if (adaptiveViewportSuspendedForDrag) {
+      adaptiveViewportSuspendedForDrag = false;
+      adaptiveViewportManager?.resume("manual-drag");
+    }
   };
 
   renderer.on("upNode", endDrag);
@@ -8986,6 +9211,7 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     // instance alive after replacing that object makes it resolve old edge ids
     // against the new graph while the asynchronous fetch is running.
     layoutController.stop({ message: "Graph changed" });
+    adaptiveViewportManager?.setContext({ graph: null, renderer: null });
     if (renderer) {
       renderer.kill();
       renderer = null;
@@ -9044,11 +9270,14 @@ async function main(depth = 2, wipeGraph = true, chainOverride = null) {
     //renderer = new Sigma(graph, container);
 
     renderer = new Sigma(graph,container,param);
+    syncAdaptiveViewportContext();
     bindSigmaRenderingRecovery();
     renderer.setSetting("defaultNodeBorderColor", "#fff");
     renderer.setSetting("defaultNodeBorderSize", 40);
     syncCameraControlsToRenderer();
     
+  } else {
+    syncAdaptiveViewportContext();
   }
  
  if (!wipeGraph)
@@ -9279,9 +9508,8 @@ function saveLayoutSettings(algorithm) {
   const settings = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY)) || {};
 
   const inputIds = {
-    fr: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
+    fr: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
     fa: [
-      "layout-scope",
       "layout-iterations",
       "layout-width",
       "layout-height",
@@ -9292,8 +9520,8 @@ function saveLayoutSettings(algorithm) {
       "layout-strong-gravity",
       "layout-prevent-overlap"
     ],
-    spacious: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
-    ord: ["layout-scope", "layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
+    spacious: ["layout-iterations", "layout-width", "layout-height", "layout-gravity", "layout-scale"],
+    ord: ["layout-iterations", "layout-width", "layout-height", "layout-ewi", "layout-cooling", "layout-attraction", "layout-repulsion"]
   };
 
   settings[algorithm] = {};
@@ -10485,6 +10713,7 @@ function applyDateFilter() {
   refreshSelectedNodePanelIfOpen();
 
   renderer.refresh();
+  adaptiveViewportManager?.schedule("date-filter");
 }
 
 function updateDateHistogramRange() {
