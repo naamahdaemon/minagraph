@@ -727,7 +727,6 @@ function initializeLayoutScopePersistence() {
     } catch (error) {
       console.warn("Could not save layout scope preference:", error);
     }
-    adaptiveViewportManager?.schedule("layout-scope", { immediate: true });
   });
 }
 
@@ -801,7 +800,6 @@ function refreshSelectedNodePanelIfOpen() {
 function refreshLegendFilteredViews() {
   rebuildEdgeVisualSizes();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
-  adaptiveViewportManager?.schedule("filter");
   refreshSelectedNodePanelIfOpen();
   refreshDatePlaybackFeedForCurrentRange();
 }
@@ -4537,6 +4535,8 @@ function initializeLayoutAlgorithmMenu() {
   const menu = document.getElementById("layout-algorithm-menu");
   const select = document.getElementById("layout-algorithm");
   const controlsElement = document.getElementById("controls");
+  const adaptiveMenuToggle = document.getElementById("layout-menu-adaptive-viewport");
+  const adaptiveSettingsCheckbox = document.getElementById("adaptive-viewport-enabled");
   if (!button || !menu || !select || button.dataset.longPressInitialized === "true") return;
   button.dataset.longPressInitialized = "true";
 
@@ -4564,6 +4564,11 @@ function initializeLayoutAlgorithmMenu() {
       option.setAttribute("aria-checked", String(selected));
       option.classList.toggle("is-selected", selected);
     });
+    if (adaptiveMenuToggle && adaptiveSettingsCheckbox) {
+      const adaptiveEnabled = adaptiveSettingsCheckbox.checked;
+      adaptiveMenuToggle.setAttribute("aria-checked", String(adaptiveEnabled));
+      adaptiveMenuToggle.classList.toggle("is-active", adaptiveEnabled);
+    }
     requestAnimationFrame(() => {
       positionMenu();
       menu.querySelector(".is-selected")?.focus({ preventScroll: true });
@@ -4621,6 +4626,16 @@ function initializeLayoutAlgorithmMenu() {
     saveLayoutSettings(select.value);
     setMenuOpen(false);
     runLayoutInWorker();
+  });
+
+  adaptiveMenuToggle?.addEventListener("click", event => {
+    event.stopPropagation();
+    if (!adaptiveSettingsCheckbox) return;
+    const adaptiveEnabled = adaptiveMenuToggle.getAttribute("aria-checked") !== "true";
+    adaptiveMenuToggle.setAttribute("aria-checked", String(adaptiveEnabled));
+    adaptiveMenuToggle.classList.toggle("is-active", adaptiveEnabled);
+    adaptiveSettingsCheckbox.checked = adaptiveEnabled;
+    adaptiveSettingsCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
   });
 
   menu.addEventListener("keydown", event => {
@@ -8655,7 +8670,6 @@ function setupInteractions() {
   let isDragging = false;  
   let hasMoved = false;
   let dragOwnsCustomBBox = false;
-  let adaptiveViewportSuspendedForDrag = false;
   let suppressNodeClick = false;
   let nodeLongPressTimer = null;
   let ignoreStageClickUntil = 0;
@@ -8698,10 +8712,6 @@ function setupInteractions() {
     draggedNode = null;
     isDragging = false;
     hasMoved = false;
-    if (adaptiveViewportSuspendedForDrag) {
-      adaptiveViewportSuspendedForDrag = false;
-      adaptiveViewportManager?.resume("drag-cancelled");
-    }
   };
 
   const activateTouchedNode = (node, source = "native") => {
@@ -8713,10 +8723,6 @@ function setupInteractions() {
     if (isSecondTouchTap) {
       showNodePanel(node);
     } else {
-      // Keep the node and camera stable during the deliberate second-tap
-      // window. The first selection can otherwise trigger an adaptive refit
-      // before the user has time to tap the same node again.
-      adaptiveViewportManager?.defer(nodeDetailsSecondTapWindowMs + 100);
       setNodePanelOpen(false);
       selectedNode = node;
       strictTouchFocusedNode = node;
@@ -8912,10 +8918,6 @@ function setupInteractions() {
     if (!hasMoved && Math.hypot(dx, dy) > dragTolerance) {
       cancelNodeLongPress();
       hasMoved = true;
-      if (adaptiveViewportManager?.enabled) {
-        adaptiveViewportSuspendedForDrag = true;
-        adaptiveViewportManager.suspend();
-      }
       graph.setNodeAttribute(draggedNode, "highlighted", true);
       if (!renderer.getCustomBBox()) {
         renderer.setCustomBBox(renderer.getBBox());
@@ -8965,10 +8967,6 @@ function setupInteractions() {
     isDragging   = false;
     draggedNode  = null;
     hasMoved     = false;
-    if (adaptiveViewportSuspendedForDrag) {
-      adaptiveViewportSuspendedForDrag = false;
-      adaptiveViewportManager?.resume("manual-drag");
-    }
   };
 
   renderer.on("upNode", endDrag);
@@ -10713,7 +10711,6 @@ function applyDateFilter() {
   refreshSelectedNodePanelIfOpen();
 
   renderer.refresh();
-  adaptiveViewportManager?.schedule("date-filter");
 }
 
 function updateDateHistogramRange() {

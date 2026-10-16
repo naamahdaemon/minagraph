@@ -24,6 +24,8 @@ assert.match(html, /id="adaptive-viewport-margin"/);
 assert.match(html, /id="adaptive-viewport-stability"/);
 assert.match(html, /id="adaptive-viewport-displacement"/);
 assert.match(html, /id="adaptive-viewport-aspect"/);
+assert.match(html, /id="layout-menu-adaptive-viewport"/);
+assert.match(html, /id="layout-menu-adaptive-viewport"[\s\S]*?role="switch"[\s\S]*?aria-checked="false"/);
 assert.match(html, /id="additional-graph-parameters-section"/);
 assert.ok(
   html.indexOf('id="additional-graph-parameters-section"') > html.indexOf('id="graph-parameters-section"'),
@@ -47,11 +49,16 @@ assert.match(appSource, /requestAnimationFrame\(\(\) => requestAnimationFrame\(\
 const adaptiveSource = fs.readFileSync(path.join(root, 'scripts', 'adaptive-viewport.js'), 'utf8');
 assert.match(adaptiveSource, /aspect-settle:/);
 assert.match(adaptiveSource, /const rawInsets = this\.options\.getViewportInsets\?\.\(\) \|\| \{\}/);
-assert.match(adaptiveSource, /"viewport-obstruction"/);
-assert.match(adaptiveSource, /defer\(milliseconds = 0\)/);
-assert.match(adaptiveSource, /if \(this\.frame\) cancelAnimationFrame\(this\.frame\)/,
-  'touch detail gestures should be able to freeze an in-flight adaptive animation');
-assert.match(adaptiveSource, /"interaction-deferred"/);
+assert.match(adaptiveSource, /reason === "layout-complete" \|\| reason === "post-fit" \|\| reason\.startsWith\("aspect-settle:"\)/,
+  'only layout completion and its internal settle passes may trigger adaptation');
+assert.doesNotMatch(adaptiveSource, /new ResizeObserver|new MutationObserver|\.on\?\.\("updated"/,
+  'ordinary viewport and camera interactions must not reshape the graph');
+assert.doesNotMatch(appSource, /schedule\("filter"\)|schedule\("date-filter"\)|schedule\("layout-scope"\)/,
+  'filters and scope controls must not trigger adaptive topology changes');
+assert.match(appSource, /adaptiveMenuToggle\.classList\.toggle\("is-active", adaptiveEnabled\)[\s\S]*?adaptiveSettingsCheckbox\.dispatchEvent\(new Event\("change"/,
+  'the quick toggle should stay synchronized with the settings checkbox');
+assert.match(styleSource, /#layout-algorithm-menu[\s\S]*?font-family: ui-monospace/,
+  'the layout menu should consistently use a monospace font');
 assert.match(adaptiveSource, /scheduleFinalCenter\(generation\)/,
   'adaptive processing should end by centering its final node positions');
 assert.match(appSource, /if \(adaptiveViewportManager\?\.enabled\) adaptiveViewportManager\.resume\("layout-complete"\);[\s\S]*?else centerGraphInViewport\(\{ trackLayout: false \}\);/,
@@ -59,7 +66,18 @@ assert.match(appSource, /if \(adaptiveViewportManager\?\.enabled\) adaptiveViewp
 assert.doesNotMatch(appSource, /adaptiveViewportManager\?\.reduceNode/, 'Sigma overwrites reducer coordinates during processing');
 assert.match(sigmaSource, /data\.x = attrs\.x;[\s\S]*data\.y = attrs\.y;/, 'test must track Sigma position processing behavior');
 assert.match(appSource, /ADAPTIVE_VIEWPORT_STORAGE_KEY = "minagraph-adaptive-viewport-enabled"/);
-assert.match(worker, /mina-graph-explorer-v183/);
+assert.match(appSource, /ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY = "minagraph-adaptive-viewport-settings"/);
+assert.match(appSource, /localStorage\.getItem\(ADAPTIVE_VIEWPORT_STORAGE_KEY\) === "true"/,
+  'adaptive viewport activation should be restored from local storage');
+assert.match(appSource, /JSON\.parse\(localStorage\.getItem\(ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY\) \|\| "null"\)/,
+  'adaptive viewport settings should be restored from local storage');
+assert.match(appSource, /const readSettings = \(\) => \(\{[\s\S]*?minDistancePx:[\s\S]*?viewportMarginPercent:[\s\S]*?positionStability:[\s\S]*?maxDisplacementPx:[\s\S]*?aspectAdaptation:[\s\S]*?\}\);/,
+  'every adaptive viewport parameter should be included in the persisted settings object');
+assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY, JSON\.stringify\(settings\)\)/,
+  'all adaptive viewport settings should be saved together');
+assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_STORAGE_KEY, String\(checkbox\.checked\)\)/,
+  'adaptive viewport activation should be saved');
+assert.match(worker, /mina-graph-explorer-v184/);
 assert.match(worker, /'\/scripts\/adaptive-viewport\.js'/);
 
 class FakeGraph {
@@ -115,9 +133,16 @@ assert.equal(manager.options.maxDisplacementPx, 140);
 assert.equal(manager.options.aspectAdaptation, 0.75);
 manager.setEnabled(true);
 manager.cancelPending();
-manager.pendingReasons.add('enable');
+assert.deepEqual(graph.getNodeAttributes('a'), original.a, 'enabling should not alter the current topology');
+manager.schedule('filter', { immediate: true });
+assert.equal(manager.timer, null, 'graph interactions should not schedule adaptation');
+for (const interaction of ['camera', 'resize', 'viewport-obstruction', 'topology', 'date-filter', 'layout-scope', 'manual-drag']) {
+  manager.schedule(interaction, { immediate: true });
+  assert.equal(manager.timer, null, `${interaction} should not schedule adaptation`);
+}
+manager.pendingReasons.add('layout-complete');
 manager.recalculate();
-assert.ok(camera.state.ratio < 2, 'activation should zoom the camera to occupy the available viewport');
+assert.ok(camera.state.ratio < 2, 'layout completion should zoom the camera to occupy the available viewport');
 manager.cancelPending();
 manager.pendingReasons.add('post-fit');
 manager.recalculate();
@@ -127,7 +152,7 @@ const adaptedA = graph.getNodeAttributes('a');
 const adaptedB = graph.getNodeAttributes('b');
 assert.ok(
   Math.abs(adaptedB.x - adaptedA.x) > Math.abs(original.b.x - original.a.x),
-  'activation should visibly expand a compact graph across the viewport'
+  'layout completion should visibly expand a compact graph across the viewport'
 );
 assert.ok(
   Math.abs(adaptedB.y - adaptedA.y) > Math.abs(original.b.y - original.a.y),
@@ -135,25 +160,25 @@ assert.ok(
 );
 assert.ok(manager.pendingReasons.has('aspect-settle:1'), 'aspect adaptation should schedule a bounded convergence pass');
 const generationBeforeSettings = manager.generation;
+const topologyBeforeSettings = { ...graph.getNodeAttributes('a') };
 manager.updateOptions({ minDistancePx: 96, viewportMarginPercent: 0.12, positionStability: 0.6, maxDisplacementPx: 180, aspectAdaptation: 0.25 });
-assert.ok(manager.generation > generationBeforeSettings, 'changing parameters should cancel stale adaptive work');
-assert.deepEqual(graph.getNodeAttributes('a'), original.a, 'parameter changes should restart from logical coordinates');
+assert.equal(manager.generation, generationBeforeSettings, 'changing parameters should not start another adaptive pass');
+assert.deepEqual(graph.getNodeAttributes('a'), topologyBeforeSettings, 'parameter changes should preserve the current topology');
 assert.equal(manager.options.minDistancePx, 96);
 assert.equal(manager.options.viewportMarginPercent, 0.12);
 assert.equal(manager.options.positionStability, 0.6);
 assert.equal(manager.options.maxDisplacementPx, 180);
 assert.equal(manager.options.aspectAdaptation, 0.25);
 manager.cancelPending();
-assert.deepEqual(manager.logicalPositions.get('a'), original.a, 'logical graph coordinates must remain preserved separately');
+assert.deepEqual(manager.logicalPositions.get('a'), topologyBeforeSettings, 'the adapted topology should become the stable graph coordinates');
 assert.deepEqual(graph.getNodeAttributes('fixed'), original.fixed, 'manually positioned nodes must remain untouched');
 assert.ok(refreshCount > 0, 'the renderer should refresh after adaptation');
-assert.ok(cameraListeners.has('updated'), 'camera changes should be observed only while enabled');
+assert.equal(cameraListeners.has('updated'), false, 'camera interactions should never trigger adaptation');
 
 manager.setEnabled(false);
 assert.equal(manager.displayPositions.size, 0, 'OFF should discard every display coordinate immediately');
-assert.deepEqual(graph.getNodeAttributes('a'), original.a, 'OFF should restore the exact logical coordinates');
-assert.equal(camera.state.ratio, 2, 'OFF should restore the camera state from before activation');
-assert.equal(cameraListeners.has('updated'), false, 'camera listeners should be released on disable');
+assert.deepEqual(graph.getNodeAttributes('a'), topologyBeforeSettings, 'OFF should preserve the topology produced by the last layout');
+assert.ok(camera.state.ratio < 2, 'OFF should preserve the current camera state');
 
 manager.destroy();
 console.log('Adaptive viewport tests passed');
