@@ -36,12 +36,17 @@ assert.match(css, /\.node-color-swatches\s*\{/);
 assert.match(css, /grid-template-columns: repeat\(5, 1fr\)/);
 assert.match(source, /id="node-color-filter-swatches"/);
 assert.match(source, /const nodeColorFilter = new Set\(\)/);
+assert.match(source, /const NODE_DEFAULT_COLOR_FILTER = "__default__"/);
 assert.match(source, /function initializeNodeColorFilters\(\)/);
 assert.match(source, /if \(nodeColorFilter\.has\(color\)\) nodeColorFilter\.delete\(color\)/);
 assert.match(source, /else nodeColorFilter\.add\(color\)/);
 assert.match(source, /function nodeMatchesActiveColorFilter\(node\)/);
+assert.match(source, /nodeColorFilter\.has\(NODE_DEFAULT_COLOR_FILTER\)/);
 assert.match(source, /edgeMatchesActiveColorFilter\(source, target\)/);
+assert.match(source, /class="node-color-filter-default"/);
+assert.match(source, />Default color<\/button>/);
 assert.match(css, /\.node-color-filter-swatches\s*\{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(css, /\.node-color-filter-swatches \.node-color-filter-default\s*\{[\s\S]*?grid-column: 1 \/ -1/);
 assert.match(html, /id="command-types" class="legend-pill-list"/);
 assert.match(html, /id="blockchain-types" class="legend-pill-list"/);
 assert.doesNotMatch(html, />● (?:Payment|Mina)</);
@@ -59,7 +64,7 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v171/);
+assert.match(worker, /mina-graph-explorer-v172/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');
