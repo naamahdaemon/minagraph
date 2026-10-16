@@ -314,6 +314,7 @@
       background: #222;
       color: #fff;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
     }
 
     #layout-algorithm-menu button {
@@ -323,7 +324,9 @@
       border-radius: 7px;
       background: transparent;
       color: inherit;
-      text-align: left;
+      position: relative;
+      text-align: center;
+      font-family: inherit;
       cursor: pointer;
       touch-action: manipulation;
     }
@@ -337,7 +340,63 @@
     }
 
     #layout-algorithm-menu button.is-selected::before {
-      content: "✓ ";
+      content: "✓";
+      position: absolute;
+      left: 10px;
+    }
+
+    .layout-menu-adaptive-section {
+      margin-top: 3px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(127, 127, 127, 0.42);
+    }
+
+    #layout-algorithm-menu .layout-menu-adaptive-toggle {
+      width: 100%;
+      min-height: 34px;
+      padding: 5px 10px;
+      border-color: #687782;
+      background: #30383e;
+      color: #f4f7f9;
+      font-weight: 600;
+    }
+
+    #layout-algorithm-menu .layout-menu-adaptive-toggle::before {
+      content: "";
+      position: static;
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 8px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      background: transparent;
+      vertical-align: 1px;
+    }
+
+    #layout-algorithm-menu .layout-menu-adaptive-toggle.is-active {
+      border-color: #4fc3f7;
+      background: #087da8;
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+    }
+
+    #layout-algorithm-menu .layout-menu-adaptive-toggle.is-active::before {
+      border-color: #fff;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+    }
+
+    body[data-theme="light"] #layout-algorithm-menu .layout-menu-adaptive-toggle {
+      border-color: #91a0aa;
+      background: #f5f8fa;
+      color: #1f2a30;
+    }
+
+    body[data-theme="light"] #layout-algorithm-menu .layout-menu-adaptive-toggle.is-active {
+      border-color: #087da8;
+      background: #087da8;
+      color: #fff;
     }
 
     body[data-theme="light"] #layout-algorithm-menu {
