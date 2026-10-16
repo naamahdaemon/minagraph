@@ -399,6 +399,91 @@
       color: #fff;
     }
 
+    .graph-multi-selection-menu[hidden] {
+      display: none;
+    }
+
+    .graph-multi-selection-menu {
+      position: fixed;
+      z-index: var(--z-command-popover);
+      display: grid;
+      width: min(245px, calc(100vw - 16px));
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid rgba(127, 127, 127, 0.48);
+      border-radius: 9px;
+      background: #222;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+
+    .graph-multi-selection-title,
+    .graph-multi-selection-count {
+      text-align: center;
+    }
+
+    .graph-multi-selection-title {
+      font-weight: 700;
+    }
+
+    .graph-multi-selection-count {
+      color: #b8c4ca;
+      font-size: 0.75rem;
+    }
+
+    .graph-multi-selection-menu button {
+      min-height: 34px;
+      padding: 6px 9px;
+      border: 1px solid #687782;
+      border-radius: 7px;
+      background: #30383e;
+      color: #f4f7f9;
+      font: inherit;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .graph-multi-selection-menu button:hover:not(:disabled),
+    .graph-multi-selection-menu button:focus-visible {
+      border-color: #4fc3f7;
+      outline: none;
+    }
+
+    .graph-multi-selection-menu .graph-multi-selection-toggle.is-active {
+      border-color: #4fc3f7;
+      background: #087da8;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .graph-multi-selection-menu button:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    body[data-theme="light"] .graph-multi-selection-menu {
+      border-color: rgba(31, 43, 49, 0.3);
+      background: #fff;
+      color: #17262e;
+    }
+
+    body[data-theme="light"] .graph-multi-selection-count {
+      color: #53656e;
+    }
+
+    body[data-theme="light"] .graph-multi-selection-menu button {
+      border-color: #91a0aa;
+      background: #f5f8fa;
+      color: #1f2a30;
+    }
+
+    body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-toggle.is-active {
+      border-color: #087da8;
+      background: #087da8;
+      color: #fff;
+    }
+
     body[data-theme="light"] #layout-algorithm-menu {
       border-color: rgba(31, 43, 49, 0.3);
       background: #fff;

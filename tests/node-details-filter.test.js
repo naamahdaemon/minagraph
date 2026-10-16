@@ -39,6 +39,7 @@ assert.equal(context.result({ command_type: 'payment', blockchain: 'ethereum' })
 const activeViewContext = {
   transactionMatchesActiveLegendFilters: () => true,
   edgeMatchesActiveColorFilter: () => true,
+  edgeMatchesMultiSelection: () => true,
   selectedNode: 'selected',
   selectedNodeDirectionFilter: 'all'
 };
