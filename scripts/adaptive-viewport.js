@@ -30,19 +30,10 @@
       this.cameraStateBeforeEnable = null;
       this.timer = null;
       this.frame = null;
-      this.deferUntil = 0;
       this.generation = 0;
       this.pendingReasons = new Set();
-      this.boundCamera = null;
       this.suppressCameraUpdates = false;
       this.cameraSuppressionToken = 0;
-      this.boundCameraUpdated = () => {
-        if (!this.suppressCameraUpdates) this.schedule("camera");
-      };
-      this.resizeObserver = null;
-      this.viewportMutationObserver = null;
-      this.viewportElementListeners = [];
-      this.graphListeners = [];
     }
 
     updateOptions(options = {}) {
@@ -55,25 +46,19 @@
       this.options.positionStability = numeric(options.positionStability, this.options.positionStability, 0, 1);
       this.options.maxDisplacementPx = numeric(options.maxDisplacementPx, this.options.maxDisplacementPx, 16, 300);
       this.options.aspectAdaptation = numeric(options.aspectAdaptation, this.options.aspectAdaptation, 0, 1);
-      if (this.enabled && !this.suspended) {
-        this.generation++;
-        this.cancelPending();
-        this.restoreLogicalPositions();
-        this.schedule("settings", { immediate: true });
-      }
+      // Settings are intentionally applied on the next layout completion.
+      // Changing a control must never reshape an already positioned graph.
+      if (this.enabled) this.cancelPending();
     }
 
     setContext({ graph = this.graph, renderer = this.renderer } = {}) {
       const rendererChanged = renderer !== this.renderer;
       this.restoreLogicalPositions();
-      this.detachRuntimeListeners();
       this.graph = graph || null;
       this.renderer = renderer || null;
       if (this.enabled) {
         if (rendererChanged) this.captureCameraState();
         this.captureLogicalPositions();
-        this.attachRuntimeListeners();
-        this.schedule("context", { immediate: true });
       }
     }
 
@@ -86,14 +71,8 @@
       if (next) {
         this.captureCameraState();
         this.captureLogicalPositions();
-        this.attachRuntimeListeners();
-        this.schedule("enable", { immediate: true });
       } else {
-        this.detachRuntimeListeners();
-        this.restoreLogicalPositions();
-        this.restoreCameraState();
         this.displayPositions.clear();
-        this.renderer?.refresh?.();
       }
     }
 
@@ -110,11 +89,14 @@
 
     resume(reason = "resume") {
       if (!this.suspended) {
-        if (this.enabled) this.schedule(reason);
+        if (this.enabled && reason === "layout-complete") {
+          this.captureLogicalPositions();
+          this.schedule(reason, { immediate: true });
+        }
         return;
       }
       this.suspended = false;
-      if (this.enabled) {
+      if (this.enabled && reason === "layout-complete") {
         this.captureLogicalPositions();
         this.schedule(reason, { immediate: true });
       }
@@ -156,20 +138,12 @@
 
     schedule(reason = "update", { immediate = false } = {}) {
       if (!this.enabled || this.suspended) return;
+      const allowedReasons = reason === "layout-complete" || reason === "post-fit" || reason.startsWith("aspect-settle:");
+      if (!allowedReasons) return;
       this.pendingReasons.add(reason);
       clearTimeout(this.timer);
-      const deferredDelay = Math.max(0, this.deferUntil - Date.now());
-      const delay = Math.max(immediate ? 0 : this.options.debounceMs, deferredDelay);
+      const delay = immediate ? 0 : this.options.debounceMs;
       this.timer = setTimeout(() => this.recalculate(), delay);
-    }
-
-    defer(milliseconds = 0) {
-      const duration = Math.max(0, Number(milliseconds) || 0);
-      this.deferUntil = Math.max(this.deferUntil, Date.now() + duration);
-      if (!this.enabled || this.suspended) return;
-      if (this.frame) cancelAnimationFrame(this.frame);
-      this.frame = null;
-      this.schedule("interaction-deferred");
     }
 
     recalculate() {
@@ -244,21 +218,7 @@
         return;
       }
 
-      const fitReasons = new Set([
-        "enable",
-        "context",
-        "settings",
-        "layout-complete",
-        "layout-stop",
-        "resize",
-        "viewport-obstruction",
-        "layout-scope",
-        "interaction-deferred",
-        "topology",
-        "filter",
-        "date-filter",
-      ]);
-      const shouldFitViewport = [...reasons].some(reason => fitReasons.has(reason));
+      const shouldFitViewport = reasons.has("layout-complete");
       const settleReason = [...reasons].find(reason => reason.startsWith("aspect-settle:"));
       const settlePass = settleReason ? Number(settleReason.split(":")[1]) || 1 : 0;
       if (shouldFitViewport && this.fitCameraToCandidates(candidates, usableViewport)) {
@@ -464,68 +424,14 @@
         if (raw < 1) this.frame = requestAnimationFrame(tick);
         else {
           this.frame = null;
+          // The adaptive result is the new stable topology. Future UI
+          // interactions must render it as-is instead of restoring or
+          // recalculating an earlier set of coordinates.
+          this.captureLogicalPositions();
           onComplete?.();
         }
       };
       this.frame = requestAnimationFrame(tick);
-    }
-
-    attachRuntimeListeners() {
-      if (!this.renderer || !this.graph) return;
-      const camera = this.renderer.getCamera?.();
-      if (camera && camera !== this.boundCamera) {
-        this.boundCamera = camera;
-        camera.on?.("updated", this.boundCameraUpdated);
-      }
-      const container = this.renderer.getContainer?.();
-      if (container && typeof ResizeObserver !== "undefined") {
-        this.resizeObserver = new ResizeObserver(() => this.schedule("resize"));
-        this.resizeObserver.observe(container);
-        for (const element of this.options.getViewportElements?.() || []) {
-          if (element) this.resizeObserver.observe(element);
-        }
-      }
-      if (typeof MutationObserver !== "undefined") {
-        const elements = (this.options.getViewportElements?.() || []).filter(Boolean);
-        if (elements.length) {
-          this.viewportMutationObserver = new MutationObserver(() => this.schedule("viewport-obstruction"));
-          elements.forEach(element => this.viewportMutationObserver.observe(element, {
-            attributes: true,
-            attributeFilter: ["class", "style", "aria-hidden"],
-          }));
-        }
-      }
-      for (const element of this.options.getViewportElements?.() || []) {
-        if (!element?.addEventListener) continue;
-        const listener = event => {
-          if (event.propertyName === "transform" || event.propertyName === "width") {
-            this.schedule("viewport-obstruction", { immediate: true });
-          }
-        };
-        element.addEventListener("transitionend", listener);
-        this.viewportElementListeners.push([element, listener]);
-      }
-      const events = ["nodeAdded", "nodeDropped", "edgeAdded", "edgeDropped", "cleared"];
-      for (const event of events) {
-        const listener = () => this.schedule("topology");
-        this.graph.on?.(event, listener);
-        this.graphListeners.push([event, listener]);
-      }
-    }
-
-    detachRuntimeListeners() {
-      if (this.boundCamera) this.boundCamera.off?.("updated", this.boundCameraUpdated);
-      this.boundCamera = null;
-      this.resizeObserver?.disconnect?.();
-      this.resizeObserver = null;
-      this.viewportMutationObserver?.disconnect?.();
-      this.viewportMutationObserver = null;
-      for (const [element, listener] of this.viewportElementListeners) {
-        element.removeEventListener?.("transitionend", listener);
-      }
-      this.viewportElementListeners = [];
-      for (const [event, listener] of this.graphListeners) this.graph?.off?.(event, listener);
-      this.graphListeners = [];
     }
 
     cancelPending() {
@@ -539,7 +445,6 @@
     destroy() {
       this.enabled = false;
       this.cancelPending();
-      this.detachRuntimeListeners();
       this.restoreLogicalPositions();
       this.restoreCameraState();
       this.displayPositions.clear();
