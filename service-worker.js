@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mina-graph-explorer-v172';
-const APP_BUILD_DATE = '2026-10-14';
+const CACHE_NAME = 'mina-graph-explorer-v183';
+const APP_BUILD_DATE = '2026-10-16';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
@@ -158,6 +158,7 @@ const STATIC_ASSETS = [
   '/favicon.ico',
   '/style/style.css',
   '/scripts/script.js',
+  '/scripts/adaptive-viewport.js',
   '/scripts/bitcoin-adapter.js',
   '/scripts/mina-rosetta-adapter.js',
   '/scripts/walletconnect-donations.bundle.js',

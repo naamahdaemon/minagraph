@@ -32,8 +32,9 @@ assert.match(interactions, /renderer\.on\("clickStage", \(\{ event \}\) => \{\s*
 assert.match(interactions, /const qualifiedStageReveal = !touchStageClick \|\| Date\.now\(\) - lastQualifiedGraphTouchTapAt < 300;[\s\S]*?setFullscreenUiVisible\(true, \{ openSidebar: false \}\);/);
 assert.match(interactions, /selectedNode = node;\s*strictTouchFocusedNode = null;\s*showNodePanel\(node\);/);
 assert.match(interactions, /touchCompatibilityClick &&[\s\S]*?lastTouchNodeClick\.source === "native"[\s\S]*?now - lastTouchNodeClick\.time < 250/);
-assert.match(interactions, /const isSecondTouchTap =[\s\S]*?lastTouchNodeClick\.node === node &&[\s\S]*?now - lastTouchNodeClick\.time < 1200/);
-assert.match(interactions, /if \(isSecondTouchTap\) \{\s*showNodePanel\(node\);\s*\} else \{\s*setNodePanelOpen\(false\);\s*selectedNode = node;/);
+assert.match(interactions, /const nodeDetailsSecondTapWindowMs = 1800/);
+assert.match(interactions, /const isSecondTouchTap =[\s\S]*?lastTouchNodeClick\.node === node &&[\s\S]*?now - lastTouchNodeClick\.time < nodeDetailsSecondTapWindowMs/);
+assert.match(interactions, /if \(isSecondTouchTap\) \{\s*showNodePanel\(node\);\s*\} else \{[\s\S]*?adaptiveViewportManager\?\.defer\(nodeDetailsSecondTapWindowMs \+ 100\);[\s\S]*?setNodePanelOpen\(false\);\s*selectedNode = node;/);
 assert.match(interactions, /setNodePanelOpen\(false\);\s*selectedNode = node;\s*strictTouchFocusedNode = node;\s*syncNodeDirectionFilterControls\(\);\s*refreshDatePlaybackFeedForCurrentRange\(\);/);
 assert.doesNotMatch(interactions, /clearDatePlaybackFocus\(\{ refresh: false \}\);\s*setNodePanelOpen\(false\);/);
 assert.match(source, /function edgeMatchesStrictTouchFocus\(edge, focusNode = strictTouchFocusedNode\)/);
