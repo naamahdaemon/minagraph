@@ -19,8 +19,8 @@ assert.match(source, /function nodeMatchesMultiSelection\(node\)[\s\S]*?!multiSe
   'focused selection should hide unselected nodes');
 assert.match(source, /edgeMatchesSelectedNodeDirection\(source, target, referenceNode\) &&\s*edgeMatchesMultiSelection\(source, target\) &&\s*edgeMatchesActiveColorFilter/,
   'multi-selection should intersect with every existing edge filter');
-assert.match(source, /function showNodePanel\(node, refreshExternalStatus = true\) \{\s*if \(multiSelectionEnabled\) return;/,
-  'details must stay closed while multi-selection is active');
+assert.match(source, /function showNodePanel\(node, refreshExternalStatus = true\) \{\s*if \(multiSelectionEnabled && !multiSelectionFocused\) return;/,
+  'details must stay closed during free selection but reopen when focus is fixed');
 assert.match(source, /function showGraphMultiSelectionMenu\(clientX, clientY\) \{\s*hideNodeColorMenu\(\);/,
   'opening the graph selection menu must call the existing node-color menu closer');
 assert.doesNotMatch(source, /closeNodeColorMenu\(/,
@@ -28,6 +28,10 @@ assert.doesNotMatch(source, /closeNodeColorMenu\(/,
 assert.match(source, /const ctrlSelection = event\?\.original\?\.ctrlKey === true;[\s\S]*?setMultiSelectionEnabled\(true, \{ mode: "ctrl" \}\)[\s\S]*?toggleMultiSelectedNode\(node\)/);
 assert.match(source, /multiSelectionActivationMode === "ctrl"[\s\S]*?setMultiSelectionEnabled\(false, \{ clear: true \}\)/,
   'a plain desktop click should leave Ctrl multi-selection');
+assert.match(source, /if \(ctrlSelection && !multiSelectionFocused\)[\s\S]*?else if \(multiSelectionEnabled && !multiSelectionFocused\) \{\s*toggleMultiSelectedNode\(node\);/,
+  'focused multi-selection should use normal node click behaviour instead of deselecting nodes');
+assert.match(source, /const focusNode = multiSelectionEnabled && !multiSelectionFocused \? null : \(hoveredNode \|\| selectedNode\);/,
+  'focused multi-selection should restore normal hover and selected-node rendering');
 assert.match(source, /renderer\.on\("rightClickStage"[\s\S]*?showGraphMultiSelectionMenu/);
 assert.match(source, /function setupNativeGraphStageGestures\(\)[\s\S]*?document\.addEventListener\("contextmenu"[\s\S]*?stopImmediatePropagation[\s\S]*?showNodeColorMenu[\s\S]*?showGraphMultiSelectionMenu[\s\S]*?true\)/,
   'document-level captured contextmenu should reliably distinguish nodes from the empty graph');
@@ -41,6 +45,8 @@ assert.match(source, /renderer\.on\("downStage"[\s\S]*?isPrimaryDesktopPress[\s\
   'a mobile or desktop stage long-press should open the menu');
 assert.match(source, /data-multi-selection-action="delete-selected"/);
 assert.match(source, /data-multi-selection-action="delete-unselected"/);
+assert.match(source, /data-multi-selection-action="delete-selected">Delete selected<\/button>/);
+assert.match(source, /data-multi-selection-action="delete-unselected">Delete unselected<\/button>/);
 assert.match(source, /class="graph-multi-selection-focus" role="switch"[\s\S]*?>Focus selection</);
 assert.match(source, /data-multi-selection-action="fetch-selected"/);
 assert.match(source, /async function fetchSelectedMultiSelectionNodes\(\)[\s\S]*?for \(const node of selectedNodes\)[\s\S]*?buildGraphRecursively\(node, requestedDepth, 0, chain, profileSignature\)[\s\S]*?animateLayout\(null, "initial"\)/,
@@ -58,6 +64,6 @@ assert.match(source, /timelineMultiSelectedNodes\.clear\(\);[\s\S]*?datePlayback
 assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v191/);
+assert.match(worker, /mina-graph-explorer-v193/);
 
 console.log('Multi-selection tests passed');

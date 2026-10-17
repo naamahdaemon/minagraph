@@ -8026,7 +8026,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
 }
 
 function showNodePanel(node, refreshExternalStatus = true) {
-  if (multiSelectionEnabled) return;
+  if (multiSelectionEnabled && !multiSelectionFocused) return;
   //rebuildTransactionsByNeighbor();
   const panel = document.getElementById("side-panel");
   const previouslySelectedNode = selectedNode;
@@ -8622,7 +8622,7 @@ function setupReducers() {
 
     data = { ...data, type: showEdgeDirections ? "arrow" : "line" };
 
-    const focusNode = multiSelectionEnabled ? null : (hoveredNode || selectedNode);
+    const focusNode = multiSelectionEnabled && !multiSelectionFocused ? null : (hoveredNode || selectedNode);
     const command = data.command_type || data.label;
     const visualSize = edgeThicknessMode === "uniform"
       ? DEFAULT_EDGE_SIZE
@@ -8799,8 +8799,8 @@ function ensureGraphMultiSelectionMenu() {
     <button type="button" class="graph-multi-selection-focus" role="switch" aria-checked="false">Focus selection</button>
     <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
     <button type="button" data-multi-selection-action="fetch-selected">Fetch selected nodes</button>
-    <button type="button" data-multi-selection-action="delete-selected">Delete selected nodes</button>
-    <button type="button" data-multi-selection-action="delete-unselected">Delete unselected nodes</button>
+    <button type="button" data-multi-selection-action="delete-selected">Delete selected</button>
+    <button type="button" data-multi-selection-action="delete-unselected">Delete unselected</button>
   `;
   document.body.append(menu);
   menu.querySelector(".graph-multi-selection-toggle").addEventListener("click", event => {
@@ -9226,7 +9226,7 @@ function setupInteractions() {
         lastTouchNodeClick.source === "native" &&
         Date.now() - lastTouchNodeClick.time < 250;
       if (!compatibilityDuplicate) {
-        if (multiSelectionEnabled) toggleMultiSelectedNode(nearbyTouchNode);
+        if (multiSelectionEnabled && !multiSelectionFocused) toggleMultiSelectedNode(nearbyTouchNode);
         else activateTouchedNode(nearbyTouchNode, isNativeTouchInteraction(event) ? "native" : "compatibility");
       }
       return;
@@ -9262,7 +9262,7 @@ function setupInteractions() {
     ignoreStageClickUntil = Date.now() + 150;
 
     const ctrlSelection = event?.original?.ctrlKey === true;
-    if (ctrlSelection) {
+    if (ctrlSelection && !multiSelectionFocused) {
       if (!multiSelectionEnabled) setMultiSelectionEnabled(true, { mode: "ctrl" });
       toggleMultiSelectedNode(node);
       return;
@@ -9270,9 +9270,9 @@ function setupInteractions() {
 
     // A plain desktop click after a Ctrl selection returns immediately to the
     // normal one-node interaction model.
-    if (!touchInteraction && multiSelectionEnabled && multiSelectionActivationMode === "ctrl") {
+    if (!touchInteraction && multiSelectionEnabled && !multiSelectionFocused && multiSelectionActivationMode === "ctrl") {
       setMultiSelectionEnabled(false, { clear: true });
-    } else if (multiSelectionEnabled) {
+    } else if (multiSelectionEnabled && !multiSelectionFocused) {
       toggleMultiSelectedNode(node);
       return;
     }
