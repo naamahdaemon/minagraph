@@ -23,6 +23,8 @@ assert.match(interactions, /if \(nearbyTouchNode\) \{[\s\S]*?const compatibility
 assert.match(interactions, /if \(!compatibilityDuplicate\) \{\s*if \(multiSelectionEnabled && !multiSelectionFocused\) toggleMultiSelectedNode\(nearbyTouchNode\);\s*else activateTouchedNode\(nearbyTouchNode/);
 assert.match(interactions, /const dragTolerance = isNativeTouchInteraction\(event\) \? 12 : 5/);
 assert.match(source, /const mobileNodeScale = window\.innerWidth <= 768 \? 1\.25 : 1/);
+assert.match(source, /const focusCandidate = strictTouchFocusedNode \|\| \(playbackFocus[\s\S]*?hoveredNode \|\| \(multiSelectionEnabled && !multiSelectionFocused \? null : selectedNode\)/,
+  'edge focus should follow hover, touch focus, playback, and multi-selection priorities');
 assert.equal((source.match(/tapMoveTolerance: 16/g) || []).length, 2);
 assert.match(interactions, /let lastTouchNodeClick = \{ node: null, time: 0, source: null \};/);
 assert.match(interactions, /if \(hasMoved \|\| suppressNodeClick \|\| !graph\.hasNode\(node\)\) return;/);

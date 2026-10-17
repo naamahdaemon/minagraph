@@ -10,17 +10,22 @@ const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
 assert.match(source, /let multiSelectionEnabled = false;/);
 assert.match(source, /const manuallyMultiSelectedNodes = new Set\(\);/);
 assert.match(source, /const timelineMultiSelectedNodes = new Set\(\);/);
+assert.match(source, /let multiSelectionFollowLinks = false;/);
 assert.match(source, /function edgeMatchesMultiSelection\(source, target\)/);
-assert.match(source, /if \(!multiSelectionEnabled \|\| !multiSelectionFocused\) return true;/,
-  'free multi-selection must preserve every node allowed by the other filters');
-assert.match(source, /selected\.size === 0 \|\| \(selected\.has\(source\) && selected\.has\(target\)\)/,
+assert.match(source, /if \(multiSelectionFocused\) return selected\.has\(source\) && selected\.has\(target\);/,
   'focused selection should retain only edges whose two endpoints are selected');
-assert.match(source, /function nodeMatchesMultiSelection\(node\)[\s\S]*?!multiSelectionFocused[\s\S]*?selected\.size === 0 \|\| selected\.has\(node\)/,
+assert.match(source, /if \(multiSelectionFollowLinks\) return selected\.has\(source\) \|\| selected\.has\(target\);/,
+  'follow-links mode should expose only edges incident to selected nodes');
+assert.match(source, /function nodeMatchesMultiSelection\(node\)[\s\S]*?if \(multiSelectionFocused\) return false;/,
   'focused selection should hide unselected nodes');
-assert.match(source, /edgeMatchesSelectedNodeDirection\(source, target, referenceNode\) &&\s*edgeMatchesMultiSelection\(source, target\) &&\s*edgeMatchesActiveColorFilter/,
+assert.match(source, /selected\.has\(otherNode\) && edgeMatchesActiveViewWithoutMultiSelection/,
+  'follow-links neighbors should still obey all non-selection filters');
+assert.match(source, /edgeMatchesActiveViewWithoutMultiSelection\(attributes, source, target, referenceNode\) &&\s*edgeMatchesMultiSelection\(source, target\)/,
   'multi-selection should intersect with every existing edge filter');
 assert.match(source, /function showNodePanel\(node, refreshExternalStatus = true\) \{\s*if \(multiSelectionEnabled && !multiSelectionFocused\) return;/,
   'details must stay closed during free selection but reopen when focus is fixed');
+assert.match(source, /if \(multiSelectionEnabled && !multiSelectionFocused && getMultiSelectedNodes\(\)\.has\(node\)\)/,
+  'selected-node highlight and forced labels must only apply while building an unfocused selection');
 assert.match(source, /function showGraphMultiSelectionMenu\(clientX, clientY\) \{\s*hideNodeColorMenu\(\);/,
   'opening the graph selection menu must call the existing node-color menu closer');
 assert.doesNotMatch(source, /closeNodeColorMenu\(/,
@@ -30,8 +35,8 @@ assert.match(source, /multiSelectionActivationMode === "ctrl"[\s\S]*?setMultiSel
   'a plain desktop click should leave Ctrl multi-selection');
 assert.match(source, /if \(ctrlSelection && !multiSelectionFocused\)[\s\S]*?else if \(multiSelectionEnabled && !multiSelectionFocused\) \{\s*toggleMultiSelectedNode\(node\);/,
   'focused multi-selection should use normal node click behaviour instead of deselecting nodes');
-assert.match(source, /const focusNode = multiSelectionEnabled && !multiSelectionFocused \? null : \(hoveredNode \|\| selectedNode\);/,
-  'focused multi-selection should restore normal hover and selected-node rendering');
+assert.match(source, /hoveredNode \|\| \(multiSelectionEnabled && !multiSelectionFocused \? null : selectedNode\)/,
+  'free multi-selection should preserve hover focus while suppressing persistent click focus');
 assert.match(source, /renderer\.on\("rightClickStage"[\s\S]*?showGraphMultiSelectionMenu/);
 assert.match(source, /function setupNativeGraphStageGestures\(\)[\s\S]*?document\.addEventListener\("contextmenu"[\s\S]*?stopImmediatePropagation[\s\S]*?showNodeColorMenu[\s\S]*?showGraphMultiSelectionMenu[\s\S]*?true\)/,
   'document-level captured contextmenu should reliably distinguish nodes from the empty graph');
@@ -48,6 +53,8 @@ assert.match(source, /data-multi-selection-action="delete-unselected"/);
 assert.match(source, /data-multi-selection-action="delete-selected">Delete selected<\/button>/);
 assert.match(source, /data-multi-selection-action="delete-unselected">Delete unselected<\/button>/);
 assert.match(source, /class="graph-multi-selection-focus" role="switch"[\s\S]*?>Focus selection</);
+assert.match(source, /class="graph-multi-selection-neighbors" role="switch"[\s\S]*?>Follow links</);
+assert.match(source, /multiSelectionFollowLinks = !multiSelectionFollowLinks;\s*refreshMultiSelectionViews\(\);/);
 assert.match(source, /data-multi-selection-action="fetch-selected"/);
 assert.match(source, /async function fetchSelectedMultiSelectionNodes\(\)[\s\S]*?for \(const node of selectedNodes\)[\s\S]*?buildGraphRecursively\(node, requestedDepth, 0, chain, profileSignature\)[\s\S]*?animateLayout\(null, "initial"\)/,
   'selected-node fetch should be additive and run one layout after the batch');
@@ -63,7 +70,8 @@ assert.match(source, /timelineMultiSelectedNodes\.clear\(\);[\s\S]*?datePlayback
   'timeline transaction selection should update selected nodes');
 assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
+assert.match(style, /\.graph-multi-selection-neighbors\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v194/);
+assert.match(worker, /mina-graph-explorer-v198/);
 
 console.log('Multi-selection tests passed');

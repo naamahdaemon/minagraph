@@ -65,6 +65,10 @@ assert.match(script, /suppressNextClick = true;[\s\S]*?setMenuOpen\(true\)/);
 assert.match(script, /select\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\);[\s\S]*?runLayoutInWorker\(\);/);
 assert.match(script, /button\.setPointerCapture\?\.\(event\.pointerId\)/);
 assert.match(css, /#layout-algorithm-menu\s*\{[\s\S]*?top: calc\(100% \+ 6px\);[\s\S]*?z-index: var\(--z-command-popover\);/);
+assert.doesNotMatch(css, /#layout-algorithm-menu button\.is-selected::before[\s\S]*?content:\s*["']✓["']/,
+  'the selected layout should not display a redundant check mark');
+assert.match(script, /document\.addEventListener\("pointerdown",[\s\S]*?closeMenuFromOutside\(event\);[\s\S]*?\}, true\);/,
+  'a captured primary pointer tap should close the layout menu on mobile');
 assert.match(script, /sidebarButton\.textContent = state === "running" \? "Stop Layout" : "Apply Layout \(L\)"/);
 assert.match(script, /FILTER_PANEL_VISIBILITY_KEY = "minagraphFilterPanelVisible"/);
 assert.match(script, /localStorage\.setItem\(FILTER_PANEL_VISIBILITY_KEY, String\(isFilterPanelVisible\)\)/);

@@ -89,6 +89,7 @@ let strictTouchFocusedNode = null;
 let multiSelectionEnabled = false;
 let multiSelectionActivationMode = null;
 let multiSelectionFocused = false;
+let multiSelectionFollowLinks = false;
 let multiSelectionFetchInProgress = false;
 let suppressGraphStageClickUntil = 0;
 const manuallyMultiSelectedNodes = new Set();
@@ -525,23 +526,43 @@ function getMultiSelectedNodes() {
 }
 
 function edgeMatchesMultiSelection(source, target) {
-  if (!multiSelectionEnabled || !multiSelectionFocused) return true;
+  if (!multiSelectionEnabled) return true;
   const selected = getMultiSelectedNodes();
-  return selected.size === 0 || (selected.has(source) && selected.has(target));
+  if (selected.size === 0) return true;
+  if (multiSelectionFocused) return selected.has(source) && selected.has(target);
+  if (multiSelectionFollowLinks) return selected.has(source) || selected.has(target);
+  return true;
 }
 
 function nodeMatchesMultiSelection(node) {
-  if (!multiSelectionEnabled || !multiSelectionFocused || !graph?.hasNode(node)) return true;
+  if (!multiSelectionEnabled || !graph?.hasNode(node)) return true;
   const selected = getMultiSelectedNodes();
-  return selected.size === 0 || selected.has(node);
+  if (selected.size === 0 || selected.has(node)) return true;
+  if (multiSelectionFocused) return false;
+  if (!multiSelectionFollowLinks) return true;
+  return graph.edges(node).some(edge => {
+    if (!graph.hasEdge(edge)) return false;
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    const otherNode = source === node ? target : source;
+    return selected.has(otherNode) && edgeMatchesActiveViewWithoutMultiSelection(
+      graph.getEdgeAttributes(edge),
+      source,
+      target
+    );
+  });
 }
 
-function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
+function edgeMatchesActiveViewWithoutMultiSelection(attributes, source, target, referenceNode = selectedNode) {
   return attributes?.hidden !== true &&
     transactionMatchesActiveLegendFilters(attributes) &&
     edgeMatchesSelectedNodeDirection(source, target, referenceNode) &&
-    edgeMatchesMultiSelection(source, target) &&
     edgeMatchesActiveColorFilter(source, target);
+}
+
+function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
+  return edgeMatchesActiveViewWithoutMultiSelection(attributes, source, target, referenceNode) &&
+    edgeMatchesMultiSelection(source, target);
 }
 
 function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
@@ -582,12 +603,12 @@ function getActiveGraphSubset() {
     focusNode ||
     commandTypeFilter.size > 0 ||
     chainFilter.size > 0 ||
-    (multiSelectionEnabled && multiSelectionFocused && getMultiSelectedNodes().size > 0)
+    (multiSelectionEnabled && (multiSelectionFocused || multiSelectionFollowLinks) && getMultiSelectedNodes().size > 0)
   );
   const nodes = new Set(edgeNodes);
   if (!relationshipFilterActive) {
     graph.forEachNode((node, attributes) => {
-      if (attributes.hidden !== true && nodeMatchesActiveColorFilter(node)) nodes.add(node);
+      if (attributes.hidden !== true && nodeMatchesActiveColorFilter(node) && nodeMatchesMultiSelection(node)) nodes.add(node);
     });
   } else {
     if (focusNode && graph.hasNode(focusNode) && graph.getNodeAttribute(focusNode, "hidden") !== true &&
@@ -4705,9 +4726,17 @@ function initializeLayoutAlgorithmMenu() {
     event.preventDefault();
     setMenuOpen(true);
   });
-  document.addEventListener("click", event => {
+  const closeMenuFromOutside = event => {
     if (!menu.hidden && !menu.contains(event.target) && !button.contains(event.target)) setMenuOpen(false);
-  });
+  };
+  // Mobile browsers can hand a graph gesture to Sigma without emitting the
+  // synthetic click observed on desktop. Capture the initial primary pointer
+  // contact so any tap outside closes the popover consistently.
+  document.addEventListener("pointerdown", event => {
+    if (event.button !== undefined && event.button !== 0) return;
+    closeMenuFromOutside(event);
+  }, true);
+  document.addEventListener("click", closeMenuFromOutside);
   window.addEventListener("resize", () => {
     if (!menu.hidden) positionMenu();
   });
@@ -8525,7 +8554,10 @@ function setupReducers() {
       };
     }
 
-    if (multiSelectionEnabled && getMultiSelectedNodes().has(node)) {
+    // Selection candidates stay prominent while the user is building the set.
+    // Once focused, restore normal hover/click/label rendering so "Show labels"
+    // and mobile's two-step interaction behave like the regular graph view.
+    if (multiSelectionEnabled && !multiSelectionFocused && getMultiSelectedNodes().has(node)) {
       return {
         ...data,
         color: glowColor,
@@ -8658,7 +8690,6 @@ function setupReducers() {
 
     data = { ...data, type: showEdgeDirections ? "arrow" : "line" };
 
-    const focusNode = multiSelectionEnabled && !multiSelectionFocused ? null : (hoveredNode || selectedNode);
     const command = data.command_type || data.label;
     const visualSize = edgeThicknessMode === "uniform"
       ? DEFAULT_EDGE_SIZE
@@ -8697,6 +8728,13 @@ function setupReducers() {
       };
 
     const playbackFocus = getDatePlaybackFocus();
+    // Hover remains a temporary visual focus while an unfixed multi-selection
+    // is being built. Only its persistent click selection is suppressed.
+    // This ordering mirrors the node reducer, including touch and playback.
+    const focusCandidate = strictTouchFocusedNode || (playbackFocus
+      ? null
+      : (hoveredNode || (multiSelectionEnabled && !multiSelectionFocused ? null : selectedNode)));
+    const focusNode = focusCandidate && graph.hasNode(focusCandidate) ? focusCandidate : null;
     if (strictTouchFocusedNode && !edgeMatchesStrictTouchFocus(edge)) {
       return { ...data, hidden: true };
     }
@@ -8776,7 +8814,10 @@ function refreshMultiSelectionViews() {
 function setMultiSelectionEnabled(enabled, { clear = false, mode = "explicit" } = {}) {
   multiSelectionEnabled = Boolean(enabled);
   multiSelectionActivationMode = multiSelectionEnabled ? mode : null;
-  if (!multiSelectionEnabled) multiSelectionFocused = false;
+  if (!multiSelectionEnabled) {
+    multiSelectionFocused = false;
+    multiSelectionFollowLinks = false;
+  }
   selectedNode = null;
   strictTouchFocusedNode = null;
   setNodePanelOpen(false);
@@ -8793,6 +8834,7 @@ function resetMultiSelectionState() {
   multiSelectionEnabled = false;
   multiSelectionActivationMode = null;
   multiSelectionFocused = false;
+  multiSelectionFollowLinks = false;
   manuallyMultiSelectedNodes.clear();
   timelineMultiSelectedNodes.clear();
   closeGraphMultiSelectionMenu();
@@ -8833,6 +8875,7 @@ function ensureGraphMultiSelectionMenu() {
   menu.innerHTML = `
     <div class="graph-multi-selection-title">Node selection</div>
     <button type="button" class="graph-multi-selection-toggle" role="switch" aria-checked="false">Multi-selection</button>
+    <button type="button" class="graph-multi-selection-neighbors" role="switch" aria-checked="false">Follow links</button>
     <button type="button" class="graph-multi-selection-focus" role="switch" aria-checked="false">Focus selection</button>
     <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
     <button type="button" data-multi-selection-action="fetch-selected">Fetch selected nodes</button>
@@ -8848,6 +8891,12 @@ function ensureGraphMultiSelectionMenu() {
     event.stopPropagation();
     if (!multiSelectionEnabled || getMultiSelectedNodes().size === 0) return;
     multiSelectionFocused = !multiSelectionFocused;
+    refreshMultiSelectionViews();
+  });
+  menu.querySelector(".graph-multi-selection-neighbors").addEventListener("click", event => {
+    event.stopPropagation();
+    if (!multiSelectionEnabled) return;
+    multiSelectionFollowLinks = !multiSelectionFollowLinks;
     refreshMultiSelectionViews();
   });
   menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
@@ -8868,6 +8917,10 @@ function updateGraphMultiSelectionMenu() {
   const toggle = menu.querySelector(".graph-multi-selection-toggle");
   toggle?.setAttribute("aria-checked", String(multiSelectionEnabled));
   toggle?.classList.toggle("is-active", multiSelectionEnabled);
+  const neighborsToggle = menu.querySelector(".graph-multi-selection-neighbors");
+  neighborsToggle?.setAttribute("aria-checked", String(multiSelectionFollowLinks));
+  neighborsToggle?.classList.toggle("is-active", multiSelectionFollowLinks);
+  if (neighborsToggle) neighborsToggle.disabled = !multiSelectionEnabled;
   const count = menu.querySelector(".graph-multi-selection-count");
   if (count) count.textContent = `${selectedCount} node${selectedCount === 1 ? "" : "s"} selected`;
   const focusToggle = menu.querySelector(".graph-multi-selection-focus");
