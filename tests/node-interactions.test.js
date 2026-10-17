@@ -30,7 +30,7 @@ assert.match(interactions, /ignoreStageClickUntil = Date\.now\(\) \+ 150;/);
 assert.match(interactions, /renderer\.on\("clickStage", \(\{ event \}\) => \{[\s\S]*?Date\.now\(\) <= ignoreStageClickUntil \|\| Date\.now\(\) <= suppressGraphStageClickUntil/);
 assert.match(interactions, /renderer\.on\("clickStage", \(\{ event \}\) => \{\s*if \(Date\.now\(\) <= ignoreStageClickUntil \|\| Date\.now\(\) <= suppressGraphStageClickUntil\) return;\s*closeGraphMultiSelectionMenu\(\);\s*if \(isFullscreen && fullscreenUiVisible\) \{\s*setFullscreenUiVisible\(false\);/);
 assert.match(interactions, /const qualifiedStageReveal = !touchStageClick \|\| Date\.now\(\) - lastQualifiedGraphTouchTapAt < 300;[\s\S]*?setFullscreenUiVisible\(true, \{ openSidebar: false \}\);/);
-assert.match(interactions, /selectedNode = node;\s*strictTouchFocusedNode = null;\s*showNodePanel\(node\);/);
+assert.match(interactions, /selectedNode = node;\s*strictTouchFocusedNode = null;\s*rebuildVisibleGraphMetrics\(\);\s*showNodePanel\(node\);/);
 assert.match(interactions, /touchCompatibilityClick &&[\s\S]*?lastTouchNodeClick\.source === "native"[\s\S]*?now - lastTouchNodeClick\.time < 250/);
 assert.match(interactions, /const nodeDetailsSecondTapWindowMs = 1800/);
 assert.match(interactions, /const isSecondTouchTap =[\s\S]*?lastTouchNodeClick\.node === node &&[\s\S]*?now - lastTouchNodeClick\.time < nodeDetailsSecondTapWindowMs/);
