@@ -64,6 +64,6 @@ assert.match(source, /timelineMultiSelectedNodes\.clear\(\);[\s\S]*?datePlayback
 assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v193/);
+assert.match(worker, /mina-graph-explorer-v194/);
 
 console.log('Multi-selection tests passed');

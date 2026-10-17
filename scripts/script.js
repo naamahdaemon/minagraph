@@ -424,6 +424,7 @@ const MAX_WEIGHTED_EDGE_SIZE = 4;
 let isFilterPanelVisible = true;
 let edgeThicknessMode = "uniform";
 let edgeVisualSizes = new Map();
+let nodeVisualSizes = new Map();
 
 const LAYOUT_PARAMETER_HELP = Object.freeze({
   "layout-algorithm": "Selects the spatialization model. Fruchterman-Reingold produces balanced force-directed layouts; ForceAtlas2 emphasizes hubs and communities; Spacious adds a dedicated expansion and anti-overlap pass without changing the other layouts; OpenOrd-inspired favors large-scale separation and is experimental.",
@@ -827,7 +828,7 @@ function refreshSelectedNodePanelIfOpen() {
 }
 
 function refreshLegendFilteredViews() {
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
   refreshSelectedNodePanelIfOpen();
   refreshDatePlaybackFeedForCurrentRange();
@@ -1225,6 +1226,7 @@ function clearDatePlaybackFocus({ refresh = true } = {}) {
   document.querySelectorAll(".date-playback-transaction.active").forEach(item => item.classList.remove("active"));
   const clearButton = document.getElementById("date-playback-clear-focus");
   if (clearButton) clearButton.hidden = true;
+  rebuildVisibleGraphMetrics();
   refreshSelectedNodePanelIfOpen();
   if (refresh) renderer?.refresh?.();
 }
@@ -1251,6 +1253,7 @@ function focusDatePlaybackTransaction(edge) {
   });
   const clearButton = document.getElementById("date-playback-clear-focus");
   if (clearButton) clearButton.hidden = datePlaybackFocusedEdges.size === 0;
+  rebuildVisibleGraphMetrics();
   refreshSelectedNodePanelIfOpen();
   renderer?.refresh?.();
 }
@@ -7140,7 +7143,7 @@ function deleteVisibleNodeInteractions(nodeId) {
   });
 
   rebuildTransactionsByNeighbor();
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
     showNodePanel(selectedNode, false);
@@ -7177,7 +7180,7 @@ function deleteTransactionFromGraph(encodedEdgeId) {
   });
 
   rebuildTransactionsByNeighbor();
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
     showNodePanel(selectedNode, false);
@@ -7435,15 +7438,41 @@ function getEdgeTransferredAmount(attributes) {
   return getSortableNodeTransactionAmount(attributes, "amount");
 }
 
-function rebuildEdgeVisualSizes() {
+function getRenderedEdgeRecords() {
+  if (!graph) return [];
+  const renderedEdges = new Set(getActiveGraphSubset().edges);
+  const records = [];
+  renderedEdges.forEach(edge => {
+    if (!graph.hasEdge(edge)) return;
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    records.push({
+      edge,
+      source,
+      target,
+      attributes: graph.getEdgeAttributes(edge),
+      relation: getEdgeRelationKey(source, target)
+    });
+  });
+  return records;
+}
+
+function rebuildNodeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
+  nodeVisualSizes = new Map();
+  if (!graph) return;
+  const visibleDegrees = new Map();
+  visibleEdges.forEach(({ source, target }) => {
+    visibleDegrees.set(source, (visibleDegrees.get(source) || 0) + 1);
+    visibleDegrees.set(target, (visibleDegrees.get(target) || 0) + 1);
+  });
+  graph.forEachNode(node => {
+    nodeVisualSizes.set(node, 4 + Math.sqrt(visibleDegrees.get(node) || 0));
+  });
+}
+
+function rebuildEdgeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
   edgeVisualSizes = new Map();
   if (!graph || edgeThicknessMode === "uniform") return;
-
-  const visibleEdges = [];
-  graph.forEachEdge((edge, attributes, source, target) => {
-    if (!edgeMatchesActiveView(attributes, source, target)) return;
-    visibleEdges.push({ edge, attributes, relation: getEdgeRelationKey(source, target) });
-  });
 
   if (edgeThicknessMode === "transactions") {
     const counts = new Map();
@@ -7483,6 +7512,12 @@ function rebuildEdgeVisualSizes() {
   });
 }
 
+function rebuildVisibleGraphMetrics() {
+  const visibleEdges = getRenderedEdgeRecords();
+  rebuildEdgeVisualSizes(visibleEdges);
+  rebuildNodeVisualSizes(visibleEdges);
+}
+
 function setEdgeThicknessMode(mode, { persist = true } = {}) {
   edgeThicknessMode = EDGE_THICKNESS_MODES.has(mode) ? mode : "uniform";
   const select = document.getElementById("edge-thickness-mode");
@@ -7494,7 +7529,7 @@ function setEdgeThicknessMode(mode, { persist = true } = {}) {
       console.warn("Unable to save edge thickness mode:", error);
     }
   }
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
   renderer?.refresh();
 }
 
@@ -8064,6 +8099,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   
   selectedNode = node;
   syncNodeDirectionFilterControls();
+  if (previouslySelectedNode !== node) rebuildVisibleGraphMetrics();
 
   let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
   visibleEdges.forEach(edge => {
@@ -8394,7 +8430,7 @@ function initRenderer() {
 }
 
 function setupReducers() {
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
   // Degree bounds must describe the loaded graph, independently of the chain
   // currently selected in the sidebar.
   const degrees = graph.nodes().map(node => graph.degree(node));
@@ -8448,7 +8484,7 @@ function setupReducers() {
 
     
     const mobileNodeScale = window.innerWidth <= 768 ? 1.25 : 1;
-    const defaultSize = (data.size || 5) * mobileNodeScale;
+    const defaultSize = (nodeVisualSizes.get(node) ?? data.size ?? 5) * mobileNodeScale;
     //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
 
@@ -8732,6 +8768,7 @@ function refreshMultiSelectionViews() {
   if (getMultiSelectedNodes().size === 0) multiSelectionFocused = false;
   syncNodeDirectionFilterControls();
   refreshDatePlaybackFeedForCurrentRange();
+  rebuildVisibleGraphMetrics();
   renderer?.refresh?.();
   updateGraphMultiSelectionMenu();
 }
@@ -8917,7 +8954,7 @@ async function fetchSelectedMultiSelectionNodes() {
 
     applyNodeSizesByDegree();
     rebuildTransactionsByNeighbor();
-    rebuildEdgeVisualSizes();
+    rebuildVisibleGraphMetrics();
     setupReducers();
     setupInteractions();
     setupSearch();
@@ -8957,7 +8994,7 @@ function deleteNodesFromMultiSelection(deleteSelected) {
   for (const node of [...timelineMultiSelectedNodes]) if (!graph.hasNode(node)) timelineMultiSelectedNodes.delete(node);
   for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
   rebuildTransactionsByNeighbor();
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
   if (deleteSelected) setMultiSelectionEnabled(false, { clear: true });
   else refreshMultiSelectionViews();
   closeGraphMultiSelectionMenu();
@@ -9153,6 +9190,7 @@ function setupInteractions() {
       strictTouchFocusedNode = node;
       syncNodeDirectionFilterControls();
       refreshDatePlaybackFeedForCurrentRange();
+      rebuildVisibleGraphMetrics();
     }
     renderer.refresh();
   };
@@ -9287,6 +9325,7 @@ function setupInteractions() {
 
     selectedNode = node;
     strictTouchFocusedNode = null;
+    rebuildVisibleGraphMetrics();
     showNodePanel(node);
     renderer.refresh();
   });
@@ -11190,7 +11229,7 @@ function applyDateFilter() {
 
   updateDateHistogramRange();
 
-  rebuildEdgeVisualSizes();
+  rebuildVisibleGraphMetrics();
 
   refreshSelectedNodePanelIfOpen();
 
@@ -11213,6 +11252,7 @@ function hideNodePanel(options = {}) {
   strictTouchFocusedNode = null;
   syncNodeDirectionFilterControls();
   refreshDatePlaybackFeedForCurrentRange();
+  rebuildVisibleGraphMetrics();
   renderer?.refresh();
 }
 

@@ -25,12 +25,15 @@ assert.equal(context.normalizeEdgeVisualMetric(0, 1, 100), 0.8);
 
 assert.match(html, /id="edge-thickness-mode"[\s\S]*?value="uniform"[\s\S]*?value="transactions"[\s\S]*?value="amount"/);
 assert.match(script, /EDGE_THICKNESS_STORAGE_KEY = "minagraphEdgeThicknessMode"/);
-assert.match(script, /function rebuildEdgeVisualSizes\(\)/);
+assert.match(script, /function rebuildEdgeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);
+assert.match(script, /function rebuildNodeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);
+assert.match(script, /nodeVisualSizes\.set\(node, 4 \+ Math\.sqrt\(visibleDegrees\.get\(node\) \|\| 0\)\)/);
+assert.match(script, /const defaultSize = \(nodeVisualSizes\.get\(node\) \?\? data\.size \?\? 5\)/);
 assert.match(script, /getEdgeRelationKey\(source, target\)/);
 assert.match(script, /getEdgeAssetKey\(attributes\)/);
 assert.match(script, /if \(!\["payment", "transfer"\]\.includes\(command\)\) return 0;/);
 assert.match(script, /size: isFocusEdge \? Math\.max\(1\.5, visualSize \* 1\.35\) : 0\.4/);
 assert.match(script, /size: visualSize/);
-assert.match(script, /function applyDateFilter\(\)[\s\S]*?rebuildEdgeVisualSizes\(\);/);
+assert.match(script, /function applyDateFilter\(\)[\s\S]*?rebuildVisibleGraphMetrics\(\);/);
 
 console.log('Edge thickness tests passed');
