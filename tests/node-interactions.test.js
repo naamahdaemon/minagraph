@@ -20,7 +20,7 @@ assert.match(interactions, /const viewportPosition = renderer\.framedGraphToView
 assert.match(interactions, /Math\.hypot\(viewportPosition\.x - pointerX, viewportPosition\.y - pointerY\)/);
 assert.match(interactions, /const touchRadius = Math\.max\(22, Number\(displayData\.size \|\| 0\) \+ 10\)/);
 assert.match(interactions, /if \(nearbyTouchNode\) \{[\s\S]*?const compatibilityDuplicate =/);
-assert.match(interactions, /if \(!compatibilityDuplicate\) \{\s*if \(multiSelectionEnabled\) toggleMultiSelectedNode\(nearbyTouchNode\);\s*else activateTouchedNode\(nearbyTouchNode/);
+assert.match(interactions, /if \(!compatibilityDuplicate\) \{\s*if \(multiSelectionEnabled && !multiSelectionFocused\) toggleMultiSelectedNode\(nearbyTouchNode\);\s*else activateTouchedNode\(nearbyTouchNode/);
 assert.match(interactions, /const dragTolerance = isNativeTouchInteraction\(event\) \? 12 : 5/);
 assert.match(source, /const mobileNodeScale = window\.innerWidth <= 768 \? 1\.25 : 1/);
 assert.equal((source.match(/tapMoveTolerance: 16/g) || []).length, 2);
