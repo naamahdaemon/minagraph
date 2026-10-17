@@ -11,10 +11,12 @@ assert.match(source, /nodeColors: \[\.\.\.nodeColorFilter\]\.sort\(\)/);
 assert.match(source, /function focusDatePlaybackTransaction\(edge\)[\s\S]*?refreshSelectedNodePanelIfOpen\(\);/);
 const helper = source.match(/function transactionMatchesActiveLegendFilters\(transaction\) \{[\s\S]*?\n\}/)?.[0];
 const directionHelper = source.match(/function edgeMatchesSelectedNodeDirection\(source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
+const nonSelectionViewHelper = source.match(/function edgeMatchesActiveViewWithoutMultiSelection\(attributes, source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
 const activeViewHelper = source.match(/function edgeMatchesActiveView\(attributes, source, target, referenceNode = selectedNode\) \{[\s\S]*?\n\}/)?.[0];
 
 assert.ok(helper, 'Shared legend filter helper should exist');
 assert.ok(directionHelper, 'Shared selected-node direction helper should exist');
+assert.ok(nonSelectionViewHelper, 'Shared non-selection edge visibility helper should exist');
 assert.ok(activeViewHelper, 'Shared edge visibility helper should exist');
 assert.match(source, /graph\.edges\(node\)\.filter\(edge =>\s*graphEdgeMatchesActiveView\(edge, node\)/);
 assert.match(source, /function refreshLegendFilteredViews\(\)/);
@@ -43,7 +45,7 @@ const activeViewContext = {
   selectedNode: 'selected',
   selectedNodeDirectionFilter: 'all'
 };
-vm.runInNewContext(`${directionHelper}; ${activeViewHelper}; result = edgeMatchesActiveView;`, activeViewContext);
+vm.runInNewContext(`${directionHelper}; ${nonSelectionViewHelper}; ${activeViewHelper}; result = edgeMatchesActiveView;`, activeViewContext);
 assert.equal(activeViewContext.result({ hidden: false, blockchain: 'avalanche' }, 'sender', 'selected'), true);
 assert.equal(activeViewContext.result({ blockchain: 'linea' }, 'selected', 'receiver'), true);
 assert.equal(activeViewContext.result({ hidden: true, blockchain: 'scroll' }, 'sender', 'selected'), false);
