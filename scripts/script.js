@@ -88,6 +88,8 @@ let selectedNode = null;
 let strictTouchFocusedNode = null;
 let multiSelectionEnabled = false;
 let multiSelectionActivationMode = null;
+let multiSelectionFocused = false;
+let multiSelectionFetchInProgress = false;
 let suppressGraphStageClickUntil = 0;
 const manuallyMultiSelectedNodes = new Set();
 const timelineMultiSelectedNodes = new Set();
@@ -522,19 +524,15 @@ function getMultiSelectedNodes() {
 }
 
 function edgeMatchesMultiSelection(source, target) {
-  if (!multiSelectionEnabled) return true;
+  if (!multiSelectionEnabled || !multiSelectionFocused) return true;
   const selected = getMultiSelectedNodes();
-  return selected.size === 0 || selected.has(source) || selected.has(target);
+  return selected.size === 0 || (selected.has(source) && selected.has(target));
 }
 
 function nodeMatchesMultiSelection(node) {
-  if (!multiSelectionEnabled || !graph?.hasNode(node)) return true;
+  if (!multiSelectionEnabled || !multiSelectionFocused || !graph?.hasNode(node)) return true;
   const selected = getMultiSelectedNodes();
-  if (selected.size === 0 || selected.has(node)) return true;
-  return graph.edges(node).some(edge => {
-    if (!graph.hasEdge(edge)) return false;
-    return edgeMatchesMultiSelection(graph.source(edge), graph.target(edge));
-  });
+  return selected.size === 0 || selected.has(node);
 }
 
 function edgeMatchesActiveView(attributes, source, target, referenceNode = selectedNode) {
@@ -583,7 +581,7 @@ function getActiveGraphSubset() {
     focusNode ||
     commandTypeFilter.size > 0 ||
     chainFilter.size > 0 ||
-    (multiSelectionEnabled && getMultiSelectedNodes().size > 0)
+    (multiSelectionEnabled && multiSelectionFocused && getMultiSelectedNodes().size > 0)
   );
   const nodes = new Set(edgeNodes);
   if (!relationshipFilterActive) {
@@ -8497,14 +8495,15 @@ function setupReducers() {
         color: glowColor,
         overrideColor: glowColor,
         label: renderedLabel,
-        labelSize: 36,
-        labelColor: { color: isLightTheme() ? "#000" : "#fff" },
+        labelSize: 40,
+        labelColor: { color: isLightTheme() ? "#004f6d" : "#7fddff" },
         forceLabelColor: true,
-        size: defaultSize * 1.8,
-        borderColor: "#4fc3f7",
-        borderSize: 14,
+        highlighted: true,
+        size: defaultSize * 2.25,
+        borderColor: isLightTheme() ? "#007da8" : "#ffffff",
+        borderSize: 20,
         opacity: 1,
-        zIndex: 8
+        zIndex: 12
       };
     }
 
@@ -8730,6 +8729,7 @@ function syncTimelineNodesToMultiSelection() {
 }
 
 function refreshMultiSelectionViews() {
+  if (getMultiSelectedNodes().size === 0) multiSelectionFocused = false;
   syncNodeDirectionFilterControls();
   refreshDatePlaybackFeedForCurrentRange();
   renderer?.refresh?.();
@@ -8739,6 +8739,7 @@ function refreshMultiSelectionViews() {
 function setMultiSelectionEnabled(enabled, { clear = false, mode = "explicit" } = {}) {
   multiSelectionEnabled = Boolean(enabled);
   multiSelectionActivationMode = multiSelectionEnabled ? mode : null;
+  if (!multiSelectionEnabled) multiSelectionFocused = false;
   selectedNode = null;
   strictTouchFocusedNode = null;
   setNodePanelOpen(false);
@@ -8754,6 +8755,7 @@ function setMultiSelectionEnabled(enabled, { clear = false, mode = "explicit" } 
 function resetMultiSelectionState() {
   multiSelectionEnabled = false;
   multiSelectionActivationMode = null;
+  multiSelectionFocused = false;
   manuallyMultiSelectedNodes.clear();
   timelineMultiSelectedNodes.clear();
   closeGraphMultiSelectionMenu();
@@ -8794,7 +8796,9 @@ function ensureGraphMultiSelectionMenu() {
   menu.innerHTML = `
     <div class="graph-multi-selection-title">Node selection</div>
     <button type="button" class="graph-multi-selection-toggle" role="switch" aria-checked="false">Multi-selection</button>
+    <button type="button" class="graph-multi-selection-focus" role="switch" aria-checked="false">Focus selection</button>
     <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
+    <button type="button" data-multi-selection-action="fetch-selected">Fetch selected nodes</button>
     <button type="button" data-multi-selection-action="delete-selected">Delete selected nodes</button>
     <button type="button" data-multi-selection-action="delete-unselected">Delete unselected nodes</button>
   `;
@@ -8803,10 +8807,18 @@ function ensureGraphMultiSelectionMenu() {
     event.stopPropagation();
     setMultiSelectionEnabled(!multiSelectionEnabled, { clear: multiSelectionEnabled, mode: "explicit" });
   });
+  menu.querySelector(".graph-multi-selection-focus").addEventListener("click", event => {
+    event.stopPropagation();
+    if (!multiSelectionEnabled || getMultiSelectedNodes().size === 0) return;
+    multiSelectionFocused = !multiSelectionFocused;
+    refreshMultiSelectionViews();
+  });
   menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
     button.addEventListener("click", event => {
       event.stopPropagation();
-      deleteNodesFromMultiSelection(button.dataset.multiSelectionAction === "delete-selected");
+      const action = button.dataset.multiSelectionAction;
+      if (action === "fetch-selected") fetchSelectedMultiSelectionNodes().catch(console.error);
+      else deleteNodesFromMultiSelection(action === "delete-selected");
     });
   });
   return menu;
@@ -8821,8 +8833,12 @@ function updateGraphMultiSelectionMenu() {
   toggle?.classList.toggle("is-active", multiSelectionEnabled);
   const count = menu.querySelector(".graph-multi-selection-count");
   if (count) count.textContent = `${selectedCount} node${selectedCount === 1 ? "" : "s"} selected`;
+  const focusToggle = menu.querySelector(".graph-multi-selection-focus");
+  focusToggle?.setAttribute("aria-checked", String(multiSelectionFocused));
+  focusToggle?.classList.toggle("is-active", multiSelectionFocused);
+  if (focusToggle) focusToggle.disabled = !multiSelectionEnabled || selectedCount === 0;
   menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
-    button.disabled = !multiSelectionEnabled || selectedCount === 0;
+    button.disabled = !multiSelectionEnabled || selectedCount === 0 || multiSelectionFetchInProgress;
   });
 }
 
@@ -8852,6 +8868,77 @@ function removeOrphanedGraphNodes() {
   if (hoveredNode && !graph.hasNode(hoveredNode)) hoveredNode = null;
   if (strictTouchFocusedNode && !graph.hasNode(strictTouchFocusedNode)) strictTouchFocusedNode = null;
   return orphanedNodes;
+}
+
+async function fetchSelectedMultiSelectionNodes() {
+  const selectedNodes = [...getMultiSelectedNodes()].filter(node => graph?.hasNode(node));
+  if (!multiSelectionEnabled || selectedNodes.length === 0 || multiSelectionFetchInProgress) return;
+  if (!syncFetchDateRangeFromInputs()) return;
+
+  const previousState = {
+    baseKey: BASE_KEY,
+    apiToken: API_TOKEN,
+    limit: LIMIT,
+    firstIterationLimit: FIRST_ITERATION_LIMIT,
+    depth: DEPTH
+  };
+  LIMIT = parseInt(document.getElementById("param-limit")?.value, 10);
+  FIRST_ITERATION_LIMIT = parseInt(document.getElementById("param-first-iteration")?.value, 10);
+  DEPTH = parseInt(document.getElementById("param-depth")?.value, 10);
+  const requestedDepth = Number.isFinite(DEPTH) ? DEPTH : 2;
+  const failures = [];
+  let completed = 0;
+
+  multiSelectionFetchInProgress = true;
+  cancelRequested = false;
+  updateGraphMultiSelectionMenu();
+  closeGraphMultiSelectionMenu();
+  if (isLayoutRunning) stopLayoutInWorker();
+  showLoader();
+
+  try {
+    for (const node of selectedNodes) {
+      if (cancelRequested) break;
+      const attributes = graph.getNodeAttributes(node);
+      const chain = getDominantNodeChain(node, attributes, selectedBlockchain) || selectedBlockchain;
+      try {
+        BASE_KEY = node;
+        API_TOKEN = chain === selectedBlockchain
+          ? (document.getElementById("param-api-token")?.value.trim() || getApiToken(chain))
+          : getApiToken(chain);
+        const profileSignature = getFetchProfileSignature(chain, node, requestedDepth);
+        await buildGraphRecursively(node, requestedDepth, 0, chain, profileSignature);
+        completed += 1;
+      } catch (error) {
+        failures.push({ node, chain, error });
+        console.error(`[Multi-selection] Fetch failed for ${node} on ${chain}:`, error);
+      }
+    }
+
+    applyNodeSizesByDegree();
+    rebuildTransactionsByNeighbor();
+    rebuildEdgeVisualSizes();
+    setupReducers();
+    setupInteractions();
+    setupSearch();
+    setupDateSlicer();
+    renderer?.refresh?.();
+    if (!cancelRequested && completed > 0) {
+      recenterAfterLayout = true;
+      animateLayout(null, "initial");
+    }
+    const failureText = failures.length ? ` ${failures.length} failed.` : "";
+    showToastNotification("Selected nodes fetched", `${completed}/${selectedNodes.length} completed.${failureText}`);
+  } finally {
+    BASE_KEY = previousState.baseKey;
+    API_TOKEN = previousState.apiToken;
+    LIMIT = previousState.limit;
+    FIRST_ITERATION_LIMIT = previousState.firstIterationLimit;
+    DEPTH = previousState.depth;
+    multiSelectionFetchInProgress = false;
+    hideLoader();
+    updateGraphMultiSelectionMenu();
+  }
 }
 
 function deleteNodesFromMultiSelection(deleteSelected) {

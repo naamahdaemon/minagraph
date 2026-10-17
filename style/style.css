@@ -450,7 +450,8 @@
       outline: none;
     }
 
-    .graph-multi-selection-menu .graph-multi-selection-toggle.is-active {
+    .graph-multi-selection-menu .graph-multi-selection-toggle.is-active,
+    .graph-multi-selection-menu .graph-multi-selection-focus.is-active {
       border-color: #4fc3f7;
       background: #087da8;
       color: #fff;
@@ -478,7 +479,8 @@
       color: #1f2a30;
     }
 
-    body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-toggle.is-active {
+    body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-toggle.is-active,
+    body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-focus.is-active {
       border-color: #087da8;
       background: #087da8;
       color: #fff;
