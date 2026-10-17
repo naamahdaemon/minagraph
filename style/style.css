@@ -339,12 +339,6 @@
       outline: none;
     }
 
-    #layout-algorithm-menu button.is-selected::before {
-      content: "✓";
-      position: absolute;
-      left: 10px;
-    }
-
     .layout-menu-adaptive-section {
       margin-top: 3px;
       padding-top: 7px;
@@ -451,6 +445,7 @@
     }
 
     .graph-multi-selection-menu .graph-multi-selection-toggle.is-active,
+    .graph-multi-selection-menu .graph-multi-selection-neighbors.is-active,
     .graph-multi-selection-menu .graph-multi-selection-focus.is-active {
       border-color: #4fc3f7;
       background: #087da8;
@@ -480,6 +475,7 @@
     }
 
     body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-toggle.is-active,
+    body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-neighbors.is-active,
     body[data-theme="light"] .graph-multi-selection-menu .graph-multi-selection-focus.is-active {
       border-color: #087da8;
       background: #087da8;
