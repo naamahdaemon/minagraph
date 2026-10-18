@@ -182,6 +182,57 @@ function applyPersistedNodeCustomColor(node) {
   return color;
 }
 
+function getFavoriteChainsForNode(node) {
+  if (!graph?.hasNode(node)) return [];
+  const chains = getNodeChains(node, graph.getNodeAttributes(node));
+  const fallbackChain = String(selectedBlockchain || "").trim().toLowerCase();
+  return [...new Set((chains.length ? chains : [fallbackChain]).filter(Boolean))];
+}
+
+function getNodeFavoriteEntries(node, chains = getFavoriteChainsForNode(node)) {
+  const chainSet = new Set(chains.map(chain => String(chain).toLowerCase()));
+  return getFavorites().filter(favorite =>
+    chainSet.has(String(favorite.chain || "").toLowerCase()) &&
+    addressesMatchForTransaction(favorite.address, node)
+  );
+}
+
+function saveNodeAsFavoriteAcrossChains(node, label = "") {
+  if (!graph?.hasNode(node)) return [];
+  const favoriteLabel = String(label || "").trim();
+  const chains = getFavoriteChainsForNode(node);
+  const favorites = getFavorites();
+  chains.forEach(chain => {
+    const index = favorites.findIndex(favorite =>
+      String(favorite.chain || "").toLowerCase() === chain &&
+      addressesMatchForTransaction(favorite.address, node)
+    );
+    if (index === -1) favorites.push({ address: node, chain, label: favoriteLabel });
+    else favorites[index] = { ...favorites[index], label: favoriteLabel };
+  });
+  saveFavorites(favorites);
+  refreshSearchAfterFavoriteChange();
+  return chains;
+}
+
+function removeNodeFromFavoritesAcrossChains(node) {
+  const chains = getFavoriteChainsForNode(node);
+  const chainSet = new Set(chains);
+  const favorites = getFavorites().filter(favorite => !(
+    chainSet.has(String(favorite.chain || "").toLowerCase()) &&
+    addressesMatchForTransaction(favorite.address, node)
+  ));
+  saveFavorites(favorites);
+  refreshSearchAfterFavoriteChange();
+  return chains;
+}
+
+function refreshSearchAfterFavoriteChange() {
+  const activeQuery = document.getElementById("search-input")?.value || "";
+  if (activeQuery.trim() && renderer) handleSearch(activeQuery);
+  else renderer?.refresh?.();
+}
+
 function ensureNodeColorMenu() {
   let menu = document.getElementById("node-color-menu");
   if (menu) return menu;
@@ -190,8 +241,17 @@ function ensureNodeColorMenu() {
   menu.className = "node-color-menu";
   menu.hidden = true;
   menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", "Node color");
+  menu.setAttribute("aria-label", "Node actions");
   menu.innerHTML = `
+    <div class="node-favorite-editor">
+      <label for="node-favorite-name">Node name</label>
+      <input id="node-favorite-name" type="text" autocomplete="off" placeholder="Optional favorite name">
+      <div class="node-favorite-actions">
+        <button type="button" data-node-favorite-save>Add favorite</button>
+        <button type="button" data-node-favorite-remove hidden>Remove</button>
+      </div>
+      <small data-node-favorite-chains></small>
+    </div>
     <div class="node-color-menu-title">Node color</div>
     <div class="node-color-swatches">
       ${NODE_CUSTOM_COLORS.map(color => `<button type="button" role="menuitem" data-node-color="${color.value}"
@@ -201,9 +261,23 @@ function ensureNodeColorMenu() {
   document.body.appendChild(menu);
 
   menu.addEventListener("click", event => {
+    const favoriteSaveButton = event.target.closest("[data-node-favorite-save]");
+    const favoriteRemoveButton = event.target.closest("[data-node-favorite-remove]");
     const colorButton = event.target.closest("[data-node-color]");
     const resetButton = event.target.closest("[data-node-color-reset]");
-    if (!nodeColorMenuNode || !graph?.hasNode(nodeColorMenuNode) || (!colorButton && !resetButton)) return;
+    if (!nodeColorMenuNode || !graph?.hasNode(nodeColorMenuNode)) return;
+    if (favoriteSaveButton) {
+      const name = menu.querySelector("#node-favorite-name")?.value || "";
+      saveNodeAsFavoriteAcrossChains(nodeColorMenuNode, name);
+      hideNodeColorMenu();
+      return;
+    }
+    if (favoriteRemoveButton) {
+      removeNodeFromFavoritesAcrossChains(nodeColorMenuNode);
+      hideNodeColorMenu();
+      return;
+    }
+    if (!colorButton && !resetButton) return;
     if (colorButton) {
       const color = colorButton.dataset.nodeColor;
       graph.setNodeAttribute(nodeColorMenuNode, "customColor", color);
@@ -217,6 +291,12 @@ function ensureNodeColorMenu() {
     }
     hideNodeColorMenu();
     refreshLegendFilteredViews();
+  });
+
+  menu.querySelector("#node-favorite-name")?.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    menu.querySelector("[data-node-favorite-save]")?.click();
   });
 
   document.addEventListener("pointerdown", event => {
@@ -283,6 +363,18 @@ function showNodeColorMenu(node, clientX, clientY) {
   if (!graph?.hasNode(node)) return;
   const menu = ensureNodeColorMenu();
   nodeColorMenuNode = node;
+  const chains = getFavoriteChainsForNode(node);
+  const favoriteEntries = getNodeFavoriteEntries(node, chains);
+  const nameInput = menu.querySelector("#node-favorite-name");
+  if (nameInput) nameInput.value = favoriteEntries[0]?.label || "";
+  const saveButton = menu.querySelector("[data-node-favorite-save]");
+  if (saveButton) saveButton.textContent = favoriteEntries.length ? "Save name" : "Add favorite";
+  const removeButton = menu.querySelector("[data-node-favorite-remove]");
+  if (removeButton) removeButton.hidden = favoriteEntries.length === 0;
+  const chainSummary = menu.querySelector("[data-node-favorite-chains]");
+  if (chainSummary) chainSummary.textContent = chains.length
+    ? `${favoriteEntries.length ? "Favorite" : "Add"} on: ${chains.map(getExplorerChainLabel).join(", ")}`
+    : "Favorite on the current blockchain";
   menu.hidden = false;
   menu.style.left = "0px";
   menu.style.top = "0px";
