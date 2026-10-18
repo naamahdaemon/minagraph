@@ -77,7 +77,7 @@ assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_SETTINGS_STORA
   'all adaptive viewport settings should be saved together');
 assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_STORAGE_KEY, String\(checkbox\.checked\)\)/,
   'adaptive viewport activation should be saved');
-assert.match(worker, /mina-graph-explorer-v201/);
+assert.match(worker, /mina-graph-explorer-v202/);
 assert.match(worker, /'\/scripts\/adaptive-viewport\.js'/);
 
 class FakeGraph {
