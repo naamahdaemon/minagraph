@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'scripts', 'script.js'), 'utf8');
@@ -50,6 +51,49 @@ assert.match(source, /renderer\.on\("downStage"[\s\S]*?isPrimaryDesktopPress[\s\
   'a mobile or desktop stage long-press should open the menu');
 assert.match(source, /data-multi-selection-action="delete-selected"/);
 assert.match(source, /data-multi-selection-action="delete-unselected"/);
+assert.match(source, /data-multi-selection-action="select-visible">Select All<\/button>/);
+const selectAllStart = source.indexOf('function getNodesVisibleInCurrentViewport()');
+const selectAllEnd = source.indexOf('function ensureGraphMultiSelectionMenu()', selectAllStart);
+const selectAllSource = source.slice(selectAllStart, selectAllEnd);
+assert.match(selectAllSource, /getGraphViewportInsets\(\)/,
+  'Select All should exclude viewport space covered by side panels');
+assert.match(selectAllSource, /displayData\.hidden === true/,
+  'Select All should exclude nodes hidden by active filters');
+assert.match(selectAllSource, /framedGraphToViewport/,
+  'Select All should use rendered visibility, camera bounds, and unobstructed viewport insets');
+assert.match(selectAllSource, /function selectAllVisibleNodes\(\)[\s\S]*?setMultiSelectionEnabled\(true, \{ mode: "explicit" \}\)[\s\S]*?manuallyMultiSelectedNodes\.add\(node\)/,
+  'Select All should activate multi-selection and add every currently visible viewport node');
+assert.match(source, /action === "select-visible"\) selectAllVisibleNodes\(\)/);
+assert.match(source, /const canSelectVisible = button\.dataset\.multiSelectionAction === "select-visible";/,
+  'Select All must remain available when the current selection is empty');
+
+const selectedNodes = new Set();
+let selectionEnabled = false;
+const displayData = {
+  centered: { x: 50, y: 40, size: 2, hidden: false },
+  hidden: { x: 40, y: 30, size: 2, hidden: true },
+  offscreen: { x: 120, y: 40, size: 2, hidden: false },
+  partial: { x: 5, y: 40, size: 6, hidden: false },
+};
+const selectAllContext = {
+  graph: { nodes: () => Object.keys(displayData), order: Object.keys(displayData).length },
+  renderer: {
+    getDimensions: () => ({ width: 100, height: 80 }),
+    getNodeDisplayData: node => displayData[node],
+    framedGraphToViewport: point => point,
+    scaleSize: size => size,
+  },
+  getGraphViewportInsets: () => ({ left: 10, right: 0, top: 0, bottom: 0 }),
+  multiSelectionEnabled: false,
+  setMultiSelectionEnabled: enabled => { selectionEnabled = enabled; selectAllContext.multiSelectionEnabled = enabled; },
+  manuallyMultiSelectedNodes: selectedNodes,
+  refreshMultiSelectionViews: () => {},
+};
+vm.runInNewContext(`${selectAllSource}\n;globalThis.selectAllApi = { getNodesVisibleInCurrentViewport, selectAllVisibleNodes };`, selectAllContext);
+assert.deepEqual(Array.from(selectAllContext.selectAllApi.getNodesVisibleInCurrentViewport()), ['centered', 'partial']);
+selectAllContext.selectAllApi.selectAllVisibleNodes();
+assert.equal(selectionEnabled, true);
+assert.deepEqual(Array.from(selectedNodes), ['centered', 'partial']);
 assert.match(source, /data-multi-selection-action="delete-selected">Delete selected<\/button>/);
 assert.match(source, /data-multi-selection-action="delete-unselected">Delete unselected<\/button>/);
 assert.match(source, /class="graph-multi-selection-focus" role="switch"[\s\S]*?>Focus selection</);
@@ -72,6 +116,6 @@ assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-neighbors\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v202/);
+assert.match(worker, /mina-graph-explorer-v203/);
 
 console.log('Multi-selection tests passed');

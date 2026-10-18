@@ -8999,6 +8999,37 @@ function toggleMultiSelectedNode(node) {
   refreshMultiSelectionViews();
 }
 
+function getNodesVisibleInCurrentViewport() {
+  if (!graph || !renderer) return [];
+  const dimensions = renderer.getDimensions?.();
+  if (!(dimensions?.width > 0 && dimensions?.height > 0)) return [];
+  const insets = getGraphViewportInsets();
+  const bounds = {
+    left: insets.left,
+    right: dimensions.width - insets.right,
+    top: insets.top,
+    bottom: dimensions.height - insets.bottom
+  };
+
+  return graph.nodes().filter(node => {
+    const displayData = renderer.getNodeDisplayData?.(node);
+    if (!displayData || displayData.hidden === true) return false;
+    const position = renderer.framedGraphToViewport?.({ x: displayData.x, y: displayData.y });
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return false;
+    const radius = Math.max(0, Number(renderer.scaleSize?.(displayData.size)) || Number(displayData.size) || 0);
+    return position.x + radius >= bounds.left && position.x - radius <= bounds.right &&
+      position.y + radius >= bounds.top && position.y - radius <= bounds.bottom;
+  });
+}
+
+function selectAllVisibleNodes() {
+  const visibleNodes = getNodesVisibleInCurrentViewport();
+  if (!multiSelectionEnabled) setMultiSelectionEnabled(true, { mode: "explicit" });
+  visibleNodes.forEach(node => manuallyMultiSelectedNodes.add(node));
+  refreshMultiSelectionViews();
+  return visibleNodes;
+}
+
 function ensureGraphMultiSelectionMenu() {
   let menu = document.getElementById("graph-multi-selection-menu");
   if (menu) return menu;
@@ -9013,6 +9044,7 @@ function ensureGraphMultiSelectionMenu() {
     <button type="button" class="graph-multi-selection-neighbors" role="switch" aria-checked="false">Follow links</button>
     <button type="button" class="graph-multi-selection-focus" role="switch" aria-checked="false">Focus selection</button>
     <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
+    <button type="button" data-multi-selection-action="select-visible">Select All</button>
     <button type="button" data-multi-selection-action="fetch-selected">Fetch selected nodes</button>
     <button type="button" data-multi-selection-action="delete-selected">Delete selected</button>
     <button type="button" data-multi-selection-action="delete-unselected">Delete unselected</button>
@@ -9038,7 +9070,8 @@ function ensureGraphMultiSelectionMenu() {
     button.addEventListener("click", event => {
       event.stopPropagation();
       const action = button.dataset.multiSelectionAction;
-      if (action === "fetch-selected") fetchSelectedMultiSelectionNodes().catch(console.error);
+      if (action === "select-visible") selectAllVisibleNodes();
+      else if (action === "fetch-selected") fetchSelectedMultiSelectionNodes().catch(console.error);
       else deleteNodesFromMultiSelection(action === "delete-selected");
     });
   });
@@ -9063,7 +9096,10 @@ function updateGraphMultiSelectionMenu() {
   focusToggle?.classList.toggle("is-active", multiSelectionFocused);
   if (focusToggle) focusToggle.disabled = !multiSelectionEnabled || selectedCount === 0;
   menu.querySelectorAll("[data-multi-selection-action]").forEach(button => {
-    button.disabled = !multiSelectionEnabled || selectedCount === 0 || multiSelectionFetchInProgress;
+    const canSelectVisible = button.dataset.multiSelectionAction === "select-visible";
+    button.disabled = canSelectVisible
+      ? !graph?.order
+      : !multiSelectionEnabled || selectedCount === 0 || multiSelectionFetchInProgress;
   });
 }
 
