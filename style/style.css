@@ -1904,6 +1904,69 @@
       font-weight: 700;
     }
 
+    .node-favorite-editor {
+      margin: -2px 0 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #555;
+    }
+
+    .node-favorite-editor > label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .node-favorite-editor input {
+      box-sizing: border-box;
+      width: 100%;
+      height: 34px;
+      padding: 5px 7px;
+      border: 1px solid #66747c;
+      border-radius: 6px;
+      background: #1f292e;
+      color: #fff;
+      font: inherit;
+      user-select: text;
+    }
+
+    .node-favorite-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .node-favorite-actions button {
+      min-height: 32px;
+      padding: 5px 9px;
+      border: 1px solid #66747c;
+      border-radius: 6px;
+      background: #1f292e;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .node-favorite-actions button:hover,
+    .node-favorite-actions button:focus-visible {
+      border-color: #58cfff;
+      background: #29404a;
+      outline: none;
+    }
+
+    .node-favorite-actions [data-node-favorite-remove] {
+      color: #ff8a80;
+    }
+
+    .node-favorite-editor small {
+      display: block;
+      margin-top: 5px;
+      color: #aeb9be;
+      font-size: 0.64rem;
+      line-height: 1.3;
+    }
+
     .node-color-swatches {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -2019,6 +2082,21 @@
       background: #f7fafc;
       color: #172026;
       box-shadow: 0 12px 34px rgba(23, 32, 38, 0.25);
+    }
+
+    body[data-theme="light"] .node-favorite-editor input,
+    body[data-theme="light"] .node-favorite-actions button {
+      background: #fff;
+      color: #172026;
+      border-color: #9aabb4;
+    }
+
+    body[data-theme="light"] .node-favorite-actions [data-node-favorite-remove] {
+      color: #b42318;
+    }
+
+    body[data-theme="light"] .node-favorite-editor small {
+      color: #52636c;
     }
 
     body[data-theme="light"] .node-color-reset {

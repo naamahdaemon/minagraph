@@ -12,6 +12,14 @@ const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
 assert.match(source, /const NODE_CUSTOM_COLORS = Object\.freeze\(\[/);
 assert.equal((source.match(/value: "#[0-9a-f]{6}", label: "Flash /g) || []).length, 20);
 assert.match(source, /function ensureNodeColorMenu\(\)/);
+assert.match(source, /id="node-favorite-name"/);
+assert.match(source, /data-node-favorite-save/);
+assert.match(source, /data-node-favorite-remove hidden/);
+assert.match(source, /function saveNodeAsFavoriteAcrossChains\(node, label = ""\)/);
+assert.match(source, /function removeNodeFromFavoritesAcrossChains\(node\)/);
+assert.match(source, /const chains = getNodeChains\(node, graph\.getNodeAttributes\(node\)\)/);
+assert.match(source, /favorites\.push\(\{ address: node, chain, label: favoriteLabel \}\)/);
+assert.match(source, /addressesMatchForTransaction\(favorite\.address, node\)/);
 assert.match(source, /data-node-color-reset>Reset color/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
 assert.match(source, /const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1"/);
@@ -33,6 +41,8 @@ assert.match(source, /nodeLongPressTimer = setTimeout\([\s\S]*?showNodeColorMenu
 assert.match(source, /cancelNodeLongPress\(\);\s*hasMoved = true/);
 assert.match(source, /suppressNodeClick = true;[\s\S]*?setTimeout\(\(\) => \{ suppressNodeClick = false; \}, 800\)/);
 assert.match(css, /\.node-color-menu\s*\{/);
+assert.match(css, /\.node-favorite-editor\s*\{/);
+assert.match(css, /\.node-favorite-actions\s*\{/);
 assert.match(css, /\.node-color-swatches\s*\{/);
 assert.match(css, /grid-template-columns: repeat\(5, 1fr\)/);
 assert.match(source, /id="node-color-filter-swatches"/);
@@ -65,7 +75,7 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v201/);
+assert.match(worker, /mina-graph-explorer-v202/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');
@@ -85,5 +95,31 @@ assert.equal(context.persistenceApi.getPersistedNodeCustomColor(evmAddress.toLow
 assert.match(storedValues.get('minagraph-node-custom-colors-v1'), /#ff1744/);
 context.persistenceApi.removePersistedNodeCustomColor(evmAddress.toLowerCase());
 assert.equal(context.persistenceApi.getPersistedNodeCustomColor(evmAddress), null);
+
+const favoriteHelperStart = source.indexOf('function getFavoriteChainsForNode');
+const favoriteHelperEnd = source.indexOf('function ensureNodeColorMenu', favoriteHelperStart);
+const favoriteHelperSource = source.slice(favoriteHelperStart, favoriteHelperEnd);
+let favoriteRows = [{ address: evmAddress.toLowerCase(), chain: 'ethereum', label: '' }];
+const favoriteContext = {
+  graph: {
+    hasNode: node => node.toLowerCase() === evmAddress.toLowerCase(),
+    getNodeAttributes: () => ({ chains: ['ethereum', 'polygon'] }),
+  },
+  selectedBlockchain: 'ethereum',
+  getNodeChains: () => ['ethereum', 'polygon'],
+  getFavorites: () => favoriteRows.map(row => ({ ...row })),
+  saveFavorites: rows => { favoriteRows = rows.map(row => ({ ...row })); },
+  addressesMatchForTransaction: (left, right) => left.toLowerCase() === right.toLowerCase(),
+  document: { getElementById: () => null },
+  renderer: { refresh: () => {} },
+};
+vm.runInNewContext(`${favoriteHelperSource}\n;globalThis.favoriteApi = { saveNodeAsFavoriteAcrossChains, removeNodeFromFavoritesAcrossChains };`, favoriteContext);
+favoriteContext.favoriteApi.saveNodeAsFavoriteAcrossChains(evmAddress, 'Shared EVM account');
+assert.deepEqual(favoriteRows.map(row => row.chain).sort(), ['ethereum', 'polygon']);
+assert.equal(favoriteRows.every(row => row.label === 'Shared EVM account'), true);
+favoriteContext.favoriteApi.saveNodeAsFavoriteAcrossChains(evmAddress, '');
+assert.equal(favoriteRows.every(row => row.label === ''), true, 'favorites without a name must remain valid');
+favoriteContext.favoriteApi.removeNodeFromFavoritesAcrossChains(evmAddress);
+assert.equal(favoriteRows.length, 0, 'removing a multichain node must remove every associated favorite');
 
 console.log('Node color context menu tests passed');
