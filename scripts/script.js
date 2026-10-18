@@ -84,6 +84,7 @@ const ADAPTIVE_VIEWPORT_DEFAULTS = Object.freeze({
 
 let hoveredNode = null;
 let searchQuery = "";
+let searchDirectlyMatchedNodes = new Set();
 let selectedNode = null;
 let strictTouchFocusedNode = null;
 let multiSelectionEnabled = false;
@@ -109,20 +110,25 @@ const NODE_DEFAULT_COLOR_FILTER = "__default__";
 const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1";
 const NODE_CUSTOM_COLORS = Object.freeze([
   { value: "#ff1744", label: "Flash red" },
-  { value: "#ffea00", label: "Flash yellow" },
-  { value: "#00e676", label: "Flash green" },
-  { value: "#00e5ff", label: "Flash cyan" },
-  { value: "#d500f9", label: "Flash magenta" },
+  { value: "#f50057", label: "Flash raspberry" },
+  { value: "#ff4081", label: "Flash pink" },
+  { value: "#ff9e80", label: "Flash coral" },
+  { value: "#ff3d00", label: "Flash vermilion" },
   { value: "#ff6d00", label: "Flash orange" },
   { value: "#ff9100", label: "Flash amber" },
+  { value: "#ffea00", label: "Flash yellow" },
   { value: "#c6ff00", label: "Flash lime" },
   { value: "#76ff03", label: "Flash chartreuse" },
+  { value: "#00e676", label: "Flash green" },
+  { value: "#00bfa5", label: "Flash deep teal" },
   { value: "#1de9b6", label: "Flash turquoise" },
+  { value: "#00e5ff", label: "Flash cyan" },
+  { value: "#00b0ff", label: "Flash sky blue" },
   { value: "#2979ff", label: "Flash blue" },
   { value: "#3d5afe", label: "Flash indigo" },
   { value: "#651fff", label: "Flash violet" },
-  { value: "#ff4081", label: "Flash pink" },
-  { value: "#ff9e80", label: "Flash coral" }
+  { value: "#aa00ff", label: "Flash electric purple" },
+  { value: "#d500f9", label: "Flash magenta" }
 ]);
 
 function loadPersistedNodeCustomColors() {
@@ -555,6 +561,7 @@ function nodeMatchesMultiSelection(node) {
 
 function edgeMatchesActiveViewWithoutMultiSelection(attributes, source, target, referenceNode = selectedNode) {
   return attributes?.hidden !== true &&
+    attributes?.searchHidden !== true &&
     transactionMatchesActiveLegendFilters(attributes) &&
     edgeMatchesSelectedNodeDirection(source, target, referenceNode) &&
     edgeMatchesActiveColorFilter(source, target);
@@ -586,7 +593,7 @@ function getActiveGraphSubset() {
   const edges = [];
   const edgeNodes = new Set();
   graph.forEachEdge((edge, attributes, source, target) => {
-    if (attributes.hidden === true || !transactionMatchesActiveLegendFilters(attributes)) return;
+    if (attributes.hidden === true || attributes.searchHidden === true || !transactionMatchesActiveLegendFilters(attributes)) return;
     if (!edgeMatchesActiveColorFilter(source, target)) return;
     if (!edgeMatchesMultiSelection(source, target)) return;
     if (playbackFocus && !playbackFocus.edges.has(edge)) return;
@@ -608,10 +615,11 @@ function getActiveGraphSubset() {
   const nodes = new Set(edgeNodes);
   if (!relationshipFilterActive) {
     graph.forEachNode((node, attributes) => {
-      if (attributes.hidden !== true && nodeMatchesActiveColorFilter(node) && nodeMatchesMultiSelection(node)) nodes.add(node);
+      if (attributes.hidden !== true && attributes.searchHidden !== true && nodeMatchesActiveColorFilter(node) && nodeMatchesMultiSelection(node)) nodes.add(node);
     });
   } else {
     if (focusNode && graph.hasNode(focusNode) && graph.getNodeAttribute(focusNode, "hidden") !== true &&
+        graph.getNodeAttribute(focusNode, "searchHidden") !== true &&
         nodeMatchesActiveColorFilter(focusNode)) nodes.add(focusNode);
   }
   return { nodes: [...nodes], edges };
@@ -1112,6 +1120,7 @@ function saveDatePlaybackSettings() {
       highlightDuration: Math.max(0.1, Number(document.getElementById("date-playback-highlight-duration")?.value) || DATE_PLAYBACK_DEFAULT_HIGHLIGHT_DURATION_SECONDS),
       rangeMode: document.getElementById("date-playback-range-mode")?.value || "cumulative",
       liveView: document.getElementById("date-playback-live-view")?.checked === true,
+      liveAutoLayout: document.getElementById("date-playback-live-auto-layout")?.checked !== false,
       collapsed: document.getElementById("date-playback-collapse")?.getAttribute("aria-expanded") === "false",
       sortRules: datePlaybackSortRules
     }));
@@ -1756,6 +1765,8 @@ function initializeDatePlaybackControls() {
   const highlightDuration = document.getElementById("date-playback-highlight-duration");
   const rangeMode = document.getElementById("date-playback-range-mode");
   const liveView = document.getElementById("date-playback-live-view");
+  const liveAutoLayout = document.getElementById("date-playback-live-auto-layout");
+  const liveAutoLayoutToggle = liveAutoLayout?.closest(".date-playback-live-layout-toggle");
   const sortToggle = document.getElementById("date-playback-sort-toggle");
   const sortPanel = document.getElementById("date-playback-sort-panel");
   if (stepValue && Number(storedSettings.stepValue) >= 1) stepValue.value = String(storedSettings.stepValue);
@@ -1770,6 +1781,7 @@ function initializeDatePlaybackControls() {
     ? storedSettings.rangeMode
     : "cumulative";
   if (liveView) liveView.checked = storedSettings.liveView === true;
+  if (liveAutoLayout) liveAutoLayout.checked = storedSettings.liveAutoLayout !== false;
   datePlaybackSortRules = normalizeDatePlaybackSortRules(storedSettings.sortRules);
   renderDatePlaybackSortRules();
   enabled.checked = storedSettings.enabled === true;
@@ -1785,7 +1797,11 @@ function initializeDatePlaybackControls() {
     }
     requestAnimationFrame(syncDateSlicerWithNodePanel);
   };
+  const syncLiveAutoLayoutVisibility = () => {
+    if (liveAutoLayoutToggle) liveAutoLayoutToggle.hidden = liveView?.checked !== true;
+  };
   syncSettingsVisibility();
+  syncLiveAutoLayoutVisibility();
 
   enabled.addEventListener("change", () => {
     datePlaybackAdvancedEnabled = enabled.checked;
@@ -1852,9 +1868,11 @@ function initializeDatePlaybackControls() {
     });
   });
   liveView?.addEventListener("change", () => {
+    syncLiveAutoLayoutVisibility();
     saveDatePlaybackSettings();
     if (!liveView.checked) clearLiveViewQueue();
   });
+  liveAutoLayout?.addEventListener("change", saveDatePlaybackSettings);
   document.querySelectorAll("[data-number-target]").forEach(button => {
     button.addEventListener("click", () => {
       const input = document.getElementById(button.dataset.numberTarget);
@@ -1874,6 +1892,11 @@ function initializeDatePlaybackControls() {
 function isLiveViewEnabled() {
   return datePlaybackAdvancedEnabled &&
     document.getElementById("date-playback-live-view")?.checked === true;
+}
+
+function isLiveViewAutoLayoutEnabled() {
+  return isLiveViewEnabled() &&
+    document.getElementById("date-playback-live-auto-layout")?.checked !== false;
 }
 
 function clearLiveViewQueue() {
@@ -2037,7 +2060,7 @@ function highlightLiveViewAdditions(nodes = [], edges = []) {
 }
 
 function runLiveViewLayoutIfIdle() {
-  if (isLayoutRunning || !graph?.order) return false;
+  if (!isLiveViewAutoLayoutEnabled() || isLayoutRunning || !graph?.order) return false;
   // Live View must honor the complete active layout configuration, including
   // the user-selected iteration count, rather than an automatic short profile.
   animateLayout(null, "initial");
@@ -8468,6 +8491,7 @@ function setupReducers() {
   
   renderer.setSetting("nodeReducer", (node, data) => {
     if (!graph.hasNode(node)) return { ...data, hidden: true };
+    if (data.searchHidden === true) return { ...data, hidden: true };
     if (!nodeMatchesActiveColorFilter(node)) return { ...data, hidden: true };
     if (!nodeMatchesMultiSelection(node)) return { ...data, hidden: true };
     const playbackFocus = getDatePlaybackFocus();
@@ -8497,8 +8521,8 @@ function setupReducers() {
     const allNetworksFetched = areAllCompatibleNetworksFetched(node);
 
     // ★— NEW: check if this node is in favorites
-    const isFav = isAddressInFavorites(node, primaryChain);
-    const favName = getFavoriteName(node, primaryChain);
+    const favName = getFavoriteName(node, primaryChain) || getFavoriteName(node);
+    const isFav = Boolean(favName) || isAddressInFavorites(node, primaryChain);
     const renderedLabel = `${allNetworksFetched ? "✓ " : ""}${data.label}${isFav ? ` ⭐ (${favName})` : ""}`;
 
     if (data.customColor) {
@@ -8647,6 +8671,24 @@ function setupReducers() {
       };
     }
 
+    if (searchDirectlyMatchedNodes.has(node)) {
+      return {
+        ...data,
+        color: "#ffff00",
+        overrideColor: "#ffff00",
+        label: renderedLabel,
+        labelSize: 36,
+        labelColor: { color: "#000" },
+        forceLabelColor: true,
+        highlighted: true,
+        size: defaultSize * 1.6,
+        borderColor: isLightTheme() ? "#8a6f00" : "#fff",
+        borderSize: 8,
+        opacity: 1,
+        zIndex: 10
+      };
+    }
+
     // 🧩 Default view
     standardNode = {
       ...data,
@@ -8687,6 +8729,7 @@ function setupReducers() {
     // replacement event. Never resolve extremities for an edge that has already
     // disappeared from the graph.
     if (!graph.hasEdge(edge)) return { ...data, hidden: true };
+    if (data.searchHidden === true) return { ...data, hidden: true };
 
     data = { ...data, type: showEdgeDirections ? "arrow" : "line" };
 
@@ -9638,23 +9681,17 @@ function setupSearch() {
 
 function handleSearch(query) {
   const trimmed = query.trim();
+  searchQuery = trimmed;
 
   if (!trimmed) {
     graph.forEachNode(n => {
-      graph.setNodeAttribute(n, "hidden", false);
+      graph.removeNodeAttribute(n, "searchHidden");
     });
     graph.forEachEdge(e => {
-      graph.setEdgeAttribute(e, "hidden", false);
+      graph.removeEdgeAttribute(e, "searchHidden");
     });
-
-    renderer.setSetting("nodeReducer", (node, attr) => ({
-      ...attr,
-      color: attr.customColor || attr.originalColor || attr.color,
-      zIndex: 1
-    }));
-
-    setupReducers();
-
+    searchDirectlyMatchedNodes = new Set();
+    rebuildVisibleGraphMetrics();
     renderer.refresh();
     return;
   }
@@ -9737,35 +9774,17 @@ function handleSearch(query) {
 
   // ✅ Step 3: update visibility attributes
   graph.forEachNode(n => {
-    graph.setNodeAttribute(n, "hidden", !visibleNodes.has(n));
+    graph.setNodeAttribute(n, "searchHidden", !visibleNodes.has(n));
   });
 
   graph.forEachEdge(e => {
-    graph.setEdgeAttribute(e, "hidden", !visibleEdges.has(e));
+    graph.setEdgeAttribute(e, "searchHidden", !visibleEdges.has(e));
   });
 
-  // ✅ Step 4: highlight only strictly matched nodes
-  renderer.setSetting("nodeReducer", (node, attr) => {
-    if (graph.getNodeAttribute(node, "hidden")) return attr;
-
-    if (directlyMatchedNodes.has(node)) {
-      return {
-        ...attr,
-        color: "#ffff00",
-        zIndex: 10,
-        size: (attr.size || 6) * 1.6, // bigger node
-        highlighted: true        // optional flag if needed later
-      };
-    }
-
-    return {
-      ...attr,
-      color: attr.customColor || attr.originalColor || attr.color,
-      zIndex: 1,
-      size: attr.size || 6
-    };
-  });
-
+  // Keep search highlighting inside the shared reducer so favorite labels,
+  // touch selection and multi-selection retain their normal behavior.
+  searchDirectlyMatchedNodes = directlyMatchedNodes;
+  rebuildVisibleGraphMetrics();
   renderer.refresh();
 }
 
@@ -12720,9 +12739,11 @@ function loadLocalStorageFromJsonFile(file) {
     setTimeout(() => window.location.href = window.location.origin + window.location.pathname, 1000);
   }
   
-  function getFavoriteName(address, chain) {
-    const fav = getFavorites().find(
-      f => f.address === address && f.chain === chain
-    );
+  function getFavoriteName(address, chain = null) {
+    const favorites = getFavorites();
+    const addressMatches = favorite => addressesMatchForTransaction(favorite.address, address);
+    const fav = (chain
+      ? favorites.find(favorite => addressMatches(favorite) && favorite.chain === chain)
+      : null) || favorites.find(addressMatches);
     return fav ? fav.label : null;
   }  

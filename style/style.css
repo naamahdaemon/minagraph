@@ -1030,6 +1030,21 @@
       font: 10px/1 'Coda', sans-serif;
     }
 
+    .date-playback-live-options {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+    }
+
+    .date-playback-live-options .date-playback-live-toggle {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+
+    .date-playback-live-layout-toggle[hidden] {
+      display: none !important;
+    }
+
     .date-playback-live-toggle input {
       accent-color: #4fc3f7;
     }
@@ -2970,9 +2985,8 @@
       gap: 6px;
     }
 
-    body.mobile-mode .date-playback-mode-row .date-playback-live-toggle {
+    body.mobile-mode .date-playback-mode-row .date-playback-live-options {
       grid-column: 1 / -1;
-      justify-content: center;
     }
 
     body.mobile-mode .date-playback-number-control,
