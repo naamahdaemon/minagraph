@@ -47,6 +47,9 @@ assert.match(source, /const DATE_PLAYBACK_STORAGE_KEY = "minagraph-date-playback
 assert.match(source, /function saveDatePlaybackSettings\(\)/);
 assert.match(source, /rangeMode: document\.getElementById\("date-playback-range-mode"\)\?\.value \|\| "cumulative"/);
 assert.match(source, /liveView: document\.getElementById\("date-playback-live-view"\)\?\.checked === true/);
+assert.match(source, /liveAutoLayout: document\.getElementById\("date-playback-live-auto-layout"\)\?\.checked !== false/);
+assert.match(html, /id="date-playback-live-auto-layout"[^>]*type="checkbox"[^>]*checked/);
+assert.match(html, /date-playback-live-layout-toggle[^>]*[\s\S]*?Auto layout/);
 assert.match(source, /collapsed: document\.getElementById\("date-playback-collapse"\)/);
 assert.match(source, /collapse\?\.addEventListener\("click"/);
 assert.match(source, /function preserveDatePlaybackDuringPanelToggle\(\)/);
@@ -107,7 +110,7 @@ assert.match(source, /function refreshDateSlicerAfterLiveUpdate\(newEdges = \[\]
 assert.match(source, /function highlightLiveViewAdditions\(nodes = \[\], edges = \[\]\)/);
 assert.match(source, /highlightLiveViewAdditions\(newNodes, newEdges\)/);
 assert.match(source, /function runLiveViewLayoutIfIdle\(\)/);
-assert.match(source, /if \(isLayoutRunning \|\| !graph\?\.order\) return false/);
+assert.match(source, /if \(!isLiveViewAutoLayoutEnabled\(\) \|\| isLayoutRunning \|\| !graph\?\.order\) return false/);
 assert.match(source, /animateLayout\(null, "initial"\)/);
 assert.match(source, /runLiveViewLayoutIfIdle\(\)/);
 assert.match(source, /const newEdges = graph\.edges\(\)\.filter\(edge => !previousEdges\.has\(edge\)\)/);
@@ -179,6 +182,7 @@ const liveLayoutCalls = [];
 const liveLayoutContext = {
   isLayoutRunning: false,
   graph: { order: 3 },
+  isLiveViewAutoLayoutEnabled: () => true,
   animateLayout: (...args) => liveLayoutCalls.push(args)
 };
 vm.runInNewContext(`${liveLayoutHelper}; result = runLiveViewLayoutIfIdle;`, liveLayoutContext);
@@ -187,5 +191,9 @@ assert.deepEqual(liveLayoutCalls, [[null, 'initial']]);
 liveLayoutContext.isLayoutRunning = true;
 assert.equal(liveLayoutContext.result(), false);
 assert.equal(liveLayoutCalls.length, 1, 'Live View must not restart an active layout');
+liveLayoutContext.isLayoutRunning = false;
+liveLayoutContext.isLiveViewAutoLayoutEnabled = () => false;
+assert.equal(liveLayoutContext.result(), false);
+assert.equal(liveLayoutCalls.length, 1, 'Live View must not start a layout when automatic layout is disabled');
 
 console.log('Date filter tests passed');
