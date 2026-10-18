@@ -10,7 +10,7 @@ const css = fs.readFileSync(path.join(root, 'style', 'style.css'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
 
 assert.match(source, /const NODE_CUSTOM_COLORS = Object\.freeze\(\[/);
-assert.equal((source.match(/value: "#[0-9a-f]{6}", label: "Flash /g) || []).length, 15);
+assert.equal((source.match(/value: "#[0-9a-f]{6}", label: "Flash /g) || []).length, 20);
 assert.match(source, /function ensureNodeColorMenu\(\)/);
 assert.match(source, /data-node-color-reset>Reset color/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
@@ -24,7 +24,8 @@ assert.match(source, /const customColor = data\.customColor \|\| getPersistedNod
 assert.match(source, /setPersistedNodeCustomColor\(n\.id, n\.customColor, \{ save: false \}\)/);
 assert.match(source, /graph\.removeNodeAttribute\(nodeColorMenuNode, "customColor"\)/);
 assert.match(source, /graph\.setNodeAttribute\(node, "color", customColor \|\| color\)/);
-assert.match(source, /color: attr\.customColor \|\| attr\.originalColor \|\| attr\.color/);
+assert.doesNotMatch(source.match(/function handleSearch\(query\)[\s\S]*?async function main/)?.[0] || "", /renderer\.setSetting\("nodeReducer"/,
+  'search should preserve the shared reducer and its custom-color rendering');
 assert.match(source, /if \(data\.customColor\) \{\s*glowColor = data\.customColor/);
 assert.match(source, /renderer\.on\("rightClickNode"/);
 assert.match(source, /if \(!isNativeTouchInteraction\(event\) && Number\.isInteger\(originalButton\) && originalButton !== 0\) \{\s*cancelDrag\(\);\s*return;/);
@@ -64,7 +65,7 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v198/);
+assert.match(worker, /mina-graph-explorer-v201/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');
