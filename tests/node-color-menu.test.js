@@ -21,6 +21,8 @@ assert.match(source, /const chains = getNodeChains\(node, graph\.getNodeAttribut
 assert.match(source, /favorites\.push\(\{ address: node, chain, label: favoriteLabel \}\)/);
 assert.match(source, /addressesMatchForTransaction\(favorite\.address, node\)/);
 assert.match(source, /data-node-color-reset>Reset color/);
+assert.match(source, /data-node-delete>Delete node/);
+assert.match(source, /if \(deleteButton\) \{[\s\S]*?hideNodeColorMenu\(\);[\s\S]*?deleteSelectedNode\(nodeToDelete\);/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
 assert.match(source, /const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1"/);
 assert.match(source, /function setPersistedNodeCustomColor\(node, color/);
@@ -75,7 +77,8 @@ assert.match(css, /color: #fff !important;[\s\S]*?text-shadow: 0 1px 2px rgba\(0
 assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
-assert.match(worker, /mina-graph-explorer-v204/);
+assert.match(css, /\.node-delete-action\s*\{/);
+assert.match(worker, /mina-graph-explorer-v205/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');

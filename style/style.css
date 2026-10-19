@@ -2065,7 +2065,8 @@
       outline-color: #172026;
     }
 
-    .node-color-reset {
+    .node-color-reset,
+    .node-delete-action {
       width: 100%;
       min-height: 34px;
       margin-top: 10px;
@@ -2076,6 +2077,20 @@
       font: inherit;
       font-size: 0.78rem;
       cursor: pointer;
+    }
+
+    .node-delete-action {
+      border-color: #9f4b4b;
+      background: #4a2528;
+      color: #ffb4ab;
+    }
+
+    .node-delete-action:hover,
+    .node-delete-action:focus-visible {
+      border-color: #ff6b61;
+      background: #673035;
+      color: #fff;
+      outline: none;
     }
 
     body[data-theme="light"] .node-color-menu {
@@ -2102,6 +2117,19 @@
     body[data-theme="light"] .node-color-reset {
       background: #e7edf1;
       color: #172026;
+    }
+
+    body[data-theme="light"] .node-delete-action {
+      border-color: #d47b73;
+      background: #fff0ee;
+      color: #a3211b;
+    }
+
+    body[data-theme="light"] .node-delete-action:hover,
+    body[data-theme="light"] .node-delete-action:focus-visible {
+      border-color: #b42318;
+      background: #b42318;
+      color: #fff;
     }
 
     @media screen and (max-width: 768px) {
