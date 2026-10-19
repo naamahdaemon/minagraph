@@ -2241,8 +2241,8 @@ function runLiveViewLayoutIfIdle() {
 
 function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   if (!graph?.edges) return;
-  const timestamps = graph.edges().map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
-    .filter(Number.isFinite).sort((left, right) => left - right);
+  const timestamps = graph.edges().map(edge => getTransactionTimestampMs(graph.getEdgeAttributes(edge)))
+    .filter(timestamp => timestamp !== null).sort((left, right) => left - right);
   const slider = document.getElementById("slicer-range");
   if (!timestamps.length) {
     allTimestamps = [];
@@ -2278,8 +2278,8 @@ function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   const previousRange = currentRange.map(Number);
   const liveTimestamps = newEdges
     .filter(edge => graph.hasEdge(edge))
-    .map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
-    .filter(Number.isFinite);
+    .map(edge => getTransactionTimestampMs(graph.getEdgeAttributes(edge)))
+    .filter(timestamp => timestamp !== null);
   const rangeMode = document.getElementById("date-playback-range-mode")?.value || "cumulative";
   let nextRange = [Math.max(newMin, previousRange[0]), Math.min(newMax, previousRange[1])];
   if (liveTimestamps.length) {
@@ -7455,11 +7455,17 @@ function isLightTheme() {
 }
 
 function formatTimestamp(timestamp) {
+  if (timestamp === null || timestamp === undefined || timestamp === "") return "-";
   var t = Number(timestamp);
-  if (isNaN(t)) return "-";
+  if (!Number.isFinite(t) || t <= 0) return "-";
   var date = new Date(t);
   if (isNaN(date.getTime())) return "-";
   return date.toISOString().replace(/:\d{2}\.\d{3}Z$/, "Z");
+}
+
+function formatTransactionTimestamp(timestamp, status) {
+  const formatted = formatTimestamp(timestamp);
+  return formatted === "-" && status === "pending" ? "Pending" : formatted;
 }
 
 function formatTokenAmount(amount, decimals = 18) {
@@ -7547,6 +7553,7 @@ function getChainIcon(chain) {
 }
 
 function isTimestampInCurrentRange(timestamp) {
+  if (timestamp === null || timestamp === undefined || timestamp === "") return false;
   const value = Number(timestamp);
   const [min, max] = currentRange;
   if (typeof datePlaybackAdvancedEnabled !== "undefined" && datePlaybackAdvancedEnabled) return Number.isFinite(value) && value >= Number(min) && value <= Number(max);
@@ -8291,7 +8298,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
             return `
               <tr ${getTransactionMemoAttributes(tx.memo)}>
                 <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
-                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}</td>
                 <td>
                   <a href="#" onclick="showNodePanel('${linkedNode}'); return false;" style="color:#4fc3f7; text-decoration:none;">
                     ${linkedLabel}
@@ -8433,7 +8440,9 @@ function showNodePanel(node, refreshExternalStatus = true) {
       ${renderNativeMovementSummary(nativeMovementSummary, node)}
     </section>
     <p class="node-period">
-      Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}
+      ${allTimestamps.length
+        ? `Operations from ${new Date(currentRange[0]).toLocaleDateString()} to ${new Date(currentRange[1]).toLocaleDateString()}`
+        : "Operations without confirmed timestamps"}
     </p>
     <p class="node-transactions-heading"><strong>Linked Nodes & Transactions</strong></p>
     ${hasAmbiguousBitcoinRelations ? `<p class="bitcoin-utxo-note">Some Bitcoin links originate from multi-input UTXO transactions. They show transaction participation, not a uniquely attributable sender-to-recipient payment.</p>` : ""}
@@ -8508,7 +8517,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                 <tr ${getTransactionMemoAttributes(tx.memo)}>
                   <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
-                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTimestamp(tx.timestamp)}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}</td>
                   <td>
                       ${tx.block_id || tx.block_hash
                         ? `<a href="${getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain)}" 
@@ -11285,12 +11294,17 @@ function setupDateSlicer() {
   if (playbackList) playbackList.replaceChildren();
   datePlaybackVisibleEdges = new Set();
 
-  const timestamps = graph.edges().map(id => {
-    const ts = graph.getEdgeAttribute(id, "timestamp");
-    return typeof ts === "string" ? parseInt(ts) : ts;
-  }).filter(t => !isNaN(t)).sort((a, b) => a - b);
+  const timestamps = graph.edges()
+    .map(id => getTransactionTimestampMs(graph.getEdgeAttributes(id)))
+    .filter(timestamp => timestamp !== null)
+    .sort((a, b) => a - b);
 
-  if (!timestamps.length) return;
+  if (!timestamps.length) {
+    allTimestamps = [];
+    currentRange = [0, 0];
+    dateHistogramBins = [];
+    return;
+  }
 
   allTimestamps = timestamps;
 
