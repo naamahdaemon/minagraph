@@ -41,6 +41,10 @@ assert.match(source, /hoveredNode \|\| \(multiSelectionEnabled && !multiSelectio
 assert.match(source, /renderer\.on\("rightClickStage"[\s\S]*?showGraphMultiSelectionMenu/);
 assert.match(source, /function setupNativeGraphStageGestures\(\)[\s\S]*?document\.addEventListener\("contextmenu"[\s\S]*?stopImmediatePropagation[\s\S]*?showNodeColorMenu[\s\S]*?showGraphMultiSelectionMenu[\s\S]*?true\)/,
   'document-level captured contextmenu should reliably distinguish nodes from the empty graph');
+assert.match(source, /const customMenu = event\.target\?\.closest\?\.\("#graph-multi-selection-menu, #node-color-menu"\);[\s\S]*?if \(!context && !customMenu\) return;[\s\S]*?event\.preventDefault\(\);[\s\S]*?if \(customMenu\) return;/,
+  'the delayed browser context menu must also be suppressed when the custom menu appeared beneath the pointer');
+assert.match(source, /function setupNativeGraphStageGestures\(\)[\s\S]*?const getGraphSurfaceContext = event => \{[\s\S]*?container\.contains\(event\.target\)/,
+  'context-menu detection should cover the complete Sigma surface rather than canvas elements only');
 assert.match(source, /document\.addEventListener\("pointerdown"[\s\S]*?event\.pointerType === "touch"[\s\S]*?desktopLongPressTimer = setTimeout[\s\S]*?showGraphMultiSelectionMenu[\s\S]*?, 600\)/,
   'desktop mouse long-press should open the stage menu independently of Sigma');
 assert.match(source, /const sigmaMouseCanvas = renderer\.getCanvases\?\.\(\)\.mouse[\s\S]*?sigmaMouseCanvas\.addEventListener\("mousedown"[\s\S]*?event\.button === 2[\s\S]*?showGraphMultiSelectionMenu/,
@@ -116,6 +120,6 @@ assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-neighbors\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v203/);
+assert.match(worker, /mina-graph-explorer-v204/);
 
 console.log('Multi-selection tests passed');
