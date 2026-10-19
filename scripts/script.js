@@ -3992,11 +3992,9 @@ function handleNotificationActions(notif) {
   if (!notif?.chain || !notif?.address) return;
 
   console.log('[UI] Triggering graph display from push:', notif.chain, notif.address);
-  BASE_KEY = notif.address;
-  document.getElementById("blockchain-select").value = notif.chain;
-  updateStartKeyPlaceholder(notif.chain);
-  document.getElementById("param-base-key").value = notif.address;
-  main(2, true, notif.chain).catch(error => {
+  // Use the same entry point as favorites and notification-list actions so
+  // the current Wipe graph data setting and fetch parameters are respected.
+  launchGraphFetchFromShortcut(notif.address, notif.chain, 2).catch(error => {
     console.error('Error triggering graph from notification:', error);
   });
 }
