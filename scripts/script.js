@@ -9154,8 +9154,9 @@ function ensureGraphMultiSelectionMenu() {
     <div class="graph-multi-selection-count" aria-live="polite">0 nodes selected</div>
     <button type="button" data-multi-selection-action="select-visible">Select All</button>
     <button type="button" data-multi-selection-action="fetch-selected">Fetch selected nodes</button>
-    <button type="button" data-multi-selection-action="delete-selected">Delete selected</button>
-    <button type="button" data-multi-selection-action="delete-unselected">Delete unselected</button>
+    <button type="button" data-multi-selection-action="delete-filtered-transactions">Del. filtered Txs</button>
+    <button type="button" data-multi-selection-action="delete-selected">Del. sel. nodes</button>
+    <button type="button" data-multi-selection-action="delete-unselected">Del. unsel. nodes</button>
   `;
   document.body.append(menu);
   menu.querySelector(".graph-multi-selection-toggle").addEventListener("click", event => {
@@ -9180,6 +9181,7 @@ function ensureGraphMultiSelectionMenu() {
       const action = button.dataset.multiSelectionAction;
       if (action === "select-visible") selectAllVisibleNodes();
       else if (action === "fetch-selected") fetchSelectedMultiSelectionNodes().catch(console.error);
+      else if (action === "delete-filtered-transactions") deleteFilteredTransactionsFromMultiSelection();
       else deleteNodesFromMultiSelection(action === "delete-selected");
     });
   });
@@ -9330,6 +9332,37 @@ function deleteNodesFromMultiSelection(deleteSelected) {
   rebuildVisibleGraphMetrics();
   if (deleteSelected) setMultiSelectionEnabled(false, { clear: true });
   else refreshMultiSelectionViews();
+  closeGraphMultiSelectionMenu();
+}
+
+function deleteFilteredTransactionsFromMultiSelection() {
+  const selected = getMultiSelectedNodes();
+  if (!multiSelectionEnabled || selected.size === 0 || !graph) return;
+  const edgesToDelete = graph.edges().filter(edge => {
+    const source = graph.source(edge);
+    const target = graph.target(edge);
+    return (selected.has(source) || selected.has(target)) &&
+      graphEdgeMatchesActiveView(edge) &&
+      edgeMatchesTimelineSelection(edge);
+  });
+  if (edgesToDelete.length === 0) {
+    showToastNotification("No filtered transactions", "No currently filtered transaction is linked to the selection.");
+    closeGraphMultiSelectionMenu();
+    return;
+  }
+  if (!confirm(`Delete ${edgesToDelete.length} filtered transaction${edgesToDelete.length === 1 ? "" : "s"} from the graph?`)) return;
+  if (isLayoutRunning) stopLayoutInWorker();
+  edgesToDelete.forEach(edge => {
+    if (graph.hasEdge(edge)) graph.dropEdge(edge);
+  });
+  removeOrphanedGraphNodes();
+  for (const node of [...manuallyMultiSelectedNodes]) if (!graph.hasNode(node)) manuallyMultiSelectedNodes.delete(node);
+  for (const node of [...timelineMultiSelectedNodes]) if (!graph.hasNode(node)) timelineMultiSelectedNodes.delete(node);
+  for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
+  rebuildTransactionsByNeighbor();
+  refreshDateSlicerAfterGraphMutation();
+  rebuildVisibleGraphMetrics();
+  refreshMultiSelectionViews();
   closeGraphMultiSelectionMenu();
 }
 
@@ -11441,21 +11474,34 @@ function configureDateWindowShiftControl(range = currentRange) {
     nextButton?.addEventListener("click", () => moveDateWindowByOnePeriod(1));
     if (panel) {
       const savedPanelState = localStorage.getItem(DATE_WINDOW_PANEL_STORAGE_KEY);
-      const initiallyExpanded = savedPanelState === null
-        ? !window.matchMedia("(max-width: 768px)").matches
-        : savedPanelState === "true";
+      const initialPanelMode = savedPanelState === "full" || savedPanelState === "compact" || savedPanelState === "minimal"
+        ? savedPanelState
+        : savedPanelState === "true"
+          ? "full"
+          : savedPanelState === "false"
+            ? "compact"
+            : window.matchMedia("(max-width: 768px)").matches ? "compact" : "full";
       const summary = document.getElementById("date-filter-summary");
-      const setCompact = compact => {
+      const setPanelMode = mode => {
+        const normalizedMode = ["full", "compact", "minimal"].includes(mode) ? mode : "full";
         panel.open = true;
-        panel.classList.toggle("is-compact", compact);
-        summary?.setAttribute("aria-expanded", String(!compact));
+        panel.classList.toggle("is-compact", normalizedMode === "compact");
+        panel.classList.toggle("is-minimal", normalizedMode === "minimal");
+        panel.dataset.displayMode = normalizedMode;
+        summary?.setAttribute("aria-expanded", String(normalizedMode === "full"));
+        summary?.setAttribute("title", normalizedMode === "full"
+          ? "Show compact date controls"
+          : normalizedMode === "compact"
+            ? "Reduce to one line"
+            : "Expand date controls");
       };
-      setCompact(!initiallyExpanded);
+      setPanelMode(initialPanelMode);
       summary?.addEventListener("click", event => {
         event.preventDefault();
-        const compact = !panel.classList.contains("is-compact");
-        setCompact(compact);
-        localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(!compact));
+        const currentMode = panel.dataset.displayMode || "full";
+        const nextMode = currentMode === "full" ? "compact" : currentMode === "compact" ? "minimal" : "full";
+        setPanelMode(nextMode);
+        localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, nextMode);
         preserveDatePlaybackDuringPanelToggle();
       });
     }

@@ -98,8 +98,9 @@ assert.deepEqual(Array.from(selectAllContext.selectAllApi.getNodesVisibleInCurre
 selectAllContext.selectAllApi.selectAllVisibleNodes();
 assert.equal(selectionEnabled, true);
 assert.deepEqual(Array.from(selectedNodes), ['centered', 'partial']);
-assert.match(source, /data-multi-selection-action="delete-selected">Delete selected<\/button>/);
-assert.match(source, /data-multi-selection-action="delete-unselected">Delete unselected<\/button>/);
+assert.match(source, /data-multi-selection-action="delete-selected">Del\. sel\. nodes<\/button>/);
+assert.match(source, /data-multi-selection-action="delete-unselected">Del\. unsel\. nodes<\/button>/);
+assert.match(source, /data-multi-selection-action="delete-filtered-transactions">Del\. filtered Txs<\/button>/);
 assert.match(source, /class="graph-multi-selection-focus" role="switch"[\s\S]*?>Focus selection</);
 assert.match(source, /class="graph-multi-selection-neighbors" role="switch"[\s\S]*?>Follow links</);
 assert.match(source, /multiSelectionFollowLinks = !multiSelectionFollowLinks;\s*refreshMultiSelectionViews\(\);/);
@@ -114,12 +115,17 @@ assert.match(source, /function removeOrphanedGraphNodes\(\)[\s\S]*?graph\.nodes\
   'bulk deletion should remove every node left without an edge');
 assert.match(source, /nodesToDelete\.forEach[\s\S]*?removeOrphanedGraphNodes\(\);[\s\S]*?manuallyMultiSelectedNodes/,
   'orphan cleanup should happen before stale selection references are purged');
+assert.match(source, /function deleteFilteredTransactionsFromMultiSelection\(\)[\s\S]*?selected\.has\(source\) \|\| selected\.has\(target\)[\s\S]*?graphEdgeMatchesActiveView\(edge\)[\s\S]*?edgeMatchesTimelineSelection\(edge\)/,
+  'filtered transaction deletion should intersect the selection with every active graph and timeline filter');
+assert.match(source, /function deleteFilteredTransactionsFromMultiSelection\(\)[\s\S]*?graph\.dropEdge\(edge\)[\s\S]*?removeOrphanedGraphNodes\(\)/,
+  'filtered transaction deletion should remove matching edges and resulting orphan nodes');
 assert.match(source, /timelineMultiSelectedNodes\.clear\(\);[\s\S]*?datePlaybackFocusedEdges\.forEach/,
   'timeline transaction selection should update selected nodes');
 assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-neighbors\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v211/);
+assert.match(style, /\.graph-multi-selection-menu button\s*\{[\s\S]*?white-space:\s*nowrap/);
+assert.match(worker, /mina-graph-explorer-v213/);
 
 console.log('Multi-selection tests passed');
