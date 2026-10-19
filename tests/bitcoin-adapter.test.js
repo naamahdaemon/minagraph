@@ -42,6 +42,17 @@ assert.equal(outgoing.length, 1, "Change sent back to the explored address must 
 assert.equal(outgoing[0].sender_key, address);
 assert.equal(outgoing[0].receiver_key, senderA);
 assert.equal(outgoing[0].amount, "6000");
+assert.equal(outgoing[0].timestamp, null, "Unconfirmed Bitcoin transactions must not be dated at the Unix epoch");
+assert.equal(outgoing[0].status, "pending");
+
+const alchemyTimestamp = adapter.normalizeTransactions(address, [{
+  txid: "alchemy-confirmed",
+  vin: [{ addresses: [senderA], value: 10 }],
+  vout: [{ addresses: [address], value: 9, n: 0 }],
+  blockTime: "2023-11-14T22:13:20Z",
+  confirmations: 1
+}], "alchemy");
+assert.equal(alchemyTimestamp[0].timestamp, 1700000000000, "Alchemy ISO block times must be normalized to milliseconds");
 
 const transactionGraph = adapter.normalizeTransactionByTxid({
   txid,
@@ -77,4 +88,6 @@ assert.match(
 );
 assert.match(appSource, /function getDominantNodeChain\([\s\S]*?connectionCounts\.get\(chainName\)/);
 assert.match(appSource, /refreshNodeChainColors\(\);[\s\S]*?applyNodeSizesByDegree\(\)/);
+assert.match(appSource, /function formatTransactionTimestamp\(timestamp, status\)/);
+assert.match(appSource, /status === "pending" \? "Pending"/);
 console.log("Bitcoin adapter tests passed");

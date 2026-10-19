@@ -25,6 +25,17 @@
     return [...new Set(items.flatMap(item => item.addresses || []).filter(isBitcoinAddress))];
   }
 
+  function normalizeTimestamp(value) {
+    if (value === null || value === undefined || value === "") return null;
+    if (typeof value === "string" && !/^\d+(\.\d+)?$/.test(value.trim())) {
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+
   function toCommonTransaction(transaction, source) {
     if (source === "alchemy") {
       return {
@@ -35,7 +46,7 @@
         outputs: (transaction.vout || []).map(output => ({
           addresses: output.addresses || [], value: Number(output.value || 0), index: output.n
         })),
-        timestamp: Number(transaction.blockTime || 0) * 1000,
+        timestamp: normalizeTimestamp(transaction.blockTime),
         blockHeight: transaction.blockHeight ?? null,
         blockHash: transaction.blockHash || null,
         fee: Number(transaction.fees || 0),
@@ -52,7 +63,7 @@
         addresses: output.scriptpubkey_address ? [output.scriptpubkey_address] : [],
         value: Number(output.value || 0), index
       })),
-      timestamp: Number(transaction.status?.block_time || 0) * 1000,
+      timestamp: normalizeTimestamp(transaction.status?.block_time),
       blockHeight: transaction.status?.block_height ?? null,
       blockHash: transaction.status?.block_hash || null,
       fee: Number(transaction.fee || 0),
