@@ -257,7 +257,8 @@ function ensureNodeColorMenu() {
       ${NODE_CUSTOM_COLORS.map(color => `<button type="button" role="menuitem" data-node-color="${color.value}"
         aria-label="${color.label}" title="${color.label}" style="--node-swatch:${color.value}"></button>`).join("")}
     </div>
-    <button type="button" class="node-color-reset" role="menuitem" data-node-color-reset>Reset color</button>`;
+    <button type="button" class="node-color-reset" role="menuitem" data-node-color-reset>Reset color</button>
+    <button type="button" class="node-delete-action" role="menuitem" data-node-delete>Delete node</button>`;
   document.body.appendChild(menu);
 
   menu.addEventListener("click", event => {
@@ -265,6 +266,7 @@ function ensureNodeColorMenu() {
     const favoriteRemoveButton = event.target.closest("[data-node-favorite-remove]");
     const colorButton = event.target.closest("[data-node-color]");
     const resetButton = event.target.closest("[data-node-color-reset]");
+    const deleteButton = event.target.closest("[data-node-delete]");
     if (!nodeColorMenuNode || !graph?.hasNode(nodeColorMenuNode)) return;
     if (favoriteSaveButton) {
       const name = menu.querySelector("#node-favorite-name")?.value || "";
@@ -275,6 +277,12 @@ function ensureNodeColorMenu() {
     if (favoriteRemoveButton) {
       removeNodeFromFavoritesAcrossChains(nodeColorMenuNode);
       hideNodeColorMenu();
+      return;
+    }
+    if (deleteButton) {
+      const nodeToDelete = nodeColorMenuNode;
+      hideNodeColorMenu();
+      deleteSelectedNode(nodeToDelete);
       return;
     }
     if (!colorButton && !resetButton) return;
@@ -7226,6 +7234,13 @@ function deleteSelectedNode(nodeId) {
     if (hoveredNode === n) hoveredNode = null;
     if (graph.hasNode(n)) graph.dropNode(n);
   });
+
+  for (const node of [...manuallyMultiSelectedNodes]) if (!graph.hasNode(node)) manuallyMultiSelectedNodes.delete(node);
+  for (const node of [...timelineMultiSelectedNodes]) if (!graph.hasNode(node)) timelineMultiSelectedNodes.delete(node);
+  for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
+  if (strictTouchFocusedNode && !graph.hasNode(strictTouchFocusedNode)) strictTouchFocusedNode = null;
+  rebuildTransactionsByNeighbor();
+  rebuildVisibleGraphMetrics();
 
   setNodePanelOpen(false);
   syncNodeDirectionFilterControls();
