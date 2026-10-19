@@ -78,7 +78,7 @@ assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
 assert.match(css, /\.node-delete-action\s*\{/);
-assert.match(worker, /mina-graph-explorer-v206/);
+assert.match(worker, /mina-graph-explorer-v211/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');

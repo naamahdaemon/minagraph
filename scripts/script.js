@@ -1254,6 +1254,74 @@ function updateDateSliderStep() {
   }, false);
 }
 
+function buildDateHistogramScale(timestamps, minTimestamp, maxTimestamp) {
+  const validTimestamps = timestamps.map(Number).filter(Number.isFinite);
+  const min = Number(minTimestamp);
+  const max = Number(maxTimestamp);
+  if (!validTimestamps.length || !Number.isFinite(min) || !Number.isFinite(max)) {
+    return { bins: [], counts: [], labels: [], binSize: 1 };
+  }
+
+  const span = Math.max(1, max - min + 1);
+  const configuredStep = datePlaybackAdvancedEnabled
+    ? Math.max(1, getDatePlaybackStepMilliseconds())
+    : null;
+  const maximumBins = 240;
+  const defaultBinCount = 20;
+  const binSize = configuredStep
+    ? configuredStep * Math.max(1, Math.ceil(span / (configuredStep * maximumBins)))
+    : Math.max(1, Math.ceil(span / defaultBinCount));
+  const binCount = Math.max(1, Math.ceil(span / binSize));
+  const bins = Array.from({ length: binCount }, (_, index) => ({
+    start: min + index * binSize,
+    end: Math.min(max, min + (index + 1) * binSize - 1)
+  }));
+  const counts = new Array(binCount).fill(0);
+  validTimestamps.forEach(timestamp => {
+    if (timestamp < min || timestamp > max) return;
+    const index = Math.min(Math.floor((timestamp - min) / binSize), binCount - 1);
+    counts[index] += 1;
+  });
+  const showTime = binSize < DAY_IN_MILLISECONDS;
+  const labels = bins.map(bin => new Date(bin.start).toLocaleString(undefined, showTime
+    ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }
+    : { year: "2-digit", month: "2-digit", day: "2-digit" }));
+  return { bins, counts, labels, binSize };
+}
+
+function refreshDateHistogramScale(range = currentRange) {
+  if (!histogramChart || !allTimestamps.length) return;
+  const globalMin = allTimestamps[0];
+  const globalMax = allTimestamps[allTimestamps.length - 1];
+  const requestedMin = Number(range?.[0]);
+  const requestedMax = Number(range?.[1]);
+  const minTimestamp = Number.isFinite(requestedMin)
+    ? Math.max(globalMin, Math.min(requestedMin, globalMax))
+    : globalMin;
+  const maxTimestamp = Number.isFinite(requestedMax)
+    ? Math.max(minTimestamp, Math.min(requestedMax, globalMax))
+    : globalMax;
+  const scale = buildDateHistogramScale(allTimestamps, minTimestamp, maxTimestamp);
+  dateHistogramBins = scale.bins;
+  histogramChart.data.labels = scale.labels;
+  histogramChart.data.datasets[0].data = scale.counts;
+  updateDateHistogramRange();
+}
+
+let dateHistogramScaleRefreshFrame = 0;
+let pendingDateHistogramScaleRange = null;
+
+function scheduleDateHistogramScaleRefresh(range = currentRange) {
+  pendingDateHistogramScaleRange = Array.isArray(range) ? range.map(Number) : currentRange.map(Number);
+  if (dateHistogramScaleRefreshFrame) return;
+  dateHistogramScaleRefreshFrame = requestAnimationFrame(() => {
+    dateHistogramScaleRefreshFrame = 0;
+    const nextRange = pendingDateHistogramScaleRange;
+    pendingDateHistogramScaleRange = null;
+    refreshDateHistogramScale(nextRange);
+  });
+}
+
 function formatDatePlaybackParty(name, key) {
   const address = String(key || "Unknown");
   const shortAddress = address.length > 17 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
@@ -1750,6 +1818,7 @@ function setDatePlaybackRange(range) {
   slider.noUiSlider.set(range, true, true);
   updatingRangeFromWindowShift = false;
   configureDateWindowShiftControl(range);
+  scheduleDateHistogramScaleRefresh(range);
 }
 
 function advanceDatePlayback(direction) {
@@ -1963,7 +2032,10 @@ function initializeDatePlaybackControls() {
   ["date-playback-step-value", "date-playback-step-unit", "date-playback-cadence", "date-playback-highlight-duration", "date-playback-range-mode"].forEach(id => {
     document.getElementById(id)?.addEventListener("change", () => {
       if (datePlaybackDirection) pauseDatePlayback("Settings changed — press play to resume");
-      if (["date-playback-step-value", "date-playback-step-unit"].includes(id)) updateDateSliderStep();
+      if (["date-playback-step-value", "date-playback-step-unit"].includes(id)) {
+        updateDateSliderStep();
+        refreshDateHistogramScale();
+      }
       saveDatePlaybackSettings();
     });
   });
@@ -2172,7 +2244,34 @@ function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   const timestamps = graph.edges().map(edge => Number(graph.getEdgeAttribute(edge, "timestamp")))
     .filter(Number.isFinite).sort((left, right) => left - right);
   const slider = document.getElementById("slicer-range");
-  if (!timestamps.length || !slider?.noUiSlider) return;
+  if (!timestamps.length) {
+    allTimestamps = [];
+    currentRange = [0, 0];
+    dateHistogramBins = [];
+    datePlaybackFocusedEdges.clear();
+    timelineMultiSelectedNodes.clear();
+    pauseDatePlayback("No dated transactions");
+    resetDatePlaybackFeed("No transactions in the current graph");
+    if (histogramChart) {
+      histogramChart.data.labels = [];
+      histogramChart.data.datasets[0].data = [];
+      histogramChart.update("none");
+    }
+    slider?.noUiSlider?.disable?.();
+    const startLabel = document.getElementById("slicer-start-label");
+    const endLabel = document.getElementById("slicer-end-label");
+    if (startLabel) startLabel.textContent = "From: --";
+    if (endLabel) endLabel.textContent = "To: --";
+    const shiftControl = document.getElementById("date-window-shift");
+    if (shiftControl) shiftControl.disabled = true;
+    updateDatePlaybackBoundaryButtons();
+    renderer?.refresh?.();
+    return;
+  }
+  if (!slider?.noUiSlider) {
+    setupDateSlicer();
+    return;
+  }
 
   const newMin = timestamps[0];
   const newMax = timestamps[timestamps.length - 1];
@@ -2196,29 +2295,18 @@ function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
   }
   if (!Number.isFinite(previousRange[0]) || !Number.isFinite(previousRange[1])) nextRange = [newMin, newMax];
   nextRange = [Math.max(newMin, nextRange[0]), Math.min(newMax, nextRange[1])];
+  if (nextRange[0] > nextRange[1]) {
+    nextRange = previousRange[0] > newMax ? [newMax, newMax] : [newMin, newMin];
+  }
   allTimestamps = timestamps;
 
-  slider.noUiSlider.updateOptions({ range: { min: newMin, max: newMax } }, false);
+  const sliderMaximum = newMax > newMin
+    ? newMax
+    : newMin + (datePlaybackAdvancedEnabled ? getDatePlaybackStepMilliseconds() : DAY_IN_MILLISECONDS);
+  slider.noUiSlider.updateOptions({ range: { min: newMin, max: sliderMaximum } }, false);
+  slider.noUiSlider.enable?.();
   setDatePlaybackRange(nextRange);
 
-  const binCount = 20;
-  const binSize = Math.max(1, Math.ceil((newMax - newMin) / binCount));
-  const bins = new Array(binCount).fill(0);
-  dateHistogramBins = bins.map((_, index) => ({
-    start: newMin + index * binSize,
-    end: newMin + (index + 1) * binSize
-  }));
-  timestamps.forEach(timestamp => {
-    bins[Math.min(Math.floor((timestamp - newMin) / binSize), binCount - 1)]++;
-  });
-  if (histogramChart) {
-    histogramChart.data.labels = bins.map((_, index) => new Date(newMin + index * binSize).toLocaleDateString());
-    histogramChart.data.datasets[0].data = bins;
-    histogramChart.options.plugins.tooltip.callbacks.title = items => {
-      const index = items[0].dataIndex;
-      return `${new Date(newMin + index * binSize).toLocaleString()} – ${new Date(newMin + (index + 1) * binSize).toLocaleString()}`;
-    };
-  }
   applyDateFilter();
   if (datePlaybackAdvancedEnabled && !document.getElementById("date-playback-feed")?.hidden) {
     const visibleEdges = getTransactionsVisibleInDateRange(currentRange);
@@ -2226,6 +2314,10 @@ function refreshDateSlicerAfterLiveUpdate(newEdges = []) {
     renderDatePlaybackFeed(visibleEdges, datePlaybackDirection || 1, currentRange, visibleNewEdges);
   }
   configureDateWindowShiftControl(currentRange);
+}
+
+function refreshDateSlicerAfterGraphMutation() {
+  refreshDateSlicerAfterLiveUpdate([]);
 }
 
 let nodePanelViewportSyncFrame = 0;
@@ -7238,6 +7330,7 @@ function deleteSelectedNode(nodeId) {
   for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
   if (strictTouchFocusedNode && !graph.hasNode(strictTouchFocusedNode)) strictTouchFocusedNode = null;
   rebuildTransactionsByNeighbor();
+  refreshDateSlicerAfterGraphMutation();
   rebuildVisibleGraphMetrics();
 
   setNodePanelOpen(false);
@@ -7300,6 +7393,7 @@ function deleteVisibleNodeInteractions(nodeId) {
   });
 
   rebuildTransactionsByNeighbor();
+  refreshDateSlicerAfterGraphMutation();
   rebuildVisibleGraphMetrics();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
@@ -7337,6 +7431,7 @@ function deleteTransactionFromGraph(encodedEdgeId) {
   });
 
   rebuildTransactionsByNeighbor();
+  refreshDateSlicerAfterGraphMutation();
   rebuildVisibleGraphMetrics();
 
   if (selectedNode && graph.hasNode(selectedNode)) {
@@ -9231,6 +9326,7 @@ function deleteNodesFromMultiSelection(deleteSelected) {
   for (const node of [...timelineMultiSelectedNodes]) if (!graph.hasNode(node)) timelineMultiSelectedNodes.delete(node);
   for (const edge of [...datePlaybackFocusedEdges]) if (!graph.hasEdge(edge)) datePlaybackFocusedEdges.delete(edge);
   rebuildTransactionsByNeighbor();
+  refreshDateSlicerAfterGraphMutation();
   rebuildVisibleGraphMetrics();
   if (deleteSelected) setMultiSelectionEnabled(false, { clear: true });
   else refreshMultiSelectionViews();
@@ -10678,7 +10774,7 @@ function updateSlicerView() {
             start: values.map(v => parseInt(v)),
             connect: true,
             range: { min, max },
-            step: 24 * 60 * 60 * 1000,
+            step: datePlaybackAdvancedEnabled ? getDatePlaybackStepMilliseconds() : DAY_IN_MILLISECONDS,
             format: {
               to: value => Math.round(value),
               from: Number
@@ -10693,7 +10789,9 @@ function updateSlicerView() {
           });
           slider.noUiSlider.on("end", function (values) {
             if (!updatingRangeFromWindowShift) {
-              configureDateWindowShiftControl(values.map(v => parseInt(v)));
+              const releasedRange = values.map(v => parseInt(v));
+              configureDateWindowShiftControl(releasedRange);
+              refreshDateHistogramScale(releasedRange);
             }
           });
           configureDateWindowShiftControl(values.map(v => parseInt(v)));
@@ -11165,19 +11263,9 @@ function setupDateSlicer() {
 
   const minTimestamp = Math.min(...timestamps);
   const maxTimestamp = Math.max(...timestamps);
-  const binCount = 20;
-  const binSize = Math.max(1, Math.ceil((maxTimestamp - minTimestamp) / binCount));
   currentRange = [minTimestamp, maxTimestamp];
-
-  const bins = new Array(binCount).fill(0);
-  dateHistogramBins = bins.map((_, index) => ({
-    start: minTimestamp + index * binSize,
-    end: minTimestamp + (index + 1) * binSize
-  }));
-  timestamps.forEach(ts => {
-    const index = Math.min(Math.floor((ts - minTimestamp) / binSize), binCount - 1);
-    bins[index]++;
-  });
+  const histogramScale = buildDateHistogramScale(timestamps, minTimestamp, maxTimestamp);
+  dateHistogramBins = histogramScale.bins;
 
   const ctx = document.getElementById("slicer-chart").getContext("2d");
   if (histogramChart) histogramChart.destroy();
@@ -11187,14 +11275,11 @@ function setupDateSlicer() {
   histogramChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: bins.map((_, i) => {
-        const d = new Date(minTimestamp + i * binSize);
-        return d.toLocaleDateString(); // or d.toISOString().slice(0, 10)
-      }),
+      labels: histogramScale.labels,
       datasets: [{
         label: 'Tx Count',
-        data: bins,
-        backgroundColor: bins.map(() => '#4fc3f7')
+        data: histogramScale.counts,
+        backgroundColor: histogramScale.counts.map(() => '#4fc3f7')
       }]
     },
     options: {
@@ -11206,18 +11291,25 @@ function setupDateSlicer() {
           callbacks: {
             title: (tooltipItems) => {
               const index = tooltipItems[0].dataIndex;
-              const startDate = new Date(minTimestamp + index * binSize);
-              const endDate = new Date(minTimestamp + (index + 1) * binSize);
-              return `${startDate.toLocaleDateString()} – ${endDate.toLocaleDateString()}`;
+              const bin = dateHistogramBins[index];
+              if (!bin) return '';
+              const startDate = new Date(bin.start);
+              const endDate = new Date(bin.end);
+              return `${startDate.toLocaleString()} – ${endDate.toLocaleString()}`;
             }
           }
         }
       },
       scales: {
         x: {
-          title: {
-            display: true,
-            text: 'Transaction Date'
+          offset: false,
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 6,
+            autoSkipPadding: 6,
+            maxRotation: 0,
+            minRotation: 0,
+            font: { size: 8 }
           }
         },
         y: {
@@ -11246,7 +11338,9 @@ function setupDateSlicer() {
     connect: true,
     range: {
       min: minTimestamp,
-      max: maxTimestamp
+      max: maxTimestamp > minTimestamp
+        ? maxTimestamp
+        : minTimestamp + (datePlaybackAdvancedEnabled ? getDatePlaybackStepMilliseconds() : DAY_IN_MILLISECONDS)
     },
     step: 1000, // advanced playback can move with one-second precision
     tooltips: [false, false], // start with no tooltip
@@ -11300,7 +11394,9 @@ function setupDateSlicer() {
       if (tooltip) tooltip.remove();
     });
     if (!updatingRangeFromWindowShift) {
-      configureDateWindowShiftControl(slider.noUiSlider.get().map(v => parseInt(v)));
+      const releasedRange = slider.noUiSlider.get().map(v => parseInt(v));
+      configureDateWindowShiftControl(releasedRange);
+      refreshDateHistogramScale(releasedRange);
     }
   });
 
@@ -11345,11 +11441,21 @@ function configureDateWindowShiftControl(range = currentRange) {
     nextButton?.addEventListener("click", () => moveDateWindowByOnePeriod(1));
     if (panel) {
       const savedPanelState = localStorage.getItem(DATE_WINDOW_PANEL_STORAGE_KEY);
-      panel.open = savedPanelState === null
+      const initiallyExpanded = savedPanelState === null
         ? !window.matchMedia("(max-width: 768px)").matches
         : savedPanelState === "true";
-      panel.addEventListener("toggle", () => {
-        localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(panel.open));
+      const summary = document.getElementById("date-filter-summary");
+      const setCompact = compact => {
+        panel.open = true;
+        panel.classList.toggle("is-compact", compact);
+        summary?.setAttribute("aria-expanded", String(!compact));
+      };
+      setCompact(!initiallyExpanded);
+      summary?.addEventListener("click", event => {
+        event.preventDefault();
+        const compact = !panel.classList.contains("is-compact");
+        setCompact(compact);
+        localStorage.setItem(DATE_WINDOW_PANEL_STORAGE_KEY, String(!compact));
         preserveDatePlaybackDuringPanelToggle();
       });
     }
@@ -11413,6 +11519,7 @@ function shiftSelectedDateWindow(pageIndex) {
   // noUiSlider's step grid, which would progressively change the window span.
   slider.noUiSlider.set(shiftedRange, true, true);
   updatingRangeFromWindowShift = false;
+  scheduleDateHistogramScaleRefresh(shiftedRange);
   if (valueLabel) {
     const formatter = timestamp => new Date(timestamp).toLocaleDateString();
     valueLabel.textContent = `${formatter(shiftedRange[0])} – ${formatter(shiftedRange[1])} (${stepDays}-day period)`;
