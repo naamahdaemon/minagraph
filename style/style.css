@@ -1047,9 +1047,13 @@
     .date-playback-mode-row {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(112px, 0.72fr) auto;
+      grid-template-columns: minmax(120px, 1fr) minmax(108px, 0.72fr);
       align-items: end;
       gap: 8px;
+    }
+
+    .date-playback-mode-field > span:first-child {
+      white-space: nowrap;
     }
 
     .date-playback-mode-field select {
@@ -1081,6 +1085,7 @@
     }
 
     .date-playback-live-options {
+      grid-column: 1 / -1;
       display: flex;
       align-items: stretch;
       gap: 6px;
@@ -3142,7 +3147,7 @@
     }
 
     body.mobile-mode .date-playback-mode-row {
-      grid-template-columns: minmax(0, 1fr) minmax(108px, 0.85fr);
+      grid-template-columns: minmax(116px, 1fr) minmax(104px, 0.85fr);
       gap: 6px;
     }
 
