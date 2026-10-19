@@ -9236,11 +9236,12 @@ function setupNativeGraphStageGestures() {
     desktopLongPressTimer = null;
     desktopLongPressStart = null;
   };
-  const getGraphCanvasContext = event => {
-    const canvas = event.target?.closest?.("#sigma-container canvas");
+  const getGraphSurfaceContext = event => {
     const container = document.getElementById("sigma-container");
-    if (!canvas || !container || !renderer || !container.contains(canvas)) return null;
+    if (!container || !renderer || !container.contains(event.target)) return null;
     const bounds = container.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right ||
+        event.clientY < bounds.top || event.clientY > bounds.bottom) return null;
     const position = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     return {
       node: renderer.getNodeAtPosition?.(position) || null,
@@ -9252,10 +9253,15 @@ function setupNativeGraphStageGestures() {
   // Capture before Sigma: Firefox and Chromium do not consistently forward
   // native contextmenu events through Sigma's rightClickStage abstraction.
   document.addEventListener("contextmenu", event => {
-    const context = getGraphCanvasContext(event);
-    if (!context) return;
+    const customMenu = event.target?.closest?.("#graph-multi-selection-menu, #node-color-menu");
+    const context = getGraphSurfaceContext(event);
+    if (!context && !customMenu) return;
     event.preventDefault();
     event.stopImmediatePropagation();
+    // A right-button mousedown can place our menu beneath the pointer before
+    // the browser dispatches contextmenu. In that case only suppress the
+    // delayed native menu: the intended Minagraph menu is already open.
+    if (customMenu) return;
     if (context.node && graph?.hasNode(context.node)) {
       showNodeColorMenu(context.node, context.clientX, context.clientY);
     } else {
@@ -9266,7 +9272,7 @@ function setupNativeGraphStageGestures() {
   document.addEventListener("pointerdown", event => {
     clearDesktopLongPress();
     if (event.pointerType === "touch" || event.button !== 0) return;
-    const context = getGraphCanvasContext(event);
+    const context = getGraphSurfaceContext(event);
     if (!context || context.node) return;
     desktopLongPressStart = { x: event.clientX, y: event.clientY };
     desktopLongPressTimer = setTimeout(() => {
