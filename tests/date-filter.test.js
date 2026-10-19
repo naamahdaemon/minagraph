@@ -5,6 +5,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'script.js'), 'utf8');
 const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.resolve(__dirname, '..', 'style', 'style.css'), 'utf8');
 const helperMatch = source.match(/function isTimestampInCurrentRange\(timestamp\) \{[\s\S]*?\n\}/);
 
 assert.ok(helperMatch, 'Date range helper should exist');
@@ -53,8 +54,11 @@ assert.match(html, /date-playback-live-layout-toggle[^>]*[\s\S]*?Auto layout/);
 assert.match(source, /collapsed: document\.getElementById\("date-playback-collapse"\)/);
 assert.match(source, /collapse\?\.addEventListener\("click"/);
 assert.match(source, /function preserveDatePlaybackDuringPanelToggle\(\)/);
+assert.match(css, /#date-filter-panel\.is-compact > #date-filter-content\s*\{[\s\S]*?display: block/);
+assert.match(css, /#date-filter-panel\.is-compact #slicer-container,[\s\S]*?#date-playback-controls\s*\{[\s\S]*?display: none !important/);
+assert.match(css, /#date-filter-panel\.is-compact #date-filter-labels\s*\{[\s\S]*?display: flex/);
 assert.match(source, /activeDirection && datePlaybackDirection === activeDirection && datePlaybackTimer === null/);
-assert.match(source, /panel\.addEventListener\("toggle", \(\) => \{[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
+assert.match(source, /summary\?\.addEventListener\("click", event => \{[\s\S]*?event\.preventDefault\(\)[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
 assert.match(source, /collapse\?\.addEventListener\("click", \(\) => \{[\s\S]*?preserveDatePlaybackDuringPanelToggle\(\)/);
 assert.doesNotMatch(source, /function isDesktopDatePlayback\(\)/);
 assert.match(source, /playbackFeed\.classList\.contains\("sorting"\) \? 360 : 180/);
@@ -107,6 +111,15 @@ assert.match(source, /nextRange\[1\] = Math\.max\(previousRange\[0\], previousRa
 assert.match(source, /function queueLiveViewNotification\(notification\)/);
 assert.match(source, /function processLiveViewQueue\(\)/);
 assert.match(source, /function refreshDateSlicerAfterLiveUpdate\(newEdges = \[\]\)/);
+assert.match(source, /function refreshDateSlicerAfterGraphMutation\(\) \{\s*refreshDateSlicerAfterLiveUpdate\(\[\]\);/);
+assert.match(source, /if \(!timestamps\.length\) \{[\s\S]*?currentRange = \[0, 0\][\s\S]*?slider\?\.noUiSlider\?\.disable\?\.\(\)/);
+assert.match(source, /if \(nextRange\[0\] > nextRange\[1\]\)/);
+assert.match(source, /slider\.noUiSlider\.enable\?\.\(\)/);
+assert.match(source, /const sliderMaximum = newMax > newMin[\s\S]*?getDatePlaybackStepMilliseconds\(\) : DAY_IN_MILLISECONDS/);
+assert.match(source.match(/function deleteSelectedNode\(nodeId\)[\s\S]*?function renderTransactionDeleteButton/)?.[0] || '', /refreshDateSlicerAfterGraphMutation\(\)/);
+assert.match(source.match(/function deleteVisibleNodeInteractions\(nodeId\)[\s\S]*?function deleteTransactionFromGraph/)?.[0] || '', /refreshDateSlicerAfterGraphMutation\(\)/);
+assert.match(source.match(/function deleteTransactionFromGraph\(encodedEdgeId\)[\s\S]*?function updateProgressBar/)?.[0] || '', /refreshDateSlicerAfterGraphMutation\(\)/);
+assert.match(source.match(/function deleteNodesFromMultiSelection\(deleteSelected\)[\s\S]*?function setupNativeGraphStageGestures/)?.[0] || '', /refreshDateSlicerAfterGraphMutation\(\)/);
 assert.match(source, /function highlightLiveViewAdditions\(nodes = \[\], edges = \[\]\)/);
 assert.match(source, /highlightLiveViewAdditions\(newNodes, newEdges\)/);
 assert.match(source, /function runLiveViewLayoutIfIdle\(\)/);
@@ -125,10 +138,47 @@ assert.match(source, /return direction < 0 \? timestampDelta : -timestampDelta/)
 assert.match(source, /datePlaybackFeedPinnedTop = feedList\.scrollTop <= 2/);
 assert.match(source, /list\.scrollTop = datePlaybackFeedPinnedTop \? 0 : previousScrollTop/);
 assert.match(source, /step: 1000, \/\/ advanced playback can move with one-second precision/);
+assert.match(source, /function buildDateHistogramScale\(timestamps, minTimestamp, maxTimestamp\)/);
+assert.match(source, /offset: false,[\s\S]*?maxTicksLimit: 6,[\s\S]*?font: \{ size: 8 \}/);
+assert.doesNotMatch(source.match(/scales: \{[\s\S]*?\n      \}/)?.[0] || '', /text: 'Transaction Date'/);
+assert.match(css, /#slicer-range\s*\{[\s\S]*?margin-top: 3px/);
+assert.match(source, /configuredStep \* Math\.max\(1, Math\.ceil\(span \/ \(configuredStep \* maximumBins\)\)\)/);
+assert.match(source, /function refreshDateHistogramScale\(range = currentRange\)/);
+assert.match(source, /function scheduleDateHistogramScaleRefresh\(range = currentRange\)/);
+assert.match(source, /if \(dateHistogramScaleRefreshFrame\) return;[\s\S]*?requestAnimationFrame/);
+assert.match(source.match(/function setDatePlaybackRange\(range\)[\s\S]*?\n\}/)?.[0] || '', /scheduleDateHistogramScaleRefresh\(range\)/,
+  'automatic and manual playback range changes should dynamically rescale the histogram');
+assert.match(source.match(/function shiftSelectedDateWindow\(pageIndex\)[\s\S]*?\n\}/)?.[0] || '', /scheduleDateHistogramScaleRefresh\(shiftedRange\)/,
+  'date-window shifts should dynamically rescale the histogram');
+assert.match(source, /updateDateSliderStep\(\);\s*refreshDateHistogramScale\(\);/);
+assert.equal((source.match(/refreshDateHistogramScale\(releasedRange\)/g) || []).length, 2,
+  'both the normal and rebuilt sliders should rescale the histogram when a pointer interaction ends');
+assert.match(source, /step: datePlaybackAdvancedEnabled \? getDatePlaybackStepMilliseconds\(\) : DAY_IN_MILLISECONDS/);
 assert.match(source, /if \(playbackFocus && !playbackFocus\.nodes\.has\(node\)\)/);
 assert.match(source, /if \(!playbackFocus\.edges\.has\(edge\)\) return \{ \.\.\.data, hidden: true \};/);
 assert.match(source, /if \(wipeGraph\) \{[\s\S]*?visitedKeysByChain\.clear\(\);[\s\S]*?fetchProfilesByChain\.clear\(\);/);
 assert.match(source, /recenterAfterLayout = true;\s*animateLayout\(null, "initial"\)/);
+
+const histogramScaleHelper = source.slice(
+  source.indexOf('function buildDateHistogramScale('),
+  source.indexOf('function refreshDateHistogramScale(')
+);
+assert.ok(histogramScaleHelper, 'Date histogram scale helper should exist');
+const histogramContext = {
+  Number,
+  Math,
+  Date,
+  DAY_IN_MILLISECONDS: day,
+  datePlaybackAdvancedEnabled: true,
+  getDatePlaybackStepMilliseconds: () => 60 * 60 * 1000
+};
+vm.runInNewContext(`${histogramScaleHelper}; result = buildDateHistogramScale;`, histogramContext);
+const shortHistogram = histogramContext.result([0, 60 * 60 * 1000], 0, 3 * 60 * 60 * 1000 - 1);
+assert.equal(shortHistogram.binSize, 60 * 60 * 1000, 'A practical configured step should be used exactly');
+assert.equal(shortHistogram.bins.length, 3);
+const longHistogram = histogramContext.result([0, 400 * 60 * 60 * 1000], 0, 400 * 60 * 60 * 1000 - 1);
+assert.equal(longHistogram.binSize % (60 * 60 * 1000), 0, 'Large ranges should use an integer multiple of the configured step');
+assert.ok(longHistogram.bins.length <= 240, 'Histogram density should remain bounded on large ranges');
 
 const shiftHelperMatch = source.match(/function getDateWindowShiftConfig\(globalMin, globalMax, rangeStart, rangeEnd\) \{[\s\S]*?\n\}/);
 assert.ok(shiftHelperMatch, 'Date window shift helper should exist');

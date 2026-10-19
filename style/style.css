@@ -677,12 +677,40 @@
       transition: transform 0.2s ease;
     }
 
-    #date-filter-panel:not([open]) summary::after {
+    #date-filter-panel.is-compact summary::after {
       transform: rotate(-90deg);
     }
 
     #date-filter-content {
       padding: 0 9px 9px;
+    }
+
+    /* A collapsed date panel remains useful: keep the active range and the
+       playback strip available while hiding the chart and configuration. */
+    #date-filter-panel.is-compact > #date-filter-content {
+      display: block;
+      padding-top: 1px;
+    }
+
+    #date-filter-panel.is-compact #slicer-container,
+    #date-filter-panel.is-compact #date-window-shift-heading,
+    #date-filter-panel.is-compact #date-window-shift-container,
+    #date-filter-panel.is-compact #date-playback-controls {
+      display: none !important;
+    }
+
+    #date-filter-panel.is-compact #slicer-range {
+      margin-top: 5px;
+    }
+
+    #date-filter-panel.is-compact #date-playback-primary-controls {
+      margin-top: 9px;
+      padding-top: 8px;
+    }
+
+    #date-filter-panel.is-compact #date-filter-labels {
+      display: flex;
+      margin-top: 6px;
     }
 
     #date-window-shift-heading {
@@ -2962,7 +2990,7 @@
     }
 
     #slicer-range {
-      margin-top: 10px;
+      margin-top: 3px;
       height: 10px;
       border: 0;
       border-radius: 999px;

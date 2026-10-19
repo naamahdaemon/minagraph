@@ -120,6 +120,6 @@ assert.match(style, /\.graph-multi-selection-menu/);
 assert.match(style, /\.graph-multi-selection-toggle\.is-active/);
 assert.match(style, /\.graph-multi-selection-neighbors\.is-active/);
 assert.match(style, /\.graph-multi-selection-focus\.is-active/);
-assert.match(worker, /mina-graph-explorer-v205/);
+assert.match(worker, /mina-graph-explorer-v211/);
 
 console.log('Multi-selection tests passed');

@@ -60,6 +60,11 @@ assert.match(source, /await main\(requestedDepth, wipeGraph, chain\)/);
 assert.match(source, /launchGraphFetchFromShortcut\(address, chain\)\.catch\(console\.error\)/);
 assert.match(source, /launchGraphFetchFromShortcut\(address, chain, 1\)\.catch\(console\.error\)/);
 assert.doesNotMatch(source, /main\(1, true, chain\)/);
+const notificationActionHandler = source.match(/function handleNotificationActions\(notif\) \{[\s\S]*?\n\}/)?.[0] || '';
+assert.match(notificationActionHandler, /launchGraphFetchFromShortcut\(notif\.address, notif\.chain, 2\)/,
+  'push notification actions should share the wipe-aware shortcut fetch path');
+assert.doesNotMatch(notificationActionHandler, /main\([^)]*,\s*true\s*,/,
+  'push notification actions must not force a graph wipe');
 assert.match(source, /emptydiv\.readOnly = true/);
 
 console.log('Incremental fetch profile tests passed');
