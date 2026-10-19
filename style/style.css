@@ -434,6 +434,7 @@
       background: #30383e;
       color: #f4f7f9;
       font: inherit;
+      white-space: nowrap;
       cursor: pointer;
       touch-action: manipulation;
     }
@@ -681,6 +682,10 @@
       transform: rotate(-90deg);
     }
 
+    #date-filter-panel.is-minimal summary::after {
+      transform: rotate(-90deg);
+    }
+
     #date-filter-content {
       padding: 0 9px 9px;
     }
@@ -711,6 +716,23 @@
     #date-filter-panel.is-compact #date-filter-labels {
       display: flex;
       margin-top: 6px;
+    }
+
+    /* Third display level: retain only the former one-line date header. */
+    #date-filter-panel.is-minimal > #date-filter-content {
+      display: none !important;
+    }
+
+    #date-filter-panel.is-minimal summary {
+      min-height: 24px;
+      padding: 0 7px;
+      gap: 6px;
+      font-size: 9px;
+    }
+
+    #date-filter-panel.is-minimal #date-window-shift-step {
+      padding: 1px 5px;
+      border-radius: 5px;
     }
 
     #date-window-shift-heading {
@@ -3066,6 +3088,11 @@
     body.mobile-mode #date-filter-panel summary {
       min-height: 34px;
       padding: 0 8px;
+    }
+
+    body.mobile-mode #date-filter-panel.is-minimal summary {
+      min-height: 24px;
+      padding: 0 7px;
     }
 
     body.mobile-mode #date-filter-content {
