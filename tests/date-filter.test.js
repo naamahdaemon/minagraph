@@ -94,6 +94,10 @@ assert.match(source, /highlightDuration: Math\.max\(0\.1,/);
 assert.match(source, /storedSettings\.highlightDuration/);
 assert.match(source, /Date\.now\(\) \+ getDatePlaybackHighlightDurationMilliseconds\(\)/);
 assert.match(html, /id="date-playback-highlight-duration"[^>]*value="2"/);
+assert.equal((html.match(/class="date-playback-unit" title="seconds">sec\.<\/span>/g) || []).length, 2,
+  'cadence and highlight units should use the compact seconds label');
+assert.match(css, /\.date-playback-mode-field > span:first-child\s*\{[\s\S]*?white-space: nowrap/);
+assert.match(css, /\.date-playback-live-options\s*\{[\s\S]*?grid-column: 1 \/ -1/);
 assert.match(source, /const datePlaybackNodeFlashDeadlines = new Map\(\)/);
 assert.match(source, /datePlaybackFlashDeadlines\.set\(edge, Date\.now\(\) \+ getDatePlaybackHighlightDurationMilliseconds\(\)\)/);
 assert.match(source, /function runDatePlaybackFlashAnimation\(\)/);
