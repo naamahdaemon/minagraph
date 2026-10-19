@@ -71,7 +71,8 @@
     };
   }
 
-  function buildEdge(common, sender, receiver, amount, nonce, ambiguity = null) {
+  function buildEdge(common, sender, receiver, amount, nonce, options = {}) {
+    const ambiguity = options.ambiguity || null;
     return {
       hash: common.txid, nonce, sender_key: sender, receiver_key: receiver,
       sender_name: sender === COINBASE_NODE ? "Coinbase reward" : "noname",
@@ -80,7 +81,11 @@
       fee: String(common.fee), amount: String(amount), block_id: common.blockHeight,
       block_hash: common.blockHash, memo: ambiguity, blockchain: CHAIN,
       token_contract: null, token_receiver: null, token_amount: null,
-      token_name: null, token_decimals: null, utxo_ambiguous: Boolean(ambiguity)
+      token_name: null, token_decimals: null, utxo_ambiguous: Boolean(ambiguity),
+      bitcoin_relation: options.relation || "transaction_output",
+      bitcoin_input_count: Number(options.inputCount || 0),
+      bitcoin_output_index: options.outputIndex ?? null,
+      bitcoin_output_value: String(amount)
     };
   }
 
@@ -93,10 +98,18 @@
       const inputAddresses = uniqueAddresses(transaction.inputs);
       const spendsFromAddress = inputAddresses.includes(address);
       if (spendsFromAddress) {
+        const ambiguity = inputAddresses.length > 1
+          ? `Bitcoin UTXO transaction with ${inputAddresses.length} input addresses; this output cannot be attributed uniquely to the selected input address.`
+          : null;
         transaction.outputs.forEach((output, outputIndex) => {
           const receiver = output.addresses.find(isBitcoinAddress);
           if (!receiver || receiver === address) return;
-          normalized.push(buildEdge(transaction, address, receiver, output.value, `${output.index ?? outputIndex}-out`));
+          normalized.push(buildEdge(transaction, address, receiver, output.value, `${output.index ?? outputIndex}-out`, {
+            ambiguity,
+            relation: ambiguity ? "utxo_participation" : "transaction_output",
+            inputCount: inputAddresses.length,
+            outputIndex: output.index ?? outputIndex
+          }));
         });
         continue;
       }
@@ -110,7 +123,12 @@
         ? `Bitcoin UTXO transaction with ${senders.length} input addresses; attribution is not uniquely determinable.`
         : null;
       senders.forEach((sender, inputIndex) => {
-        normalized.push(buildEdge(transaction, sender, address, receivedAmount, `${inputIndex}-in`, ambiguity));
+        normalized.push(buildEdge(transaction, sender, address, receivedAmount, `${inputIndex}-in`, {
+          ambiguity,
+          relation: ambiguity ? "utxo_participation" : (coinbase ? "coinbase_reward" : "transaction_output"),
+          inputCount: transaction.inputs.length,
+          outputIndex: null
+        }));
       });
     }
     return normalized;
@@ -139,7 +157,12 @@
           receiver,
           output.value,
           `${inputIndex}-${output.index ?? outputIndex}-tx`,
-          ambiguity
+          {
+            ambiguity,
+            relation: ambiguity ? "utxo_participation" : (coinbase ? "coinbase_reward" : "transaction_output"),
+            inputCount: transaction.inputs.length,
+            outputIndex: output.index ?? outputIndex
+          }
         ));
       });
     });
