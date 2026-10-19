@@ -21,6 +21,7 @@ assert.doesNotMatch(html, /<footer\b/i, 'Credits should no longer consume applic
 assert.match(html, /class="technical-info-credits"/, 'Technical information should contain application credits');
 assert.match(html, /mina\.naamahdaemon\.eu/);
 assert.match(html, /minataur\.net\/api\/restful/);
+assert.match(html, /mempool\.space \(Bitcoin\)/, 'Bitcoin data provider should be credited');
 
 assert.match(script, /function collectTechnicalDiagnostics\(/);
 assert.match(script, /type: 'get-technical-diagnostics'/);
@@ -31,7 +32,7 @@ assert.match(worker, /event\.data\?\.type === 'activate-update'/);
 assert.match(worker, /self\.skipWaiting\(\)/);
 assert.match(worker, /cacheName: CACHE_NAME/);
 assert.match(worker, /buildDate: APP_BUILD_DATE/);
-assert.match(worker, /mina-graph-explorer-v215/);
+assert.match(worker, /mina-graph-explorer-v216/);
 assert.match(worker, /FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37'/);
 assert.match(worker, /url\.origin === self\.location\.origin/);
 assert.match(worker, /networkFirst\(request, request\.mode === 'navigate'\)/);

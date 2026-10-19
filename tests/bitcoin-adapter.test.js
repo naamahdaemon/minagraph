@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const adapter = require("../scripts/bitcoin-adapter.js");
 
 const address = "bc1q0wd209cv5k9pd9mhk7nspacywcj038xxdhnt5u";
@@ -26,6 +27,9 @@ const incoming = adapter.normalizeTransactions(address, [{
 assert.equal(incoming.length, 2);
 assert.equal(incoming[0].receiver_key, address);
 assert.equal(incoming[0].utxo_ambiguous, true);
+assert.equal(incoming[0].bitcoin_relation, "utxo_participation");
+assert.equal(incoming[0].bitcoin_input_count, 2);
+assert.equal(incoming[0].bitcoin_output_value, "11000");
 assert.equal(incoming[0].timestamp, 1700000000000);
 
 const outgoing = adapter.normalizeTransactions(address, [{
@@ -42,6 +46,8 @@ assert.equal(outgoing.length, 1, "Change sent back to the explored address must 
 assert.equal(outgoing[0].sender_key, address);
 assert.equal(outgoing[0].receiver_key, senderA);
 assert.equal(outgoing[0].amount, "6000");
+assert.equal(outgoing[0].bitcoin_relation, "transaction_output");
+assert.equal(outgoing[0].bitcoin_output_index, 0);
 assert.equal(outgoing[0].timestamp, null, "Unconfirmed Bitcoin transactions must not be dated at the Unix epoch");
 assert.equal(outgoing[0].status, "pending");
 
@@ -71,6 +77,7 @@ assert.equal(transactionGraph.length, 3, "The transaction search must expose all
 assert.deepEqual(new Set(transactionGraph.map(edge => edge.sender_key)), new Set([senderA, senderB]));
 assert.deepEqual(new Set(transactionGraph.map(edge => edge.receiver_key)), new Set([address, senderA]));
 assert.equal(transactionGraph.every(edge => edge.utxo_ambiguous), true);
+assert.equal(transactionGraph.every(edge => edge.bitcoin_relation === "utxo_participation"), true);
 
 const appSource = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "script.js"), "utf8");
 assert.match(appSource, /blockchain === "bitcoin"[\s\S]*?BitcoinAdapter\.fetchAddressTransactions/);
@@ -90,4 +97,19 @@ assert.match(appSource, /function getDominantNodeChain\([\s\S]*?connectionCounts
 assert.match(appSource, /refreshNodeChainColors\(\);[\s\S]*?applyNodeSizesByDegree\(\)/);
 assert.match(appSource, /function formatTransactionTimestamp\(timestamp, status\)/);
 assert.match(appSource, /status === "pending" \? "Pending"/);
+assert.match(appSource, /function formatBitcoinAmount\(satoshis\)/);
+assert.match(appSource, /return `\$\{Math\.abs\(value\)\.toLocaleString[\s\S]*?sat/);
+assert.match(appSource, /function getNodeTransactionTypeLabel\(tx\)[\s\S]*?UTXO participation/);
+assert.match(appSource, /attributes\.blockchain === "bitcoin" && attributes\.utxo_ambiguous === true\) return 0/,
+  "Ambiguous UTXO links must not influence transferred-amount edge thickness");
+const formatBitcoinSource = appSource.slice(
+  appSource.indexOf("function formatBitcoinAmount"),
+  appSource.indexOf("function showLoader", appSource.indexOf("function formatBitcoinAmount"))
+);
+const formatContext = {};
+vm.runInNewContext(`${formatBitcoinSource}; globalThis.formatBitcoinAmountForTest = formatBitcoinAmount;`, formatContext);
+assert.match(formatContext.formatBitcoinAmountForTest(1), /^1 sat$/);
+assert.match(formatContext.formatBitcoinAmountForTest(11000), /11.*000 sats$/);
+assert.match(formatContext.formatBitcoinAmountForTest(17000000), /^0[.,]17 BTC$/);
+assert.equal(formatContext.formatBitcoinAmountForTest(0), "0 BTC");
 console.log("Bitcoin adapter tests passed");
