@@ -4206,6 +4206,23 @@ function formatAmount(amount, decimals = 9) {
   }
 }
 
+function formatBitcoinAmount(satoshis) {
+  if (satoshis === null || satoshis === undefined || satoshis === "") return "-";
+  const value = Number(satoshis);
+  if (!Number.isFinite(value)) return "-";
+  if (value === 0) return "0 BTC";
+  if (Math.abs(value) < 100000) {
+    return `${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })} sat${Math.abs(value) === 1 ? "" : "s"}`;
+  }
+  const btc = value / 1e8;
+  const formatted = btc.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+    useGrouping: false
+  });
+  return `${formatted} BTC`;
+}
+
 function showLoader() {
   cancelRequested = false;
   document.getElementById("loader-modal").style.display = "flex";
@@ -7689,6 +7706,7 @@ function getEdgeAssetKey(attributes) {
 
 function getEdgeTransferredAmount(attributes) {
   const command = attributes.command_type || attributes.label;
+  if (attributes.blockchain === "bitcoin" && attributes.utxo_ambiguous === true) return 0;
   if (isTokenMovement(command)) {
     return getSortableNodeTransactionAmount(attributes, "token_amount");
   }
@@ -7816,10 +7834,20 @@ function formatSignedNodeTransactionAmount(tx, node) {
   const formattedAmount = formatNodeTransactionAmount(tx);
   if (formattedAmount === "-" || formattedAmount === "") return formattedAmount;
   const direction = getNodeTransactionDirection(tx, node);
-  if (direction === -1) return `−${formattedAmount}`;
-  if (direction === 1) return `+${formattedAmount}`;
+  const ambiguityMarker = tx.blockchain === "bitcoin" && tx.utxo_ambiguous === true ? "≈" : "";
+  if (direction === -1) return `${ambiguityMarker}−${formattedAmount}`;
+  if (direction === 1) return `${ambiguityMarker}+${formattedAmount}`;
   if (direction === 0) return `±${formattedAmount}`;
   return formattedAmount;
+}
+
+function getNodeTransactionTypeLabel(tx) {
+  if (tx?.blockchain !== "bitcoin") {
+    return `${tx?.label || tx?.command_type || "-"}${tx?.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ""}`;
+  }
+  if (tx.bitcoin_relation === "coinbase_reward") return "Coinbase reward";
+  if (tx.bitcoin_relation === "utxo_participation" || tx.utxo_ambiguous === true) return "UTXO participation";
+  return "Transaction output";
 }
 
 function getTokenExplorerURL(tx) {
@@ -8142,6 +8170,7 @@ function sortNodeTransactions(items, node) {
 function formatNodeTransactionAmount(tx) {
   const isAlchemyChain = isAlchemyEvmChain(tx.blockchain);
   if (!isTokenMovement(tx.label)) {
+    if (tx.blockchain === "bitcoin") return formatBitcoinAmount(tx.amount);
     return isAlchemyChain
       ? parseFloat(tx.amount || 0).toFixed(2)
       : formatAmount(tx.amount, getDecimalsForBlockchain(tx.blockchain));
@@ -8158,6 +8187,13 @@ function formatNodeTransactionAmount(tx) {
   const tokenLabel = tx.token_name || tx.token_symbol || tokenInfo?.symbol ||
     (tx.token_id ? `Token ${String(tx.token_id).slice(0, 6)}…${String(tx.token_id).slice(-6)}` : "token");
   return `${formatTokenAmount(normalizedAmount, decimals)} ${tokenLabel}`;
+}
+
+function formatNodeTransactionFee(tx) {
+  if (tx?.blockchain === "bitcoin") return formatBitcoinAmount(tx.fee);
+  return isAlchemyEvmChain(tx?.blockchain)
+    ? parseFloat(tx?.fee || 0).toFixed(2)
+    : formatAmount(tx?.fee, getDecimalsForBlockchain(tx?.blockchain));
 }
 
 function getTransactionMemoAttributes(memo) {
@@ -8290,11 +8326,8 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
             const transactionLink = tx.hash
               ? getExplorerURL("transaction", tx.hash, tx.blockchain)
               : getExplorerURL("block", tx.block_hash || tx.block_id, tx.blockchain);
-            const typeLabel = `${tx.label || "-"}${tx.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ""}`;
-            const isAlchemyChain = isAlchemyEvmChain(tx.blockchain);
-            const fee = isAlchemyChain
-              ? parseFloat(tx.fee || 0).toFixed(2)
-              : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain));
+            const typeLabel = getNodeTransactionTypeLabel(tx);
+            const fee = formatNodeTransactionFee(tx);
             return `
               <tr ${getTransactionMemoAttributes(tx.memo)}>
                 <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
@@ -8445,7 +8478,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
         : "Operations without confirmed timestamps"}
     </p>
     <p class="node-transactions-heading"><strong>Linked Nodes & Transactions</strong></p>
-    ${hasAmbiguousBitcoinRelations ? `<p class="bitcoin-utxo-note">Some Bitcoin links originate from multi-input UTXO transactions. They show transaction participation, not a uniquely attributable sender-to-recipient payment.</p>` : ""}
+    ${hasAmbiguousBitcoinRelations ? `<p class="bitcoin-utxo-note">≈ marks Bitcoin multi-input UTXO participation. The displayed value is the transaction output, not an amount uniquely attributable to each input address; ambiguous links are excluded from transferred-amount weighting and outgoing totals.</p>` : ""}
     <label class="node-chronological-toggle">
       <input type="checkbox" id="chronological-transactions-toggle"
         ${showNodeTransactionsChronologically ? "checked" : ""}
@@ -8512,7 +8545,6 @@ function showNodePanel(node, refreshExternalStatus = true) {
             </thead>
             <tbody>
               ${sortNodeTransactions(directEdges.map(edge => ({ edge, tx: graph.getEdgeAttributes(edge) })), node).map(({ edge, tx }) => {
-                  const isAlchemyChain = (chain) => isAlchemyEvmChain(chain);
                 return `
                 <tr ${getTransactionMemoAttributes(tx.memo)}>
                   <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
@@ -8533,10 +8565,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                       //  ? (tx.token_contract ? getExplorerURL('account', tx.token_contract, tx.blockchain) : "#")
                       //  : (tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : "#");
                         const link = tx.hash ? getExplorerURL('transaction', tx.hash, tx.blockchain) : getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain);           
-                        const tlabel = tx.label || "-"; // Default to "-" if no label
-                        const entryPoint = tx.contract_call_entrypoint ? `:${tx.contract_call_entrypoint}` : ''; // Check if entrypoint exists and append it
-                        // Concatenate the entry point to the label
-                        const label = tlabel + entryPoint;
+                        const label = getNodeTransactionTypeLabel(tx);
                       return `
                         <a href="${link}" target="_blank" rel="noopener noreferrer" style="color: white; text-decoration: none;">
                           ${label} <span style="font-size: 9px; opacity: 0.7;">🔗</span>
@@ -8545,9 +8574,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                     })()}
                   </td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${renderSignedNodeTransactionAmount(tx, node)}</td>
-                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${isAlchemyChain(tx.blockchain)
-                         ? parseFloat(tx.fee || 0).toFixed(2)
-                         : formatAmount(tx.fee, getDecimalsForBlockchain(tx.blockchain))}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatNodeTransactionFee(tx)}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.status || "-"}</td>
                 </tr>
                   ${isTokenMovement(tx.label) ? `
@@ -11669,6 +11696,10 @@ function rebuildTransactionsByNeighbor() {
       token_decimals: attrs.token_decimals,
       contract_call_entrypoint: attrs.contract_call_entrypoint || null, // Valeur par défaut si non défini
       utxo_ambiguous: attrs.utxo_ambiguous === true,
+      bitcoin_relation: attrs.bitcoin_relation || null,
+      bitcoin_input_count: attrs.bitcoin_input_count ?? null,
+      bitcoin_output_index: attrs.bitcoin_output_index ?? null,
+      bitcoin_output_value: attrs.bitcoin_output_value ?? null,
     };
 
     if (!transactionsByNeighbor[source]) transactionsByNeighbor[source] = [];
