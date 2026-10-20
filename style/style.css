@@ -2473,6 +2473,48 @@
       line-height: 1.25;
     }
 
+    .node-favorite-identity {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin: 0 0 8px;
+      color: var(--node-panel-text);
+    }
+
+    .node-favorite-identity-icon {
+      flex: 0 0 auto;
+      color: #ffd600;
+      font-size: 18px;
+      line-height: 1.35;
+      filter: drop-shadow(0 0 4px rgba(255, 214, 0, 0.35));
+    }
+
+    .node-favorite-identity-names {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .node-favorite-identity-name {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 7px;
+      min-width: 0;
+      font-size: clamp(18px, 4vw, 24px);
+      font-weight: 800;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .node-favorite-identity-name small {
+      color: var(--node-panel-muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
     #node-details > h3 > a {
       min-width: 0;
       overflow-wrap: anywhere;

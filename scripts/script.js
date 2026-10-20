@@ -197,6 +197,47 @@ function getNodeFavoriteEntries(node, chains = getFavoriteChainsForNode(node)) {
   );
 }
 
+function escapeHtmlText(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderNodeFavoriteIdentity(node) {
+  const namedFavorites = getNodeFavoriteEntries(node)
+    .map(favorite => ({
+      label: String(favorite.label || "").trim(),
+      chain: String(favorite.chain || "").trim()
+    }))
+    .filter(favorite => favorite.label);
+  if (!namedFavorites.length) return "";
+
+  const labelsByName = new Map();
+  namedFavorites.forEach(({ label, chain }) => {
+    if (!labelsByName.has(label)) labelsByName.set(label, new Set());
+    if (chain) labelsByName.get(label).add(chain);
+  });
+  const showChains = labelsByName.size > 1;
+
+  return `
+    <div class="node-favorite-identity" aria-label="Favorite name">
+      <span class="node-favorite-identity-icon" aria-hidden="true">★</span>
+      <div class="node-favorite-identity-names">
+        ${[...labelsByName.entries()].map(([label, chains]) => `
+          <span class="node-favorite-identity-name">
+            ${escapeHtmlText(label)}
+            ${showChains && chains.size
+              ? `<small>${[...chains].map(capitalize).map(escapeHtmlText).join(" · ")}</small>`
+              : ""}
+          </span>
+        `).join("")}
+      </div>
+    </div>`;
+}
+
 function saveNodeAsFavoriteAcrossChains(node, label = "") {
   if (!graph?.hasNode(node)) return [];
   const favoriteLabel = String(label || "").trim();
@@ -8446,6 +8487,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   //});
   
   const html = `
+    ${renderNodeFavoriteIdentity(node)}
     <h3 class="node-title">
       ${renderNodeExplorerTitle(node, data)}
       <span id="favorite-status"></span>
@@ -12677,16 +12719,49 @@ async function confirmAndClearAllNotifications() {
   }
 }
 
+function findNotificationOperationAmount(notification) {
+  const queue = [notification];
+  const visited = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+    for (const [key, value] of Object.entries(current)) {
+      const normalizedKey = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+      const excluded = /coinbase|fee|balance|reward/.test(normalizedKey);
+      const amountKey = /amount|value/.test(normalizedKey);
+      const operationKey = /payment|operation|transaction|transfer/.test(normalizedKey);
+      if (!excluded && amountKey && (operationKey || normalizedKey === "amount" || normalizedKey === "value")) {
+        if (typeof value === "string" || typeof value === "number") return { key: normalizedKey, value };
+      }
+      if (value && typeof value === "object") queue.push(value);
+      if (typeof value === "string" && /^[\[{]/.test(value.trim())) {
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed && typeof parsed === "object") queue.push(parsed);
+        } catch (_error) {
+          // Ordinary notification text is not structured payload data.
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function formatMinaNotificationAmount(notification) {
   const chain = String(notification?.chain || notification?.blockchain || "").toLowerCase();
   if (chain !== "mina" && chain !== "mina-devnet") return "";
 
   const minaAmount = notification?.amount_mina ?? notification?.amountMina;
-  const rawAmount = minaAmount ??
+  const explicitAmount = minaAmount ??
     notification?.payment_amount ?? notification?.paymentAmount ??
     notification?.operation_amount ?? notification?.operationAmount ??
     notification?.transaction_amount ?? notification?.transactionAmount ??
     notification?.amount ?? notification?.value;
+  const discoveredAmount = explicitAmount === null || explicitAmount === undefined || explicitAmount === ""
+    ? findNotificationOperationAmount(notification)
+    : null;
+  const rawAmount = discoveredAmount ? discoveredAmount.value : explicitAmount;
   if (rawAmount === null || rawAmount === undefined || rawAmount === "") return "";
 
   const rawAmountText = String(rawAmount).trim();
@@ -12696,10 +12771,18 @@ function formatMinaNotificationAmount(notification) {
   const declaredUnit = String(
     notification?.amount_unit || notification?.amountUnit || notification?.currency || notification?.symbol || ""
   ).trim().toLowerCase();
-  const alreadyInMina = minaAmount !== null && minaAmount !== undefined || declaredUnit === "mina" || includesMinaUnit;
+  const discoveredMinaUnit = discoveredAmount?.key?.includes("mina") || false;
+  const alreadyInMina = minaAmount !== null && minaAmount !== undefined || declaredUnit === "mina" || includesMinaUnit || discoveredMinaUnit;
   const looksLikeNanomina = !alreadyInMina && Number.isInteger(numericAmount) && Math.abs(numericAmount) >= 1e6;
   const normalizedAmount = looksLikeNanomina ? numericAmount / 1e9 : numericAmount;
   return `${normalizedAmount.toFixed(2)} MINA`;
+}
+
+function getNotificationBodyWithoutStructuredAmount(notification) {
+  return String(notification?.body || "")
+    .split(/\r?\n/)
+    .filter(line => !/^\s*Amount\s*:/i.test(line))
+    .join("\n");
 }
 
 async function showNotificationList() {
@@ -12761,6 +12844,7 @@ async function showNotificationList() {
       .map(n => {
         let graphButtons = '';
         const operationAmount = formatMinaNotificationAmount(n);
+        const notificationBody = getNotificationBodyWithoutStructuredAmount(n);
 
         if (n.action_primary === 'show_graph' && n.chain) {
           if (n.sender) {
@@ -12850,7 +12934,7 @@ async function showNotificationList() {
             color: ${textColor};
           ">
           <strong>${n.title}</strong><br>
-            <small style="color: ${secondaryTextColor};">${(n.body || '').replace(/\n/g, '<br/>')}</small><br/>
+            <small style="color: ${secondaryTextColor};">${notificationBody.replace(/\n/g, '<br/>')}</small><br/>
           ${operationAmount ? `<small class="notification-operation-amount" style="color: ${textColor};"><strong>Amount:</strong> ${operationAmount}</small><br/>` : ''}
           <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
           <button style="
