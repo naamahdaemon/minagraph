@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v218';
+const CACHE_NAME = 'mina-graph-explorer-v219';
 const APP_BUILD_DATE = '2026-10-20';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -330,6 +330,7 @@ self.addEventListener('push', function(event) {
   const actions = buildNotificationActions(data);
 
   const notificationData = {
+    ...data,
     title,
     body,
     icon,
@@ -342,6 +343,10 @@ self.addEventListener('push', function(event) {
     ...(data.amount !== undefined && { amount: data.amount }),
     ...(data.operation_amount !== undefined && { operation_amount: data.operation_amount }),
     ...(data.operationAmount !== undefined && { operationAmount: data.operationAmount }),
+    ...(data.payment_amount !== undefined && { payment_amount: data.payment_amount }),
+    ...(data.paymentAmount !== undefined && { paymentAmount: data.paymentAmount }),
+    ...(data.transaction_amount !== undefined && { transaction_amount: data.transaction_amount }),
+    ...(data.transactionAmount !== undefined && { transactionAmount: data.transactionAmount }),
     ...(data.value !== undefined && { value: data.value }),
     ...(data.amount_mina !== undefined && { amount_mina: data.amount_mina }),
     ...(data.amountMina !== undefined && { amountMina: data.amountMina }),
