@@ -12949,33 +12949,85 @@ function showToastNotification(title, body) {
   window._toastTimeout = setTimeout(hideToast, 5000);
 }
 
-/**
- * Saves all localStorage data to a JSON file.
- *
- * @param {string} filename The name of the file to save (e.g., "localStorage_backup.json").
- */
+const SETTINGS_BACKUP_FORMAT = "minagraph-settings";
+const SETTINGS_BACKUP_VERSION = 1;
+const EXPORTABLE_LEGACY_STORAGE_KEYS = new Set([
+  "apiTokens",
+  "favorites",
+  "layoutSettings",
+  "minagraphEdgeThicknessMode",
+  "minagraphFilterPanelVisible",
+  "param-depth",
+  "param-end-date",
+  "param-first-iteration",
+  "param-limit",
+  "param-start-date",
+  "selectedBlockchain",
+]);
+
+function isExportableMinagraphStorageKey(key) {
+  const normalizedKey = String(key || "");
+  return normalizedKey.startsWith("minagraph-") ||
+    normalizedKey.startsWith("start-key-") ||
+    EXPORTABLE_LEGACY_STORAGE_KEYS.has(normalizedKey);
+}
+
+function collectExportableLocalStorage(storage = localStorage) {
+  const settings = {};
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (!isExportableMinagraphStorageKey(key)) continue;
+    const value = storage.getItem(key);
+    if (value !== null) settings[key] = value;
+  }
+  return settings;
+}
+
+function normalizeImportedSettingsBackup(loadedData) {
+  if (!loadedData || typeof loadedData !== "object" || Array.isArray(loadedData)) {
+    throw new Error("Invalid JSON structure: expected a settings object.");
+  }
+
+  const isVersionedBackup = loadedData.format === SETTINGS_BACKUP_FORMAT;
+  if (isVersionedBackup) {
+    if (loadedData.version !== SETTINGS_BACKUP_VERSION ||
+        !loadedData.settings || typeof loadedData.settings !== "object" || Array.isArray(loadedData.settings)) {
+      throw new Error("Unsupported or invalid Minagraph settings backup.");
+    }
+  }
+
+  const source = isVersionedBackup ? loadedData.settings : loadedData;
+  const settings = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (!isExportableMinagraphStorageKey(key) || value === undefined) continue;
+    settings[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return settings;
+}
+
+function restoreExportableLocalStorage(settings, storage = localStorage) {
+  const keysToRemove = [];
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (isExportableMinagraphStorageKey(key)) keysToRemove.push(key);
+  }
+  keysToRemove.forEach(key => storage.removeItem(key));
+  Object.entries(settings).forEach(([key, value]) => storage.setItem(key, value));
+}
+
+/** Saves all exportable Minagraph settings to a versioned JSON file. */
 function saveLocalStorageToJsonFile(filename = 'localStorage_backup.json') {
-    const dataToSave = {};
     const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); 
     const fileToSave = `localStorage_backup_${timestamp}.json`;    
 
     try {
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            try {
-                dataToSave[key] = JSON.parse(localStorage.getItem(key));
-            } catch (e) {
-                dataToSave[key] = localStorage.getItem(key);
-            }
-        }
+        const dataToSave = {
+          format: SETTINGS_BACKUP_FORMAT,
+          version: SETTINGS_BACKUP_VERSION,
+          exportedAt: new Date().toISOString(),
+          settings: collectExportableLocalStorage(),
+        };
         console.log('localStorage data collected successfully.');
-    } catch (error) {
-        console.error('Error collecting localStorage data:', error);
-        alert('Failed to collect localStorage data. Check console for details.');
-        return;
-    }
-
-    try {
         const jsonString = JSON.stringify(dataToSave, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -13012,25 +13064,11 @@ function loadLocalStorageFromJsonFile(file) {
         try {
             const loadedData = JSON.parse(event.target.result);
 
-            if (typeof loadedData !== 'object' || loadedData === null) {
-                throw new Error('Invalid JSON structure: Expected an object.');
-            }
-
-            // Clear existing localStorage before restoring
-            localStorage.clear();
-            console.log('Existing localStorage cleared.');
-
-            for (const key in loadedData) {
-                if (Object.hasOwnProperty.call(loadedData, key)) {
-                    // localStorage only stores strings, so stringify non-string values
-                    const valueToStore = typeof loadedData[key] === 'string' ? loadedData[key] : JSON.stringify(loadedData[key]);
-                    localStorage.setItem(key, valueToStore);
-                }
-            }
+            const settings = normalizeImportedSettingsBackup(loadedData);
+            restoreExportableLocalStorage(settings);
             console.log('localStorage data restored successfully.');
-            alert('localStorage data loaded successfully!');
-            // You might want to reload the page or trigger a UI update here
-            // window.location.reload();
+            alert('Minagraph settings imported successfully. The application will now reload.');
+            window.location.reload();
         } catch (error) {
             console.error('Error loading localStorage data from file:', error);
             alert(`Failed to load data from file: ${error.message}. Please ensure it's a valid JSON backup.`);
