@@ -12682,16 +12682,23 @@ function formatMinaNotificationAmount(notification) {
   if (chain !== "mina" && chain !== "mina-devnet") return "";
 
   const minaAmount = notification?.amount_mina ?? notification?.amountMina;
-  const rawAmount = minaAmount ?? notification?.operation_amount ?? notification?.operationAmount ?? notification?.amount ?? notification?.value;
+  const rawAmount = minaAmount ??
+    notification?.payment_amount ?? notification?.paymentAmount ??
+    notification?.operation_amount ?? notification?.operationAmount ??
+    notification?.transaction_amount ?? notification?.transactionAmount ??
+    notification?.amount ?? notification?.value;
   if (rawAmount === null || rawAmount === undefined || rawAmount === "") return "";
 
-  const numericAmount = Number(rawAmount);
+  const rawAmountText = String(rawAmount).trim();
+  const includesMinaUnit = /\bmina\b/i.test(rawAmountText);
+  const numericAmount = Number(rawAmountText.replace(/\s*mina\s*$/i, "").replace(",", "."));
   if (!Number.isFinite(numericAmount)) return "";
   const declaredUnit = String(
     notification?.amount_unit || notification?.amountUnit || notification?.currency || notification?.symbol || ""
   ).trim().toLowerCase();
-  const alreadyInMina = minaAmount !== null && minaAmount !== undefined || declaredUnit === "mina";
-  const normalizedAmount = alreadyInMina ? numericAmount : numericAmount / 1e9;
+  const alreadyInMina = minaAmount !== null && minaAmount !== undefined || declaredUnit === "mina" || includesMinaUnit;
+  const looksLikeNanomina = !alreadyInMina && Number.isInteger(numericAmount) && Math.abs(numericAmount) >= 1e6;
+  const normalizedAmount = looksLikeNanomina ? numericAmount / 1e9 : numericAmount;
   return `${normalizedAmount.toFixed(2)} MINA`;
 }
 

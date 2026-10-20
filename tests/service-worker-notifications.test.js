@@ -40,6 +40,8 @@ assert.match(uiSource, /function handleNotificationActions\(notif\) \{\s*if \(!n
 assert.doesNotMatch(uiSource, /function handleNotificationActions\(notif\)[\s\S]*?notif\.action_primary/);
 assert.match(source, /data\.amount !== undefined && \{ amount: data\.amount \}/,
   "Background notifications should preserve operation amounts");
+assert.match(source, /const notificationData = \{\s*\.\.\.data,/,
+  "Background notifications should retain the complete producer payload");
 assert.match(uiSource, /class="notification-operation-amount"[\s\S]*?<strong>Amount:<\/strong>/,
   "The notification panel should render structured operation amounts");
 
@@ -48,6 +50,8 @@ assert.ok(amountFormatterSource, "The Mina notification amount formatter should 
 const amountContext = {};
 vm.runInNewContext(`${amountFormatterSource}; formatAmount = formatMinaNotificationAmount;`, amountContext);
 assert.equal(amountContext.formatAmount({ chain: "mina", amount: "1250000000" }), "1.25 MINA");
+assert.equal(amountContext.formatAmount({ chain: "mina", paymentAmount: "9.87" }), "9.87 MINA");
+assert.equal(amountContext.formatAmount({ chain: "mina", transaction_amount: "5 MINA" }), "5.00 MINA");
 assert.equal(amountContext.formatAmount({ chain: "mina-devnet", amount_mina: "2.5" }), "2.50 MINA");
 assert.equal(amountContext.formatAmount({ chain: "mina", amount: "3.756", amount_unit: "MINA" }), "3.76 MINA");
 assert.equal(amountContext.formatAmount({ chain: "ethereum", amount: "1250000000" }), "");
