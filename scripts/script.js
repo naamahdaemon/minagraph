@@ -12677,6 +12677,24 @@ async function confirmAndClearAllNotifications() {
   }
 }
 
+function formatMinaNotificationAmount(notification) {
+  const chain = String(notification?.chain || notification?.blockchain || "").toLowerCase();
+  if (chain !== "mina" && chain !== "mina-devnet") return "";
+
+  const minaAmount = notification?.amount_mina ?? notification?.amountMina;
+  const rawAmount = minaAmount ?? notification?.operation_amount ?? notification?.operationAmount ?? notification?.amount ?? notification?.value;
+  if (rawAmount === null || rawAmount === undefined || rawAmount === "") return "";
+
+  const numericAmount = Number(rawAmount);
+  if (!Number.isFinite(numericAmount)) return "";
+  const declaredUnit = String(
+    notification?.amount_unit || notification?.amountUnit || notification?.currency || notification?.symbol || ""
+  ).trim().toLowerCase();
+  const alreadyInMina = minaAmount !== null && minaAmount !== undefined || declaredUnit === "mina";
+  const normalizedAmount = alreadyInMina ? numericAmount : numericAmount / 1e9;
+  return `${normalizedAmount.toFixed(2)} MINA`;
+}
+
 async function showNotificationList() {
   const container = document.getElementById('notification-list');
   
@@ -12735,6 +12753,7 @@ async function showNotificationList() {
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(n => {
         let graphButtons = '';
+        const operationAmount = formatMinaNotificationAmount(n);
 
         if (n.action_primary === 'show_graph' && n.chain) {
           if (n.sender) {
@@ -12825,6 +12844,7 @@ async function showNotificationList() {
           ">
           <strong>${n.title}</strong><br>
             <small style="color: ${secondaryTextColor};">${(n.body || '').replace(/\n/g, '<br/>')}</small><br/>
+          ${operationAmount ? `<small class="notification-operation-amount" style="color: ${textColor};"><strong>Amount:</strong> ${operationAmount}</small><br/>` : ''}
           <small style="color: #aaa;">${new Date(n.timestamp).toLocaleString()}</small>
           <button style="
             position: absolute;
