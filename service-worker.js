@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mina-graph-explorer-v217';
-const APP_BUILD_DATE = '2026-10-19';
+const CACHE_NAME = 'mina-graph-explorer-v218';
+const APP_BUILD_DATE = '2026-10-20';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
 // Register this before loading Firebase Messaging. The FCM SDK installs its own
@@ -339,6 +339,16 @@ self.addEventListener('push', function(event) {
     address: data.address,
     action_primary: data.action_primary,
     action_secondary: data.action_secondary,
+    ...(data.amount !== undefined && { amount: data.amount }),
+    ...(data.operation_amount !== undefined && { operation_amount: data.operation_amount }),
+    ...(data.operationAmount !== undefined && { operationAmount: data.operationAmount }),
+    ...(data.value !== undefined && { value: data.value }),
+    ...(data.amount_mina !== undefined && { amount_mina: data.amount_mina }),
+    ...(data.amountMina !== undefined && { amountMina: data.amountMina }),
+    ...(data.amount_unit && { amount_unit: data.amount_unit }),
+    ...(data.amountUnit && { amountUnit: data.amountUnit }),
+    ...(data.currency && { currency: data.currency }),
+    ...(data.symbol && { symbol: data.symbol }),
     ...(data.transaction_timestamp && { transaction_timestamp: data.transaction_timestamp }),
     ...(data.transactionTimestamp && { transactionTimestamp: data.transactionTimestamp }),
     ...(data.transaction_date && { transaction_date: data.transaction_date }),
