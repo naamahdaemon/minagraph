@@ -78,7 +78,11 @@ assert.match(css, /\.legend-pill-list > \.legend-item\.active:hover/);
 assert.match(css, /body\[data-theme="light"\] \.legend-pill-list > \.legend-item,[\s\S]*?background: #fff;[\s\S]*?box-shadow: none;/);
 assert.match(css, /\.node-color-reset\s*\{/);
 assert.match(css, /\.node-delete-action\s*\{/);
-assert.match(worker, /mina-graph-explorer-v219/);
+assert.match(source, /function renderNodeFavoriteIdentity\(node\)/,
+  'The node details panel should expose named favorite identities');
+assert.match(source, /\$\{renderNodeFavoriteIdentity\(node\)\}[\s\S]*?<h3 class="node-title">/,
+  'The favorite name should be rendered prominently before the technical node title');
+assert.match(worker, /mina-graph-explorer-v220/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');

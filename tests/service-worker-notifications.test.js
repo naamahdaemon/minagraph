@@ -45,16 +45,31 @@ assert.match(source, /const notificationData = \{\s*\.\.\.data,/,
 assert.match(uiSource, /class="notification-operation-amount"[\s\S]*?<strong>Amount:<\/strong>/,
   "The notification panel should render structured operation amounts");
 
+const amountDiscoverySource = uiSource.match(/function findNotificationOperationAmount\(notification\) \{[\s\S]*?\n\}/)?.[0];
 const amountFormatterSource = uiSource.match(/function formatMinaNotificationAmount\(notification\) \{[\s\S]*?\n\}/)?.[0];
+const notificationBodySource = uiSource.match(/function getNotificationBodyWithoutStructuredAmount\(notification\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(amountDiscoverySource, "The notification payload amount discovery helper should exist");
 assert.ok(amountFormatterSource, "The Mina notification amount formatter should exist");
+assert.ok(notificationBodySource, "The notification body amount deduplication helper should exist");
 const amountContext = {};
-vm.runInNewContext(`${amountFormatterSource}; formatAmount = formatMinaNotificationAmount;`, amountContext);
+vm.runInNewContext(`${amountDiscoverySource}; ${amountFormatterSource}; ${notificationBodySource}; formatAmount = formatMinaNotificationAmount; cleanBody = getNotificationBodyWithoutStructuredAmount;`, amountContext);
 assert.equal(amountContext.formatAmount({ chain: "mina", amount: "1250000000" }), "1.25 MINA");
 assert.equal(amountContext.formatAmount({ chain: "mina", paymentAmount: "9.87" }), "9.87 MINA");
 assert.equal(amountContext.formatAmount({ chain: "mina", transaction_amount: "5 MINA" }), "5.00 MINA");
+assert.equal(amountContext.formatAmount({ chain: "mina", transaction: '{"transfer":{"payment_value":"4200000000"}}' }), "4.20 MINA");
+assert.equal(amountContext.formatAmount({ chain: "mina", coinbaseAmount: "360", fee: "1000000" }), "");
 assert.equal(amountContext.formatAmount({ chain: "mina-devnet", amount_mina: "2.5" }), "2.50 MINA");
 assert.equal(amountContext.formatAmount({ chain: "mina", amount: "3.756", amount_unit: "MINA" }), "3.76 MINA");
 assert.equal(amountContext.formatAmount({ chain: "ethereum", amount: "1250000000" }), "");
+assert.equal(
+  amountContext.cleanBody({ body: "Kind: PAYMENT\nAmount: 1.25 MINA\nBlock Creator: B62q" }),
+  "Kind: PAYMENT\nBlock Creator: B62q"
+);
+assert.equal(
+  amountContext.cleanBody({ body: "Transferred amount is included in the graph" }),
+  "Transferred amount is included in the graph",
+  "Only a dedicated Amount label should be removed"
+);
 vm.runInNewContext(source, context);
 
 const actions = context.buildNotificationActions({
