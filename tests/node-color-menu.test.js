@@ -82,7 +82,7 @@ assert.match(source, /function renderNodeFavoriteIdentity\(node\)/,
   'The node details panel should expose named favorite identities');
 assert.match(source, /\$\{renderNodeFavoriteIdentity\(node\)\}[\s\S]*?<h3 class="node-title">/,
   'The favorite name should be rendered prominently before the technical node title');
-assert.match(worker, /mina-graph-explorer-v220/);
+assert.match(worker, /mina-graph-explorer-v221/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');
