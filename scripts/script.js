@@ -106,6 +106,8 @@ let nodeTransactionRenderContext = "";
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
 const nodeColorFilter = new Set();
+let minimumNodeExchangeAmount = 0;
+let nodeExchangeAmountTotals = new Map();
 const NODE_DEFAULT_COLOR_FILTER = "__default__";
 const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1";
 const NODE_CUSTOM_COLORS = Object.freeze([
@@ -713,14 +715,37 @@ function edgeMatchesActiveView(attributes, source, target, referenceNode = selec
     edgeMatchesMultiSelection(source, target);
 }
 
+function nodeMatchesMinimumExchangeAmount(node) {
+  return minimumNodeExchangeAmount <= 0 ||
+    (nodeExchangeAmountTotals.get(node) || 0) > minimumNodeExchangeAmount;
+}
+
+function edgeMatchesMinimumExchangeAmount(source, target) {
+  return nodeMatchesMinimumExchangeAmount(source) && nodeMatchesMinimumExchangeAmount(target);
+}
+
+function rebuildNodeExchangeAmountTotals(referenceNode = selectedNode) {
+  nodeExchangeAmountTotals = new Map();
+  if (!graph || minimumNodeExchangeAmount <= 0) return;
+  const playbackFocus = getDatePlaybackFocus();
+  graph.forEachEdge((edge, attributes, source, target) => {
+    if (!edgeMatchesActiveView(attributes, source, target, referenceNode)) return;
+    if (playbackFocus && !playbackFocus.edges.has(edge)) return;
+    const amount = Math.abs(getEdgeTransferredAmount(attributes));
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    nodeExchangeAmountTotals.set(source, (nodeExchangeAmountTotals.get(source) || 0) + amount);
+    if (target !== source) {
+      nodeExchangeAmountTotals.set(target, (nodeExchangeAmountTotals.get(target) || 0) + amount);
+    }
+  });
+}
+
 function graphEdgeMatchesActiveView(edge, referenceNode = selectedNode) {
   if (!graph?.hasEdge(edge)) return false;
-  return edgeMatchesActiveView(
-    graph.getEdgeAttributes(edge),
-    graph.source(edge),
-    graph.target(edge),
-    referenceNode
-  );
+  const source = graph.source(edge);
+  const target = graph.target(edge);
+  return edgeMatchesActiveView(graph.getEdgeAttributes(edge), source, target, referenceNode) &&
+    edgeMatchesMinimumExchangeAmount(source, target);
 }
 
 function edgeMatchesFocusedGraphSubset(source, target, focusNode) {
@@ -737,6 +762,7 @@ function getActiveGraphSubset() {
     if (attributes.hidden === true || attributes.searchHidden === true || !transactionMatchesActiveLegendFilters(attributes)) return;
     if (!edgeMatchesActiveColorFilter(source, target)) return;
     if (!edgeMatchesMultiSelection(source, target)) return;
+    if (!edgeMatchesMinimumExchangeAmount(source, target)) return;
     if (playbackFocus && !playbackFocus.edges.has(edge)) return;
     if (!edgeMatchesFocusedGraphSubset(source, target, focusNode)) return;
     if (!playbackFocus && !edgeMatchesSelectedNodeDirection(source, target)) return;
@@ -751,17 +777,19 @@ function getActiveGraphSubset() {
     focusNode ||
     commandTypeFilter.size > 0 ||
     chainFilter.size > 0 ||
+    minimumNodeExchangeAmount > 0 ||
     (multiSelectionEnabled && (multiSelectionFocused || multiSelectionFollowLinks) && getMultiSelectedNodes().size > 0)
   );
   const nodes = new Set(edgeNodes);
   if (!relationshipFilterActive) {
     graph.forEachNode((node, attributes) => {
-      if (attributes.hidden !== true && attributes.searchHidden !== true && nodeMatchesActiveColorFilter(node) && nodeMatchesMultiSelection(node)) nodes.add(node);
+      if (attributes.hidden !== true && attributes.searchHidden !== true && nodeMatchesActiveColorFilter(node) &&
+          nodeMatchesMultiSelection(node) && nodeMatchesMinimumExchangeAmount(node)) nodes.add(node);
     });
   } else {
     if (focusNode && graph.hasNode(focusNode) && graph.getNodeAttribute(focusNode, "hidden") !== true &&
         graph.getNodeAttribute(focusNode, "searchHidden") !== true &&
-        nodeMatchesActiveColorFilter(focusNode)) nodes.add(focusNode);
+        nodeMatchesActiveColorFilter(focusNode) && nodeMatchesMinimumExchangeAmount(focusNode)) nodes.add(focusNode);
   }
   return { nodes: [...nodes], edges };
 }
@@ -818,7 +846,7 @@ function syncAdaptiveViewportContext() {
       getViewportElements: getGraphViewportElements,
       isBusy: () => isLayoutRunning,
       isNodeFixed: (_node, attributes) => Boolean(attributes?.fixed || attributes?.pinned || attributes?.manuallyPositioned),
-      onViewportFit: () => centerGraphInViewport({ trackLayout: false }),
+      onViewportFit: nodeIds => centerGraphInViewport({ trackLayout: false, nodeIds }),
     });
   }
   adaptiveViewportManager.setContext({ graph, renderer });
@@ -1002,6 +1030,15 @@ function refreshLegendFilteredViews() {
   if (typeof renderer !== "undefined" && renderer?.refresh) renderer.refresh();
   refreshSelectedNodePanelIfOpen();
   refreshDatePlaybackFeedForCurrentRange();
+}
+
+function setMinimumNodeExchangeAmount(value) {
+  const normalized = Number.parseFloat(String(value ?? "").trim().replace(",", "."));
+  minimumNodeExchangeAmount = Number.isFinite(normalized) && normalized > 0 ? normalized : 0;
+  const input = document.getElementById("minimum-node-exchange-amount");
+  input?.closest(".node-amount-filter-control")?.classList.toggle("active", minimumNodeExchangeAmount > 0);
+  if (input) input.setAttribute("aria-invalid", "false");
+  refreshLegendFilteredViews();
 }
 const MINATAUR_API_ADDRESS = "B62qk3SwELMgRYALi8fiQvpqfBs48m3cqCd7o4d5dJUqEQ6mW9gEySm";
 const DONATION_ADDRESS = "B62qrZNc5YzuBzSaCPSNRASCkPjKosaj3zYZELM6X5nCsha6rEh6s8F";
@@ -3485,6 +3522,7 @@ document.addEventListener("DOMContentLoaded", () => {
         commandTypeFilter.clear();
         chainFilter.clear();
         nodeColorFilter.clear();
+        minimumNodeExchangeAmount = 0;
         selectedNodeDirectionFilter = "all";
         console.log("🔄 All filters reset");
 
@@ -3493,6 +3531,9 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('.legend-chain').forEach(el => el.classList.remove('active'));
         syncNodeColorFilterControls();
         syncNodeDirectionFilterControls();
+        const amountInput = document.getElementById("minimum-node-exchange-amount");
+        if (amountInput) amountInput.value = "";
+        amountInput?.closest(".node-amount-filter-control")?.classList.remove("active");
 
         refreshLegendFilteredViews();
         return; // Exit early, no further processing needed for reset
@@ -3575,6 +3616,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
   syncNodeDirectionFilterControls();
+
+  const minimumAmountInput = document.getElementById("minimum-node-exchange-amount");
+  let minimumAmountInputTimer = null;
+  const applyMinimumAmountFilter = () => {
+    clearTimeout(minimumAmountInputTimer);
+    setMinimumNodeExchangeAmount(minimumAmountInput?.value);
+  };
+  minimumAmountInput?.addEventListener("input", () => {
+    clearTimeout(minimumAmountInputTimer);
+    minimumAmountInputTimer = setTimeout(applyMinimumAmountFilter, 250);
+  });
+  minimumAmountInput?.addEventListener("change", applyMinimumAmountFilter);
+  minimumAmountInput?.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyMinimumAmountFilter();
+    }
+  });
 
   document.getElementById("toggle-edge-directions").addEventListener("change", (e) => {
     showEdgeDirections = e.target.checked;
@@ -4630,8 +4689,13 @@ class LayoutController {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           if (runId !== this.runId || isLayoutRunning) return;
           renderer?.refresh();
-          if (adaptiveViewportManager?.enabled) adaptiveViewportManager.resume("layout-complete");
-          else centerGraphInViewport({ trackLayout: false });
+          if (adaptiveViewportManager?.enabled) {
+            adaptiveViewportManager.resume("layout-complete", layoutNodeIds);
+          } else if (algorithm === "spacious" && layoutScope === "visible") {
+            fitGraphNodesInViewport(layoutNodeIds);
+          } else {
+            centerGraphInViewport({ trackLayout: false });
+          }
         }));
         if (recenterAfterLayout) {
           recenterAfterLayout = false;
@@ -4684,10 +4748,10 @@ function calculateNormalizedCenter(allPositions, visiblePositions) {
   };
 }
 
-function getRecenteringNodePositions() {
+function getRecenteringNodePositions(nodeIds = null) {
   const allPositions = [];
   const visiblePositions = [];
-  const centeredNodes = new Set(getAdaptiveViewportNodeIds());
+  const centeredNodes = new Set(nodeIds || getAdaptiveViewportNodeIds());
 
   graph.forEachNode((node, attributes) => {
     const position = { x: Number(attributes.x), y: Number(attributes.y) };
@@ -4703,11 +4767,11 @@ function getSidePanelCoveredWidth(panelWidth, viewportWidth, compactViewport) {
   return Math.min(panelWidth, viewportWidth);
 }
 
-function applyGraphRecentering() {
+function applyGraphRecentering(nodeIds = null) {
   if (!renderer || !graph?.order) return;
   const camera = renderer.getCamera();
   const { ratio, angle } = camera.getState();
-  const { allPositions, visiblePositions } = getRecenteringNodePositions();
+  const { allPositions, visiblePositions } = getRecenteringNodePositions(nodeIds);
   const graphCenter = calculateNormalizedCenter(allPositions, visiblePositions);
   const dimensions = renderer.getDimensions();
   const insets = getGraphViewportInsets();
@@ -4728,15 +4792,47 @@ function applyGraphRecentering() {
   });
 }
 
-function centerGraphInViewport({ trackLayout = true } = {}) {
+function centerGraphInViewport({ trackLayout = true, nodeIds = null } = {}) {
   if (!renderer) return;
   if (trackLayout && isLayoutRunning) recenterAfterLayout = true;
 
   // Refresh Sigma's normalization before using the current graph coordinates,
   // then repeat once on the next frame in case the refresh was scheduled.
   renderer.refresh();
-  applyGraphRecentering();
-  requestAnimationFrame(applyGraphRecentering);
+  applyGraphRecentering(nodeIds);
+  requestAnimationFrame(() => applyGraphRecentering(nodeIds));
+}
+
+function fitGraphNodesInViewport(nodeIds, marginPercent = 0.06) {
+  if (!renderer || !graph || !Array.isArray(nodeIds) || nodeIds.length === 0) return;
+  const camera = renderer.getCamera();
+  const state = camera.getState();
+  const points = nodeIds
+    .filter(node => graph.hasNode(node))
+    .map(node => renderer.graphToViewport({
+      x: Number(graph.getNodeAttribute(node, "x")),
+      y: Number(graph.getNodeAttribute(node, "y"))
+    }))
+    .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+  if (points.length < 2) {
+    centerGraphInViewport({ trackLayout: false, nodeIds });
+    return;
+  }
+
+  const dimensions = renderer.getDimensions();
+  const insets = getGraphViewportInsets();
+  const usableWidth = Math.max(1, dimensions.width - insets.left - insets.right);
+  const usableHeight = Math.max(1, dimensions.height - insets.top - insets.bottom);
+  const spanX = Math.max(1, Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x)));
+  const spanY = Math.max(1, Math.max(...points.map(point => point.y)) - Math.min(...points.map(point => point.y)));
+  const availableWidth = usableWidth * Math.max(0.1, 1 - marginPercent * 2);
+  const availableHeight = usableHeight * Math.max(0.1, 1 - marginPercent * 2);
+  const scale = Math.min(availableWidth / spanX, availableHeight / spanY);
+  if (Number.isFinite(scale) && scale > 0 && Number.isFinite(state.ratio)) {
+    camera.setState({ ratio: Math.max(0.01, Math.min(100, state.ratio / scale)) });
+  }
+  renderer.refresh();
+  requestAnimationFrame(() => centerGraphInViewport({ trackLayout: false, nodeIds }));
 }
 
 function bindCameraControls() {
@@ -7638,6 +7734,7 @@ function getNodeTransactionRenderContext(node) {
     commandTypes: [...commandTypeFilter].sort(),
     chains: [...chainFilter].sort(),
     nodeColors: [...nodeColorFilter].sort(),
+    minimumNodeExchangeAmount,
     timelineEdges: [...datePlaybackFocusedEdges].sort()
   });
 }
@@ -7831,6 +7928,7 @@ function rebuildEdgeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
 }
 
 function rebuildVisibleGraphMetrics() {
+  rebuildNodeExchangeAmountTotals();
   const visibleEdges = getRenderedEdgeRecords();
   rebuildEdgeVisualSizes(visibleEdges);
   rebuildNodeVisualSizes(visibleEdges);
@@ -8772,6 +8870,7 @@ function setupReducers() {
     if (data.searchHidden === true) return { ...data, hidden: true };
     if (!nodeMatchesActiveColorFilter(node)) return { ...data, hidden: true };
     if (!nodeMatchesMultiSelection(node)) return { ...data, hidden: true };
+    if (!nodeMatchesMinimumExchangeAmount(node)) return { ...data, hidden: true };
     const playbackFocus = getDatePlaybackFocus();
     if (playbackFocus && !playbackFocus.nodes.has(node)) {
       return { ...data, hidden: true };
@@ -9022,6 +9121,7 @@ function setupReducers() {
     const targetNode = graph.getNodeAttributes(target);
     if (!edgeMatchesActiveColorFilter(source, target)) return { ...data, hidden: true };
     if (!edgeMatchesMultiSelection(source, target)) return { ...data, hidden: true };
+    if (!edgeMatchesMinimumExchangeAmount(source, target)) return { ...data, hidden: true };
 
     // Base color by type
     let baseColor = "#666";
