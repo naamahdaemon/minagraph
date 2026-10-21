@@ -32,6 +32,7 @@
       this.frame = null;
       this.generation = 0;
       this.pendingReasons = new Set();
+      this.layoutNodeIds = null;
       this.suppressCameraUpdates = false;
       this.cameraSuppressionToken = 0;
     }
@@ -87,7 +88,10 @@
       this.renderer?.refresh?.();
     }
 
-    resume(reason = "resume") {
+    resume(reason = "resume", nodeIds = null) {
+      if (reason === "layout-complete") {
+        this.layoutNodeIds = Array.isArray(nodeIds) ? [...nodeIds] : null;
+      }
       if (!this.suspended) {
         if (this.enabled && reason === "layout-complete") {
           this.captureLogicalPositions();
@@ -185,7 +189,7 @@
         if (finitePoint(position)) this.logicalPositions.set(node, position);
       });
 
-      const visibleNodes = this.options.getVisibleNodeIds?.() || this.graph.nodes();
+      const visibleNodes = this.layoutNodeIds || this.options.getVisibleNodeIds?.() || this.graph.nodes();
       const marginX = usableViewport.width * this.options.viewportMarginPercent;
       const marginY = usableViewport.height * this.options.viewportMarginPercent;
       const candidates = [];
@@ -200,8 +204,10 @@
         if (!finitePoint(viewport)) continue;
         // Keep nodes covered by a newly opened sidebar in the candidate set so
         // they can be brought back into the remaining usable viewport.
-        if (viewport.x < -marginX || viewport.x > dimensions.width + marginX ||
-            viewport.y < -marginY || viewport.y > dimensions.height + marginY) continue;
+        const finalLayoutPass = reasons.has("layout-complete") || reasons.has("post-fit") ||
+          [...reasons].some(reason => reason.startsWith("aspect-settle:"));
+        if (!finalLayoutPass && (viewport.x < -marginX || viewport.x > dimensions.width + marginX ||
+            viewport.y < -marginY || viewport.y > dimensions.height + marginY)) continue;
         candidates.push({
           node,
           logical,
@@ -257,7 +263,8 @@
         requestAnimationFrame(() => {
           if (generation !== this.generation || !this.enabled || this.suspended) return;
           this.suppressProgrammaticCameraUpdates();
-          this.options.onViewportFit?.();
+          this.options.onViewportFit?.(this.layoutNodeIds);
+          this.layoutNodeIds = null;
         });
       });
     }
@@ -305,12 +312,12 @@
         this.options.maxCameraRatio
       );
       if (Math.abs(targetRatio - state.ratio) < 0.005) {
-        this.options.onViewportFit?.();
+        this.options.onViewportFit?.(this.layoutNodeIds);
         return false;
       }
       this.suppressProgrammaticCameraUpdates();
       camera.setState({ ratio: targetRatio });
-      this.options.onViewportFit?.();
+      this.options.onViewportFit?.(this.layoutNodeIds);
       return true;
     }
 

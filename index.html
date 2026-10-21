@@ -1137,6 +1137,19 @@
   <hr style="margin: 8px 0;">
 
   <div class="legend-section">
+    <div class="legend-toggle" data-target="#node-amount-filter" style="cursor:pointer;"><em>▶ Exchanged Amount</em></div>
+    <div id="node-amount-filter" style="display: none;">
+      <p class="node-amount-filter-hint">Keep nodes whose absolute exchanged total, after the other filters, exceeds this threshold.</p>
+      <label class="node-amount-filter-control" for="minimum-node-exchange-amount">
+        <span>Minimum total</span>
+        <input id="minimum-node-exchange-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0 (off)" aria-label="Minimum absolute exchanged amount">
+      </label>
+    </div>
+  </div>
+
+  <hr style="margin: 8px 0;">
+
+  <div class="legend-section">
     <div class="legend-toggle" data-target="#node-direction-types" style="cursor:pointer;"><em>▶ Selected Node Links</em></div>
     <div id="node-direction-types" style="display: none;">
       <p id="node-direction-filter-hint" class="node-direction-filter-hint">Choose a direction now; it will apply when a node is selected.</p>
