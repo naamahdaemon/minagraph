@@ -150,6 +150,54 @@ for (let first = 0; first < 4; first++) {
   }
 }
 
+const importedOutlierNodes = Array.from({ length: 12 }, (_, index) => ({
+  id: `imported-${index}`,
+  x: index === 11 ? 1e9 : index,
+  y: index === 11 ? -1e9 : index % 3,
+  size: 5
+}));
+const importedOutlierResult = runWorker("spaciousLayout.js", {
+  nodes: importedOutlierNodes,
+  edges: importedOutlierNodes.slice(1).map(node => ({
+    source: "imported-0",
+    target: node.id,
+    weight: 1
+  })),
+  settings: { iterations: 240, gravity: 0.01, scalingRatio: 1000, width: 800, height: 1200 }
+});
+assertFinitePositions(importedOutlierResult.positions);
+const ordinaryXs = Array.from({ length: 11 }, (_, index) => importedOutlierResult.positions[index * 2]);
+const ordinaryYs = Array.from({ length: 11 }, (_, index) => importedOutlierResult.positions[index * 2 + 1]);
+const ordinarySpan = Math.max(
+  Math.max(...ordinaryXs) - Math.min(...ordinaryXs),
+  Math.max(...ordinaryYs) - Math.min(...ordinaryYs)
+);
+assert.ok(ordinarySpan > 180,
+  "Spacious should not leave the visible cluster compact after importing an extreme coordinate outlier");
+
+const weightedSpaciousGraph = {
+  nodes: [
+    { id: "weighted-a", x: 0, y: 0, size: 4 },
+    { id: "weighted-b", x: 100, y: 20, size: 4 },
+    { id: "weighted-c", x: 40, y: 100, size: 4 }
+  ],
+  edges: [
+    { source: "weighted-a", target: "weighted-b", weight: 1 },
+    { source: "weighted-b", target: "weighted-c", weight: 1 }
+  ],
+  settings: { iterations: 80, gravity: 0.01, scalingRatio: 500, width: 600, height: 600 }
+};
+const normalEdgeWeights = runWorker("spaciousLayout.js", weightedSpaciousGraph);
+const extremeEdgeWeights = runWorker("spaciousLayout.js", {
+  ...weightedSpaciousGraph,
+  edges: weightedSpaciousGraph.edges.map(edge => ({ ...edge, weight: 1e12 }))
+});
+assert.deepEqual(
+  Array.from(extremeEdgeWeights.positions),
+  Array.from(normalEdgeWeights.positions),
+  "Spacious topology should not depend on visual transferred-amount edge weights"
+);
+
 const scriptSource = fs.readFileSync(path.join(projectRoot, "scripts", "script.js"), "utf8");
 assert.match(scriptSource, /workerFile = "spaciousLayout\.js"/);
 assert.match(scriptSource, /const renderInterval = algorithm === "spacious" \? 80 : 300/,
@@ -191,6 +239,8 @@ const spaciousSource = fs.readFileSync(path.join(projectRoot, "scripts", "spacio
 assert.match(spaciousSource, /now - lastProgressTime < 65/,
   "Spacious progress snapshots should be time-throttled independently of iteration count");
 assert.match(spaciousSource, /type: "progress", progress, positions, packed: true/);
+assert.match(spaciousSource, /connection\.count \+= 1/,
+  "Spacious should count parallel relations independently from their visual weight");
 
 for (const nodes of [[], [{ id: "solo", x: 12, y: 34, size: 4 }]]) {
   const boundaryResult = runWorker("spaciousLayout.js", {
