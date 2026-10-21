@@ -37,7 +37,7 @@ assert.equal((html.match(/data-adaptive-number/g) || []).length, 5,
 assert.doesNotMatch(html, /id="adaptive-viewport-[^"]+" type="number"/,
   'adaptive settings must not expose duplicate native number spinners');
 assert.match(html, /scripts\/adaptive-viewport\.js/);
-assert.match(appSource, /onViewportFit: \(\) => centerGraphInViewport/);
+assert.match(appSource, /onViewportFit: nodeIds => centerGraphInViewport\(\{ trackLayout: false, nodeIds \}\)/);
 assert.match(appSource, /getViewportInsets: getGraphViewportInsets/);
 assert.match(appSource, /getViewportElements: getGraphViewportElements/);
 assert.match(appSource, /getVisibleNodeIds: getAdaptiveViewportNodeIds/);
@@ -61,8 +61,12 @@ assert.match(styleSource, /#layout-algorithm-menu[\s\S]*?font-family: ui-monospa
   'the layout menu should consistently use a monospace font');
 assert.match(adaptiveSource, /scheduleFinalCenter\(generation\)/,
   'adaptive processing should end by centering its final node positions');
-assert.match(appSource, /if \(adaptiveViewportManager\?\.enabled\) adaptiveViewportManager\.resume\("layout-complete"\);[\s\S]*?else centerGraphInViewport\(\{ trackLayout: false \}\);/,
+assert.match(appSource, /adaptiveViewportManager\.resume\("layout-complete", layoutNodeIds\);[\s\S]*?fitGraphNodesInViewport\(layoutNodeIds\)/,
   'layouts should also finish centered when Adaptive Viewport is disabled');
+assert.match(adaptiveSource, /const visibleNodes = this\.layoutNodeIds \|\| this\.options\.getVisibleNodeIds/,
+  'adaptive fitting should keep the exact node snapshot sent to the layout worker');
+assert.match(adaptiveSource, /if \(!finalLayoutPass && \(viewport\.x/,
+  'layout completion should fit every scoped node, including nodes outside the previous camera viewport');
 assert.doesNotMatch(appSource, /adaptiveViewportManager\?\.reduceNode/, 'Sigma overwrites reducer coordinates during processing');
 assert.match(sigmaSource, /data\.x = attrs\.x;[\s\S]*data\.y = attrs\.y;/, 'test must track Sigma position processing behavior');
 assert.match(appSource, /ADAPTIVE_VIEWPORT_STORAGE_KEY = "minagraph-adaptive-viewport-enabled"/);
@@ -77,7 +81,7 @@ assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_SETTINGS_STORA
   'all adaptive viewport settings should be saved together');
 assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_STORAGE_KEY, String\(checkbox\.checked\)\)/,
   'adaptive viewport activation should be saved');
-assert.match(worker, /mina-graph-explorer-v221/);
+assert.match(worker, /mina-graph-explorer-v222/);
 assert.match(worker, /'\/scripts\/adaptive-viewport\.js'/);
 
 class FakeGraph {
