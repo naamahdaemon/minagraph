@@ -31,8 +31,42 @@ self.onmessage = function (event) {
     radius[index] = Math.max(naturalSpacing * 0.23, Math.min(naturalSpacing * 0.7, (Number(node.size) || 1) * 1.8));
   }
 
-  // Parallel transactions share the same geometric connection. Aggregate them
-  // with a square-root weight so activity matters without collapsing endpoints.
+  // Imported graphs may use an arbitrary coordinate system, sometimes with a
+  // handful of positions several orders of magnitude away from the main
+  // cluster. Normalize that coordinate system before applying bounded force
+  // steps. This preserves the imported topology while ensuring the worker can
+  // actually converge within the requested number of iterations.
+  if (count > 1) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let index = 0; index < count; index++) {
+      minX = Math.min(minX, x[index]);
+      maxX = Math.max(maxX, x[index]);
+      minY = Math.min(minY, y[index]);
+      maxY = Math.max(maxY, y[index]);
+    }
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const initialPadding = Math.min(width, height) * 0.1;
+    const availableWidth = Math.max(1, width - initialPadding * 2);
+    const availableHeight = Math.max(1, height - initialPadding * 2);
+    const initialScale = Math.min(
+      spanX > 0.0001 ? availableWidth / spanX : Infinity,
+      spanY > 0.0001 ? availableHeight / spanY : Infinity
+    );
+    const safeScale = Number.isFinite(initialScale) ? initialScale : 1;
+    const scaledWidth = spanX * safeScale;
+    const scaledHeight = spanY * safeScale;
+    const offsetX = (width - scaledWidth) / 2;
+    const offsetY = (height - scaledHeight) / 2;
+    for (let index = 0; index < count; index++) {
+      x[index] = offsetX + (x[index] - minX) * safeScale;
+      y[index] = offsetY + (y[index] - minY) * safeScale;
+    }
+  }
+
+  // Parallel transactions share the same geometric connection. Their count can
+  // gently influence attraction, but the visual edge weight must not: it may
+  // represent transferred amounts and can otherwise collapse the topology.
   const connections = new Map();
   for (const edge of edges) {
     const source = indexes.get(edge.source);
@@ -42,7 +76,7 @@ self.onmessage = function (event) {
     const high = Math.max(source, target);
     const key = `${low}:${high}`;
     const connection = connections.get(key) || { source: low, target: high, count: 0 };
-    connection.count += Math.max(0.1, Number(edge.weight) || 1);
+    connection.count += 1;
     connections.set(key, connection);
     degrees[source] += 1;
     degrees[target] += 1;
@@ -97,7 +131,11 @@ self.onmessage = function (event) {
         const distance = Math.sqrt(distanceSquared);
         const minimumDistance = radius[first] + radius[second] + naturalSpacing * 0.22;
         const mass = Math.sqrt((degrees[first] + 1) * (degrees[second] + 1));
-        let force = (repulsionScale * mass) / Math.max(distanceSquared, naturalSpacing);
+        const repulsionDenominator = Math.max(
+          distanceSquared,
+          naturalSpacing * naturalSpacing * 0.25
+        );
+        let force = (repulsionScale * mass * naturalSpacing) / repulsionDenominator;
         if (distance < minimumDistance) force += (minimumDistance - distance) * 1.8;
         const forceX = deltaX / distance * force;
         const forceY = deltaY / distance * force;
@@ -176,13 +214,20 @@ self.onmessage = function (event) {
       maxY = Math.max(maxY, y[index]);
     }
     const padding = Math.min(width, height) * 0.06;
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
     const scale = Math.min(
-      (width - padding * 2) / Math.max(1, maxX - minX),
-      (height - padding * 2) / Math.max(1, maxY - minY)
+      spanX > 0.0001 ? (width - padding * 2) / spanX : Infinity,
+      spanY > 0.0001 ? (height - padding * 2) / spanY : Infinity
     );
+    const safeScale = Number.isFinite(scale) ? scale : 1;
+    const fittedWidth = spanX * safeScale;
+    const fittedHeight = spanY * safeScale;
+    const offsetX = (width - fittedWidth) / 2;
+    const offsetY = (height - fittedHeight) / 2;
     for (let index = 0; index < count; index++) {
-      x[index] = padding + (x[index] - minX) * scale;
-      y[index] = padding + (y[index] - minY) * scale;
+      x[index] = offsetX + (x[index] - minX) * safeScale;
+      y[index] = offsetY + (y[index] - minY) * safeScale;
       if (!Number.isFinite(x[index]) || !Number.isFinite(y[index])) {
         throw new Error("Spacious layout produced a non-finite coordinate");
       }
