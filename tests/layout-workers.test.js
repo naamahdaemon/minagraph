@@ -210,6 +210,8 @@ assert.match(scriptSource, /function getActiveGraphSubset\(\)/,
   "visible scope should be computed independently from the Adaptive Viewport toggle");
 assert.match(scriptSource, /algorithm === "spacious" && layoutScope === "visible"[\s\S]*?fitGraphNodesInViewport\(layoutNodeIds\)/,
   "Spacious visible-only layouts should fit the exact worker node snapshot after completion");
+assert.doesNotMatch(scriptSource, /if \(recenterAfterLayout\) \{[\s\S]*?requestAnimationFrame\(\(\) => centerGraphInViewport/,
+  "layout completion must not race its scoped fit with a second legacy recenter");
 assert.match(scriptSource, /if \(!edgeMatchesFocusedGraphSubset\(source, target, focusNode\)\) return/,
   "visible scope should keep only links incident to the selected node, including direction All");
 const focusHelperMatch = scriptSource.match(/function edgeMatchesFocusedGraphSubset\(source, target, focusNode\) \{[\s\S]*?\n\}/);

@@ -263,7 +263,12 @@
         requestAnimationFrame(() => {
           if (generation !== this.generation || !this.enabled || this.suspended) return;
           this.suppressProgrammaticCameraUpdates();
-          this.options.onViewportFit?.(this.layoutNodeIds);
+          const layoutNodeIds = this.layoutNodeIds;
+          if (typeof this.options.onFinalViewportFit === "function") {
+            this.options.onFinalViewportFit(layoutNodeIds);
+          } else {
+            this.options.onViewportFit?.(layoutNodeIds);
+          }
           this.layoutNodeIds = null;
         });
       });
