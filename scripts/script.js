@@ -896,6 +896,8 @@ function getGraphViewportElements() {
   return [
     document.getElementById("left-sidebar"),
     document.getElementById("side-panel"),
+    document.getElementById("date-slicer-container"),
+    document.getElementById("date-playback-feed"),
   ].filter(Boolean);
 }
 
@@ -923,6 +925,33 @@ function getGraphViewportInsets() {
   };
   addPanelInset(document.getElementById("left-sidebar"), "left");
   addPanelInset(document.getElementById("side-panel"), "right");
+
+  // Floating timeline panels only reduce the graph's horizontal workspace on
+  // desktop. Mobile deliberately keeps the full-width centering behaviour.
+  const desktopViewport = window.matchMedia("(min-width: 769px)").matches &&
+    !document.body.classList.contains("mobile-mode");
+  const addFloatingPanelInset = (panel, side, active) => {
+    if (!desktopViewport || !active || !panel) return;
+    const style = getComputedStyle(panel);
+    if (style.visibility === "hidden" || style.display === "none") return;
+    const rect = panel.getBoundingClientRect();
+    const verticalOverlap = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+    const horizontalOverlap = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+    if (verticalOverlap <= 0 || horizontalOverlap <= 0 || horizontalOverlap >= containerRect.width * 0.8) return;
+    if (side === "left") insets.left = Math.max(insets.left, Math.max(0, rect.right - containerRect.left));
+    if (side === "right") insets.right = Math.max(insets.right, Math.max(0, containerRect.right - rect.left));
+  };
+
+  const datePanel = document.getElementById("date-filter-panel");
+  const datePanelMode = datePanel?.dataset.displayMode ||
+    (datePanel?.classList.contains("is-compact") ? "compact" : datePanel?.classList.contains("is-minimal") ? "minimal" : "full");
+  addFloatingPanelInset(
+    document.getElementById("date-slicer-container"),
+    "right",
+    datePanelMode === "full"
+  );
+  const timelineFeed = document.getElementById("date-playback-feed");
+  addFloatingPanelInset(timelineFeed, "right", timelineFeed?.hidden === false);
   return insets;
 }
 
