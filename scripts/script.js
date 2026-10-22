@@ -936,6 +936,9 @@ function syncAdaptiveViewportContext() {
       isBusy: () => isLayoutRunning,
       isNodeFixed: (_node, attributes) => Boolean(attributes?.fixed || attributes?.pinned || attributes?.manuallyPositioned),
       onViewportFit: nodeIds => centerGraphInViewport({ trackLayout: false, nodeIds }),
+      onFinalViewportFit: nodeIds => fitGraphNodesInViewport(
+        Array.isArray(nodeIds) && nodeIds.length > 0 ? nodeIds : getAdaptiveViewportNodeIds()
+      ),
     });
   }
   adaptiveViewportManager.setContext({ graph, renderer });
@@ -4788,10 +4791,11 @@ class LayoutController {
             centerGraphInViewport({ trackLayout: false });
           }
         }));
-        if (recenterAfterLayout) {
-          recenterAfterLayout = false;
-          requestAnimationFrame(() => centerGraphInViewport({ trackLayout: false }));
-        }
+        // Layout completion already performs the one authoritative fit above,
+        // using the exact node snapshot sent to the worker. A second legacy
+        // recenter here could race the adaptive passes after fetch-selected
+        // and move the finished Spacious result partly outside the viewport.
+        recenterAfterLayout = false;
       }
     };
 
