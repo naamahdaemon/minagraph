@@ -47,6 +47,8 @@ assert.match(appSource, /LAYOUT_SCOPE_STORAGE_KEY = "minagraph-layout-scope"/);
 assert.match(appSource, /localStorage\.setItem\(LAYOUT_SCOPE_STORAGE_KEY, select\.value\)/);
 assert.match(appSource, /document\.getElementById\("left-sidebar"\)/);
 assert.match(appSource, /document\.getElementById\("side-panel"\)/);
+assert.match(appSource, /document\.getElementById\("date-slicer-container"\)/);
+assert.match(appSource, /document\.getElementById\("date-playback-feed"\)/);
 assert.match(appSource, /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{/);
 const adaptiveSource = fs.readFileSync(path.join(root, 'scripts', 'adaptive-viewport.js'), 'utf8');
 assert.match(adaptiveSource, /aspect-settle:/);
@@ -85,7 +87,7 @@ assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_SETTINGS_STORA
   'all adaptive viewport settings should be saved together');
 assert.match(appSource, /localStorage\.setItem\(ADAPTIVE_VIEWPORT_STORAGE_KEY, String\(checkbox\.checked\)\)/,
   'adaptive viewport activation should be saved');
-assert.match(worker, /mina-graph-explorer-v225/);
+assert.match(worker, /mina-graph-explorer-v226/);
 assert.match(worker, /'\/scripts\/adaptive-viewport\.js'/);
 
 class FakeGraph {

@@ -17,6 +17,12 @@ assert.match(script, /function calculateNormalizedCenter\(allPositions, visibleP
 assert.match(script, /function getGraphViewportInsets\(\)/);
 assert.match(script, /addPanelInset\(document\.getElementById\("left-sidebar"\), "left"\)/);
 assert.match(script, /addPanelInset\(document\.getElementById\("side-panel"\), "right"\)/);
+assert.match(script, /window\.matchMedia\("\(min-width: 769px\)"\)\.matches/,
+  'floating panel occlusion should only affect desktop centering');
+assert.match(script, /datePanelMode === "full"/,
+  'the date slicer should only reserve horizontal space in full mode');
+assert.match(script, /addFloatingPanelInset\(timelineFeed, "right", timelineFeed\?\.hidden === false\)/,
+  'the visible timeline activity panel should reserve horizontal space');
 assert.match(script, /x: insets\.left \+ Math\.max\(0, dimensions\.width - insets\.left - insets\.right\) \/ 2/);
 assert.match(script, /recenterAfterLayout/);
 assert.match(script, /function getSidePanelCoveredWidth\(panelWidth, viewportWidth, compactViewport\)/);
