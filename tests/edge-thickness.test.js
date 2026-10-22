@@ -27,7 +27,8 @@ assert.match(html, /id="edge-thickness-mode"[\s\S]*?value="uniform"[\s\S]*?value
 assert.match(script, /EDGE_THICKNESS_STORAGE_KEY = "minagraphEdgeThicknessMode"/);
 assert.match(script, /function rebuildEdgeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);
 assert.match(script, /function rebuildNodeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);
-assert.match(script, /nodeVisualSizes\.set\(node, 4 \+ Math\.sqrt\(visibleDegrees\.get\(node\) \|\| 0\)\)/);
+assert.match(script, /function calculateDensityAwareNodeSize\(degree, nodeCount\)/);
+assert.match(script, /nodeVisualSizes\.set\(node, calculateDensityAwareNodeSize\(visibleDegrees\.get\(node\) \|\| 0, visibleNodeCount\)\)/);
 assert.match(script, /const defaultSize = \(nodeVisualSizes\.get\(node\) \?\? data\.size \?\? 5\)/);
 assert.match(script, /getEdgeRelationKey\(source, target\)/);
 assert.match(script, /getEdgeAssetKey\(attributes\)/);
