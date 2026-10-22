@@ -24,6 +24,8 @@ assert.match(html, /minataur\.net\/api\/restful/);
 assert.match(html, /mempool\.space \(Bitcoin\)/, 'Bitcoin data provider should be credited');
 
 assert.match(script, /function collectTechnicalDiagnostics\(/);
+assert.match(script, /userId: localStorage\.getItem\('mge_user_id'\) \|\| 'Not created'/);
+assert.match(script, /\['Notification user ID', diagnostics\.userId\]/);
 assert.match(script, /type: 'get-technical-diagnostics'/);
 assert.match(script, /function activateApplicationUpdate\(/);
 assert.match(script, /addEventListener\('controllerchange'/);
@@ -32,7 +34,7 @@ assert.match(worker, /event\.data\?\.type === 'activate-update'/);
 assert.match(worker, /self\.skipWaiting\(\)/);
 assert.match(worker, /cacheName: CACHE_NAME/);
 assert.match(worker, /buildDate: APP_BUILD_DATE/);
-assert.match(worker, /mina-graph-explorer-v223/);
+assert.match(worker, /mina-graph-explorer-v224/);
 assert.match(worker, /FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37'/);
 assert.match(worker, /url\.origin === self\.location\.origin/);
 assert.match(worker, /networkFirst\(request, request\.mode === 'navigate'\)/);
