@@ -4690,6 +4690,11 @@ class LayoutController {
     const layoutNodeIds = visibleSubset ? visibleSubset.nodes : graph.nodes();
     const layoutNodeSet = new Set(layoutNodeIds);
 
+    // Keep the collision radii sent to layout workers aligned with the sizes
+    // that Sigma actually renders. This matters after filters, where the
+    // visible degree can differ substantially from the stored graph degree.
+    if (layoutScope === "visible") rebuildVisibleGraphMetrics();
+
     if (previousLayout === "ord" && algorithm !== "ord") {
       layoutNodeIds.forEach(id => {
         graph.setNodeAttribute(id, "x", Math.random() * width);
@@ -4715,7 +4720,9 @@ class LayoutController {
       id,
       x: graph.getNodeAttribute(id, "x"),
       y: graph.getNodeAttribute(id, "y"),
-      size: graph.getNodeAttribute(id, "size") || 1
+      size: layoutScope === "visible"
+        ? (nodeVisualSizes.get(id) ?? calculateDensityAwareNodeSize(graph.degree(id), layoutNodeIds.length))
+        : calculateDensityAwareNodeSize(graph.degree(id), layoutNodeIds.length)
     }));
     const edges = layoutEdges.filter(id =>
       layoutNodeSet.has(graph.source(id)) && layoutNodeSet.has(graph.target(id))
@@ -4814,7 +4821,7 @@ class LayoutController {
           renderer?.refresh();
           if (adaptiveViewportManager?.enabled) {
             adaptiveViewportManager.resume("layout-complete", layoutNodeIds);
-          } else if (algorithm === "spacious" && layoutScope === "visible") {
+          } else if (algorithm === "spacious") {
             fitGraphNodesInViewport(layoutNodeIds);
           } else {
             centerGraphInViewport({ trackLayout: false });
@@ -4933,10 +4940,15 @@ function fitGraphNodesInViewport(nodeIds, marginPercent = 0.06) {
   const state = camera.getState();
   const points = nodeIds
     .filter(node => graph.hasNode(node))
-    .map(node => renderer.graphToViewport({
-      x: Number(graph.getNodeAttribute(node, "x")),
-      y: Number(graph.getNodeAttribute(node, "y"))
-    }))
+    .map(node => {
+      const point = renderer.graphToViewport({
+        x: Number(graph.getNodeAttribute(node, "x")),
+        y: Number(graph.getNodeAttribute(node, "y"))
+      });
+      const renderedRadius = nodeVisualSizes.get(node) ??
+        calculateDensityAwareNodeSize(graph.degree(node), nodeIds.length);
+      return { ...point, radius: Math.max(1, Number(renderedRadius) || 1) };
+    })
     .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.y));
   if (points.length < 2) {
     centerGraphInViewport({ trackLayout: false, nodeIds });
@@ -4947,8 +4959,16 @@ function fitGraphNodesInViewport(nodeIds, marginPercent = 0.06) {
   const insets = getGraphViewportInsets();
   const usableWidth = Math.max(1, dimensions.width - insets.left - insets.right);
   const usableHeight = Math.max(1, dimensions.height - insets.top - insets.bottom);
-  const spanX = Math.max(1, Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x)));
-  const spanY = Math.max(1, Math.max(...points.map(point => point.y)) - Math.min(...points.map(point => point.y)));
+  // Node sizes are screen-space radii in Sigma. Include them in the measured
+  // extent so large hubs do not end up clipped or hidden beneath UI panels.
+  const spanX = Math.max(1,
+    Math.max(...points.map(point => point.x + point.radius)) -
+    Math.min(...points.map(point => point.x - point.radius))
+  );
+  const spanY = Math.max(1,
+    Math.max(...points.map(point => point.y + point.radius)) -
+    Math.min(...points.map(point => point.y - point.radius))
+  );
   const availableWidth = usableWidth * Math.max(0.1, 1 - marginPercent * 2);
   const availableHeight = usableHeight * Math.max(0.1, 1 - marginPercent * 2);
   const scale = Math.min(availableWidth / spanX, availableHeight / spanY);
@@ -7996,6 +8016,24 @@ function getRenderedEdgeRecords() {
   return records;
 }
 
+function getNodeSizeDensityScale(nodeCount) {
+  const dimensions = renderer?.getDimensions?.();
+  const viewportWidth = dimensions?.width || window.innerWidth || 1280;
+  const viewportHeight = dimensions?.height || window.innerHeight || 720;
+  const insets = renderer ? getGraphViewportInsets() : { left: 0, right: 0, top: 0, bottom: 0 };
+  const usableWidth = Math.max(1, viewportWidth - insets.left - insets.right);
+  const usableHeight = Math.max(1, viewportHeight - insets.top - insets.bottom);
+  const pixelsPerNode = Math.sqrt((usableWidth * usableHeight) / Math.max(1, nodeCount));
+  return Math.max(0.55, Math.min(1, pixelsPerNode / 70));
+}
+
+function calculateDensityAwareNodeSize(degree, nodeCount) {
+  const densityScale = getNodeSizeDensityScale(nodeCount);
+  const size = 4 + Math.sqrt(Math.max(0, Number(degree) || 0)) * densityScale;
+  const densityCap = Math.max(8, Math.min(18, 4 + 12 * densityScale));
+  return Math.min(densityCap, size);
+}
+
 function rebuildNodeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
   nodeVisualSizes = new Map();
   if (!graph) return;
@@ -8004,8 +8042,9 @@ function rebuildNodeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
     visibleDegrees.set(source, (visibleDegrees.get(source) || 0) + 1);
     visibleDegrees.set(target, (visibleDegrees.get(target) || 0) + 1);
   });
+  const visibleNodeCount = Math.max(1, getActiveGraphSubset().nodes.length);
   graph.forEachNode(node => {
-    nodeVisualSizes.set(node, 4 + Math.sqrt(visibleDegrees.get(node) || 0));
+    nodeVisualSizes.set(node, calculateDensityAwareNodeSize(visibleDegrees.get(node) || 0, visibleNodeCount));
   });
 }
 
