@@ -2022,6 +2022,83 @@
       line-height: 1.3;
     }
 
+    .node-notification-editor {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: -1px 0 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #555;
+    }
+
+    .node-notification-editor > span {
+      display: grid;
+      min-width: 0;
+      gap: 2px;
+      font-size: 0.78rem;
+    }
+
+    .node-notification-editor small {
+      overflow: hidden;
+      color: #aeb9be;
+      font-size: 0.62rem;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .node-notification-toggle {
+      position: relative;
+      flex: 0 0 42px;
+      width: 42px;
+      height: 24px;
+      padding: 2px;
+      border: 1px solid #687782;
+      border-radius: 999px;
+      background: #30383e;
+      cursor: pointer;
+    }
+
+    .node-notification-toggle > span {
+      display: block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #d9e1e5;
+      transition: transform 150ms ease, background 150ms ease;
+    }
+
+    .node-notification-toggle.is-active {
+      border-color: #4fc3f7;
+      background: #087da8;
+    }
+
+    .node-notification-toggle.is-active > span {
+      background: #fff;
+      transform: translateX(18px);
+    }
+
+    .node-notification-toggle.is-mixed {
+      border-color: #4fc3f7;
+      background: linear-gradient(90deg, #087da8 50%, #30383e 50%);
+    }
+
+    .node-notification-toggle.is-mixed > span {
+      background: #fff;
+      transform: translateX(9px);
+    }
+
+    .node-notification-toggle:focus-visible {
+      outline: 2px solid #4fc3f7;
+      outline-offset: 2px;
+    }
+
+    .node-notification-toggle:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
     .node-color-swatches {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -2167,6 +2244,29 @@
 
     body[data-theme="light"] .node-favorite-editor small {
       color: #52636c;
+    }
+
+    body[data-theme="light"] .node-notification-editor {
+      border-color: #bac6cc;
+    }
+
+    body[data-theme="light"] .node-notification-editor small {
+      color: #52636c;
+    }
+
+    body[data-theme="light"] .node-notification-toggle {
+      border-color: #91a0aa;
+      background: #e3eaee;
+    }
+
+    body[data-theme="light"] .node-notification-toggle.is-active {
+      border-color: #087da8;
+      background: #087da8;
+    }
+
+    body[data-theme="light"] .node-notification-toggle.is-mixed {
+      border-color: #087da8;
+      background: linear-gradient(90deg, #087da8 50%, #e3eaee 50%);
     }
 
     body[data-theme="light"] .node-color-reset {
