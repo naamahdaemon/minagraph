@@ -3077,6 +3077,7 @@ async function collectTechnicalDiagnostics() {
         : 'No application cache',
     notificationPermission: typeof Notification === 'undefined' ? 'Unsupported' : Notification.permission,
     pushSubscription: !registration?.pushManager ? 'Unsupported' : subscription ? 'Active' : 'Inactive',
+    userId: localStorage.getItem('mge_user_id') || 'Not created',
     notificationButtons: maxActions === null
       ? 'Not reported by browser'
       : maxActions > 0
@@ -3105,6 +3106,7 @@ function renderTechnicalDiagnostics(diagnostics) {
     ['Offline cache', diagnostics.cachedVersion],
     ['Notification permission', diagnostics.notificationPermission],
     ['Push subscription', diagnostics.pushSubscription],
+    ['Notification user ID', diagnostics.userId],
     ['Notification buttons', diagnostics.notificationButtons],
     ['Display mode', diagnostics.displayMode],
     ['Network', diagnostics.network],
