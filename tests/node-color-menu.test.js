@@ -22,6 +22,14 @@ assert.match(source, /favorites\.push\(\{ address: node, chain, label: favoriteL
 assert.match(source, /addressesMatchForTransaction\(favorite\.address, node\)/);
 assert.match(source, /data-node-color-reset>Reset color/);
 assert.match(source, /data-node-delete>Delete node/);
+assert.match(source, /data-node-notification-toggle/);
+assert.match(source, /function getWatchableChainsForNode\(node\)/);
+assert.match(source, /getFavoriteChainsForNode\(node\)\.filter\(supportsAddressWatch\)/);
+assert.match(source, /function getNodeNotificationWatchState\(node,/);
+assert.match(source, /aria-checked", state\.mixed \? "mixed" : String\(state\.enabled\)/);
+assert.match(source, /Promise\.all\(chains\.map\(chain => toggleWatch\(shouldWatch, node, chain\)\)\)/);
+assert.match(css, /\.node-notification-toggle\.is-active/);
+assert.match(css, /\.node-notification-toggle\.is-mixed/);
 assert.match(source, /if \(deleteButton\) \{[\s\S]*?hideNodeColorMenu\(\);[\s\S]*?deleteSelectedNode\(nodeToDelete\);/);
 assert.match(source, /graph\.setNodeAttribute\(nodeColorMenuNode, "customColor", color\)/);
 assert.match(source, /const NODE_CUSTOM_COLOR_STORAGE_KEY = "minagraph-node-custom-colors-v1"/);
@@ -82,7 +90,7 @@ assert.match(source, /function renderNodeFavoriteIdentity\(node\)/,
   'The node details panel should expose named favorite identities');
 assert.match(source, /\$\{renderNodeFavoriteIdentity\(node\)\}[\s\S]*?<h3 class="node-title">/,
   'The favorite name should be rendered prominently before the technical node title');
-assert.match(worker, /mina-graph-explorer-v222/);
+assert.match(worker, /mina-graph-explorer-v223/);
 
 const persistenceStart = source.indexOf('const NODE_CUSTOM_COLOR_STORAGE_KEY');
 const persistenceEnd = source.indexOf('function ensureNodeColorMenu');

@@ -270,6 +270,57 @@ function removeNodeFromFavoritesAcrossChains(node) {
   return chains;
 }
 
+function getWatchableChainsForNode(node) {
+  return getFavoriteChainsForNode(node).filter(supportsAddressWatch);
+}
+
+async function getNodeNotificationWatchState(node, chains = getWatchableChainsForNode(node)) {
+  if (!chains.length) return { enabled: false, mixed: false, watchedCount: 0, chains };
+  const states = await Promise.all(chains.map(chain => isWatched(node, chain)));
+  const watchedCount = states.filter(Boolean).length;
+  return {
+    enabled: watchedCount === chains.length,
+    mixed: watchedCount > 0 && watchedCount < chains.length,
+    watchedCount,
+    chains
+  };
+}
+
+function renderNodeNotificationToggle(menu, state, node) {
+  const button = menu.querySelector("[data-node-notification-toggle]");
+  const summary = menu.querySelector("[data-node-notification-summary]");
+  if (!button || nodeColorMenuNode !== node) return;
+  const supported = state.chains.length > 0;
+  button.disabled = !supported;
+  button.dataset.busy = "false";
+  button.classList.toggle("is-active", state.enabled);
+  button.classList.toggle("is-mixed", state.mixed);
+  button.setAttribute("aria-checked", state.mixed ? "mixed" : String(state.enabled));
+  button.title = !supported
+    ? "Notifications are not supported for this node"
+    : state.enabled ? "Disable notifications" : "Enable notifications";
+  if (summary) {
+    summary.textContent = !supported
+      ? "Unavailable for this blockchain"
+      : state.mixed
+        ? `${state.watchedCount}/${state.chains.length} chains enabled`
+        : `${state.enabled ? "Enabled" : "Disabled"} · ${state.chains.map(getExplorerChainLabel).join(", ")}`;
+  }
+}
+
+async function syncNodeNotificationToggle(menu, node) {
+  const button = menu.querySelector("[data-node-notification-toggle]");
+  const summary = menu.querySelector("[data-node-notification-summary]");
+  if (!button) return;
+  button.disabled = true;
+  button.dataset.busy = "true";
+  button.classList.remove("is-active", "is-mixed");
+  button.setAttribute("aria-checked", "false");
+  if (summary) summary.textContent = "Checking…";
+  const state = await getNodeNotificationWatchState(node);
+  renderNodeNotificationToggle(menu, state, node);
+}
+
 function refreshSearchAfterFavoriteChange() {
   const activeQuery = document.getElementById("search-input")?.value || "";
   if (activeQuery.trim() && renderer) handleSearch(activeQuery);
@@ -295,6 +346,13 @@ function ensureNodeColorMenu() {
       </div>
       <small data-node-favorite-chains></small>
     </div>
+    <div class="node-notification-editor">
+      <span><strong>Notifications</strong><small data-node-notification-summary>Checking…</small></span>
+      <button type="button" class="node-notification-toggle" role="switch" aria-checked="false"
+        aria-label="Toggle notifications for this node" data-node-notification-toggle>
+        <span aria-hidden="true"></span>
+      </button>
+    </div>
     <div class="node-color-menu-title">Node color</div>
     <div class="node-color-swatches">
       ${NODE_CUSTOM_COLORS.map(color => `<button type="button" role="menuitem" data-node-color="${color.value}"
@@ -304,12 +362,13 @@ function ensureNodeColorMenu() {
     <button type="button" class="node-delete-action" role="menuitem" data-node-delete>Delete node</button>`;
   document.body.appendChild(menu);
 
-  menu.addEventListener("click", event => {
+  menu.addEventListener("click", async event => {
     const favoriteSaveButton = event.target.closest("[data-node-favorite-save]");
     const favoriteRemoveButton = event.target.closest("[data-node-favorite-remove]");
     const colorButton = event.target.closest("[data-node-color]");
     const resetButton = event.target.closest("[data-node-color-reset]");
     const deleteButton = event.target.closest("[data-node-delete]");
+    const notificationButton = event.target.closest("[data-node-notification-toggle]");
     if (!nodeColorMenuNode || !graph?.hasNode(nodeColorMenuNode)) return;
     if (favoriteSaveButton) {
       const name = menu.querySelector("#node-favorite-name")?.value || "";
@@ -326,6 +385,25 @@ function ensureNodeColorMenu() {
       const nodeToDelete = nodeColorMenuNode;
       hideNodeColorMenu();
       deleteSelectedNode(nodeToDelete);
+      return;
+    }
+    if (notificationButton) {
+      if (notificationButton.dataset.busy === "true") return;
+      const node = nodeColorMenuNode;
+      const chains = getWatchableChainsForNode(node);
+      if (!chains.length) return;
+      const shouldWatch = notificationButton.getAttribute("aria-checked") !== "true";
+      notificationButton.dataset.busy = "true";
+      notificationButton.disabled = true;
+      const summary = menu.querySelector("[data-node-notification-summary]");
+      if (summary) summary.textContent = shouldWatch ? "Enabling…" : "Disabling…";
+      try {
+        await Promise.all(chains.map(chain => toggleWatch(shouldWatch, node, chain)));
+      } catch (error) {
+        console.error("Unable to update node notifications:", error);
+        showErrorPopup("Unable to update notifications for every supported blockchain.");
+      }
+      if (nodeColorMenuNode === node) await syncNodeNotificationToggle(menu, node);
       return;
     }
     if (!colorButton && !resetButton) return;
@@ -426,6 +504,17 @@ function showNodeColorMenu(node, clientX, clientY) {
   if (chainSummary) chainSummary.textContent = chains.length
     ? `${favoriteEntries.length ? "Favorite" : "Add"} on: ${chains.map(getExplorerChainLabel).join(", ")}`
     : "Favorite on the current blockchain";
+  syncNodeNotificationToggle(menu, node).catch(error => {
+    console.error("Unable to read node notification status:", error);
+    if (nodeColorMenuNode !== node) return;
+    const button = menu.querySelector("[data-node-notification-toggle]");
+    if (button) {
+      button.disabled = true;
+      button.dataset.busy = "false";
+    }
+    const summary = menu.querySelector("[data-node-notification-summary]");
+    if (summary) summary.textContent = "Status unavailable";
+  });
   menu.hidden = false;
   menu.style.left = "0px";
   menu.style.top = "0px";
@@ -12071,11 +12160,13 @@ async function toggleWatch(shouldWatch, address, chain) {
       if (watchSpan && chain === selectedBlockchain) renderWatchIcon(watchSpan, shouldWatch, address, chain);
       const favoriteSpan = document.getElementById("favorite-status");
       if (favoriteSpan) renderFavIcon(favoriteSpan, isFavorite(address, selectedBlockchain), address, selectedBlockchain);
+      return shouldWatch;
     } else {
-      console.warn("Failed to update watch status:", await res.text());
+      throw new Error(`Failed to update watch status: ${await res.text()}`);
     }
   } catch (err) {
     console.error("Error updating watch status:", err);
+    throw err;
   }
 }
 
