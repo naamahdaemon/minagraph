@@ -31,6 +31,6 @@ assert.doesNotMatch(source, /if \(!visibleEdgeIds\.has\(edge\)\) \{\s*datePlayba
 assert.match(css, /\.node-direction-filter button\.armed:not\(\.active\)/);
 assert.match(source, /function refreshSelectedNodePanelIfOpen\(\) \{[\s\S]*?panel\?\.classList\.contains\("open"\)[\s\S]*?showNodePanel\(selectedNode, false\)/);
 assert.match(source, /function refreshLegendFilteredViews\(\) \{[\s\S]*?refreshSelectedNodePanelIfOpen\(\);/);
-assert.match(worker, /mina-graph-explorer-v225/);
+assert.match(worker, /mina-graph-explorer-v226/);
 
 console.log('Selected-node direction filter tests passed');
