@@ -74,6 +74,8 @@ let adaptiveViewportManager = null;
 const ADAPTIVE_VIEWPORT_STORAGE_KEY = "minagraph-adaptive-viewport-enabled";
 const ADAPTIVE_VIEWPORT_SETTINGS_STORAGE_KEY = "minagraph-adaptive-viewport-settings";
 const LAYOUT_SCOPE_STORAGE_KEY = "minagraph-layout-scope";
+const AMOUNT_WEIGHTED_LAYOUT_STORAGE_KEY = "minagraph-layout-amount-weighting";
+const AMOUNT_WEIGHTED_LAYOUT_DEFAULT_INFLUENCE = 35;
 const ADAPTIVE_VIEWPORT_DEFAULTS = Object.freeze({
   minDistancePx: 64,
   viewportMarginPercent: 0.08,
@@ -1077,6 +1079,49 @@ function initializeLayoutScopePersistence() {
       console.warn("Could not save layout scope preference:", error);
     }
   });
+}
+
+function initializeAmountWeightedLayoutControl() {
+  const checkbox = document.getElementById("layout-amount-weight-enabled");
+  const settings = document.getElementById("layout-amount-weight-settings");
+  const influence = document.getElementById("layout-amount-weight-influence");
+  const value = document.getElementById("layout-amount-weight-value");
+  if (!checkbox || !settings || !influence || !value) return;
+
+  const updateUi = () => {
+    const influencePercent = Math.max(0, Math.min(100, Number(influence.value) || 0));
+    influence.value = String(influencePercent);
+    value.value = `${influencePercent}%`;
+    value.textContent = `${influencePercent}%`;
+    settings.hidden = !checkbox.checked;
+  };
+  const persist = () => {
+    updateUi();
+    try {
+      localStorage.setItem(AMOUNT_WEIGHTED_LAYOUT_STORAGE_KEY, JSON.stringify({
+        enabled: checkbox.checked,
+        influencePercent: Number(influence.value)
+      }));
+    } catch (error) {
+      console.warn("Could not save amount-weighted layout preference:", error);
+    }
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(AMOUNT_WEIGHTED_LAYOUT_STORAGE_KEY) || "null");
+    checkbox.checked = saved?.enabled === true;
+    influence.value = String(Number.isFinite(Number(saved?.influencePercent))
+      ? saved.influencePercent
+      : AMOUNT_WEIGHTED_LAYOUT_DEFAULT_INFLUENCE);
+  } catch (error) {
+    checkbox.checked = false;
+    influence.value = String(AMOUNT_WEIGHTED_LAYOUT_DEFAULT_INFLUENCE);
+    console.warn("Could not restore amount-weighted layout preference:", error);
+  }
+  updateUi();
+  checkbox.addEventListener("change", persist);
+  influence.addEventListener("input", updateUi);
+  influence.addEventListener("change", persist);
 }
 
 function edgeMatchesTimelineSelection(edge) {
@@ -3415,6 +3460,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupSearch();
   initializeLayoutScopePersistence();
   initializeAdaptiveViewportControl();
+  initializeAmountWeightedLayoutControl();
   initializeNodeExplorerMenuDismissal();
   algorithmSelect = document.getElementById("layout-algorithm");
   initializeLayoutParameterHelp();
@@ -4662,11 +4708,16 @@ class LayoutController {
     const height = Math.max(1, parseInt(document.getElementById("layout-height").value, 10) || 2000);
     const algorithm = document.getElementById("layout-algorithm").value;
     const layoutScope = document.getElementById("layout-scope")?.value || "all";
+    const amountWeightedLayout = document.getElementById("layout-amount-weight-enabled")?.checked === true;
+    const amountInfluence = Math.max(0, Math.min(1,
+      (Number(document.getElementById("layout-amount-weight-influence")?.value) || 0) / 100
+    ));
     const iterations = requestedIterations;
     const runId = ++this.runId;
 
     let workerFile = "fruchtermanReingold.js";
     const settings = { iterations, gravity, scalingRatio: scale, width, height };
+    settings.amountWeightedLayout = amountWeightedLayout;
 
     if (algorithm === "fa") {
       workerFile = "forceAtlas.js";
@@ -4689,6 +4740,14 @@ class LayoutController {
     const layoutEdges = visibleSubset ? visibleSubset.edges : graph.edges();
     const layoutNodeIds = visibleSubset ? visibleSubset.nodes : graph.nodes();
     const layoutNodeSet = new Set(layoutNodeIds);
+    // Deliberately skip every amount calculation while disabled. In that mode
+    // workers receive the exact same stored edge weights as before this option.
+    const amountWeightedEdges = amountWeightedLayout
+      ? (visibleSubset?.edges || getActiveGraphSubset().edges)
+      : null;
+    const amountWeights = amountWeightedLayout
+      ? buildAmountWeightedLayoutEdgeWeights(amountWeightedEdges, amountInfluence)
+      : null;
 
     // Keep the collision radii sent to layout workers aligned with the sizes
     // that Sigma actually renders. This matters after filters, where the
@@ -4729,7 +4788,9 @@ class LayoutController {
     ).map(id => ({
       source: graph.source(id),
       target: graph.target(id),
-      weight: graph.getEdgeAttribute(id, "weight") ?? 1
+      weight: amountWeightedLayout
+        ? (amountWeights.get(id) ?? 1)
+        : (graph.getEdgeAttribute(id, "weight") ?? 1)
     }));
     let lastRenderTime = 0;
     const renderInterval = algorithm === "spacious" ? 80 : 300;
@@ -7995,6 +8056,57 @@ function getEdgeTransferredAmount(attributes) {
   // Contract values are execution fields, not necessarily asset movements.
   if (!["payment", "transfer"].includes(command)) return 0;
   return getSortableNodeTransactionAmount(attributes, "amount");
+}
+
+function normalizeLayoutAmountMetric(value, minimum, maximum, influence) {
+  if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(minimum) ||
+      !Number.isFinite(maximum) || maximum <= minimum) return 1;
+  const denominator = Math.log1p(maximum) - Math.log1p(minimum);
+  if (!(denominator > 0)) return 1;
+  const ratio = (Math.log1p(value) - Math.log1p(minimum)) / denominator;
+  return 1 + Math.max(0, Math.min(1, ratio)) * Math.max(0, Math.min(1, influence));
+}
+
+function buildAmountWeightedLayoutEdgeWeights(edgeIds, influence) {
+  const totals = new Map();
+  const edgeKeys = new Map();
+  const valuesByAsset = new Map();
+
+  edgeIds.forEach(edge => {
+    if (!graph?.hasEdge(edge)) return;
+    const attributes = graph.getEdgeAttributes(edge);
+    const amount = Math.abs(getEdgeTransferredAmount(attributes));
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const relation = getEdgeRelationKey(graph.source(edge), graph.target(edge));
+    const asset = getEdgeAssetKey(attributes);
+    const key = `${relation}\u0001${asset}`;
+    edgeKeys.set(edge, key);
+    totals.set(key, (totals.get(key) || 0) + amount);
+  });
+
+  totals.forEach((amount, key) => {
+    const asset = key.slice(key.indexOf("\u0001") + 1);
+    if (!valuesByAsset.has(asset)) valuesByAsset.set(asset, []);
+    valuesByAsset.get(asset).push(amount);
+  });
+  const ranges = new Map([...valuesByAsset].map(([asset, values]) => [asset, {
+    minimum: Math.min(...values),
+    maximum: Math.max(...values)
+  }]));
+  const weights = new Map();
+  edgeIds.forEach(edge => {
+    const key = edgeKeys.get(edge);
+    if (!key) {
+      weights.set(edge, 1);
+      return;
+    }
+    const asset = key.slice(key.indexOf("\u0001") + 1);
+    const range = ranges.get(asset);
+    weights.set(edge, normalizeLayoutAmountMetric(
+      totals.get(key), range?.minimum, range?.maximum, influence
+    ));
+  });
+  return weights;
 }
 
 function getRenderedEdgeRecords() {

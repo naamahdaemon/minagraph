@@ -199,6 +199,50 @@ assert.deepEqual(
 );
 
 const scriptSource = fs.readFileSync(path.join(projectRoot, "scripts", "script.js"), "utf8");
+const frSource = fs.readFileSync(path.join(projectRoot, "scripts", "fruchtermanReingold.js"), "utf8");
+const faSource = fs.readFileSync(path.join(projectRoot, "scripts", "forceAtlas.js"), "utf8");
+const amountSpaciousSource = fs.readFileSync(path.join(projectRoot, "scripts", "spaciousLayout.js"), "utf8");
+const amountOpenOrdSource = fs.readFileSync(path.join(projectRoot, "scripts", "openOrd.js"), "utf8");
+assert.match(scriptSource, /const amountWeights = amountWeightedLayout[\s\S]*?buildAmountWeightedLayoutEdgeWeights/);
+assert.match(frSource, /if \(settings\.amountWeightedLayout\) attraction \*= indexedEdges\[edgeIndex \+ 2\]/);
+assert.match(faSource, /let attraction = \(edge\.weight \?\? 1\)/);
+assert.match(amountSpaciousSource, /const amountWeight = settings\.amountWeightedLayout \? edge\.amountWeight : 1/);
+assert.match(amountOpenOrdSource, /const weightedAttraction = settings\.amountWeightedLayout[\s\S]*?: Math\.pow\(weight, edgeWeightInfluence\)/);
+
+const optInCompatibilityGraph = {
+  nodes: [
+    { id: "amount-a", x: 10, y: 20, size: 5 },
+    { id: "amount-b", x: 70, y: 30, size: 6 },
+    { id: "amount-c", x: 40, y: 85, size: 5 }
+  ],
+  edges: [
+    { source: "amount-a", target: "amount-b", weight: 1.35 },
+    { source: "amount-b", target: "amount-c", weight: 1 }
+  ],
+  settings: {
+    iterations: 12,
+    gravity: 0.01,
+    scalingRatio: 100,
+    width: 200,
+    height: 200,
+    edgeWeightInfluence: 0.5,
+    coolingFactor: 0.95,
+    attractionMultiplier: 0.1,
+    repulsionMultiplier: 1
+  }
+};
+for (const filename of ["fruchtermanReingold.js", "forceAtlas.js", "spaciousLayout.js", "openOrd.js"]) {
+  const legacyResult = runWorker(filename, optInCompatibilityGraph);
+  const explicitlyDisabledResult = runWorker(filename, {
+    ...optInCompatibilityGraph,
+    settings: { ...optInCompatibilityGraph.settings, amountWeightedLayout: false }
+  });
+  assert.deepEqual(
+    explicitlyDisabledResult.positions,
+    legacyResult.positions,
+    `${filename} must remain byte-for-byte compatible when amount weighting is disabled`
+  );
+}
 assert.match(scriptSource, /workerFile = "spaciousLayout\.js"/);
 assert.match(scriptSource, /const renderInterval = algorithm === "spacious" \? 80 : 300/,
   "Spacious should animate more smoothly without changing existing layout refresh rates");

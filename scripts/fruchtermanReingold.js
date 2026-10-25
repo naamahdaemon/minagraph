@@ -17,7 +17,7 @@ self.onmessage = function (e) {
   for (const edge of edges) {
     const source = nodeIndexes.get(edge.source);
     const target = nodeIndexes.get(edge.target);
-    if (source !== undefined && target !== undefined) indexedEdges.push(source, target);
+    if (source !== undefined && target !== undefined) indexedEdges.push(source, target, Number(edge.weight) || 1);
   }
 
   const sendPositions = (type, progress) => {
@@ -53,13 +53,14 @@ self.onmessage = function (e) {
       }
     }
 
-    for (let edgeIndex = 0; edgeIndex < indexedEdges.length; edgeIndex += 2) {
+    for (let edgeIndex = 0; edgeIndex < indexedEdges.length; edgeIndex += 3) {
       const source = indexedEdges[edgeIndex];
       const target = indexedEdges[edgeIndex + 1];
       const deltaX = x[source] - x[target];
       const deltaY = y[source] - y[target];
       const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) + 0.01;
-      const attraction = distance * distance / settings.scalingRatio;
+      let attraction = distance * distance / settings.scalingRatio;
+      if (settings.amountWeightedLayout) attraction *= indexedEdges[edgeIndex + 2];
       const normalizedX = deltaX / distance * attraction;
       const normalizedY = deltaY / distance * attraction;
       dx[source] -= normalizedX;
