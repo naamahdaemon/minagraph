@@ -23,7 +23,21 @@ const middle = context.normalizeEdgeVisualMetric(10, 1, 100);
 assert.ok(middle > 0.8 && middle < 4, 'Logarithmic intermediate sizes should stay bounded');
 assert.equal(context.normalizeEdgeVisualMetric(0, 1, 100), 0.8);
 
+const amountHelper = script.match(/function normalizeLayoutAmountMetric\(value, minimum, maximum, influence\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(amountHelper, 'Amount layout normalizer should exist');
+vm.runInContext(amountHelper, context);
+assert.equal(context.normalizeLayoutAmountMetric(1, 1, 100, 0.35), 1);
+assert.equal(context.normalizeLayoutAmountMetric(100, 1, 100, 0.35), 1.35);
+assert.equal(context.normalizeLayoutAmountMetric(100, 100, 100, 0.35), 1);
+const middleLayoutWeight = context.normalizeLayoutAmountMetric(10, 1, 100, 0.35);
+assert.ok(middleLayoutWeight > 1 && middleLayoutWeight < 1.35);
+
 assert.match(html, /id="edge-thickness-mode"[\s\S]*?value="uniform"[\s\S]*?value="transactions"[\s\S]*?value="amount"/);
+assert.match(html, /id="layout-amount-weight-enabled"/);
+assert.match(html, /id="layout-amount-weight-influence"[^>]*min="0"[^>]*max="100"/);
+assert.match(script, /AMOUNT_WEIGHTED_LAYOUT_STORAGE_KEY = "minagraph-layout-amount-weighting"/);
+assert.match(script, /weight: amountWeightedLayout[\s\S]*?graph\.getEdgeAttribute\(id, "weight"\) \?\? 1/,
+  'Disabled mode must preserve the original edge weight path');
 assert.match(script, /EDGE_THICKNESS_STORAGE_KEY = "minagraphEdgeThicknessMode"/);
 assert.match(script, /function rebuildEdgeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);
 assert.match(script, /function rebuildNodeVisualSizes\(visibleEdges = getRenderedEdgeRecords\(\)\)/);

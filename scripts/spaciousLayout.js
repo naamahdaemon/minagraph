@@ -75,8 +75,11 @@ self.onmessage = function (event) {
     const low = Math.min(source, target);
     const high = Math.max(source, target);
     const key = `${low}:${high}`;
-    const connection = connections.get(key) || { source: low, target: high, count: 0 };
+    const connection = connections.get(key) || { source: low, target: high, count: 0, amountWeight: 1 };
     connection.count += 1;
+    if (settings.amountWeightedLayout) {
+      connection.amountWeight = Math.max(connection.amountWeight, Number(edge.weight) || 1);
+    }
     connections.set(key, connection);
     degrees[source] += 1;
     degrees[target] += 1;
@@ -151,7 +154,8 @@ self.onmessage = function (event) {
       const deltaY = y[edge.target] - y[edge.source];
       const distance = Math.max(0.01, Math.hypot(deltaX, deltaY));
       const activityWeight = Math.min(3, Math.sqrt(edge.count));
-      const force = (distance - idealEdgeLength) * 0.012 * activityWeight;
+      const amountWeight = settings.amountWeightedLayout ? edge.amountWeight : 1;
+      const force = (distance - idealEdgeLength) * 0.012 * activityWeight * amountWeight;
       const forceX = deltaX / distance * force;
       const forceY = deltaY / distance * force;
       dx[edge.source] += forceX;
