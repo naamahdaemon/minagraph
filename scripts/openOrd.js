@@ -115,7 +115,9 @@ self.onmessage = function (event) {
       const dy = positions[edge.source].y - positions[edge.target].y;
       const distance = Math.max(0.001, Math.hypot(dx, dy));
       const weight = Math.max(0.0001, Number(edge.weight) || 1);
-      const weightedAttraction = Math.pow(weight, edgeWeightInfluence);
+      const weightedAttraction = settings.amountWeightedLayout
+        ? weight
+        : Math.pow(weight, edgeWeightInfluence);
       const force = phase.attraction * attractionMultiplier * weightedAttraction * distance * distance / idealDistance;
       const forceX = dx / distance * force;
       const forceY = dy / distance * force;

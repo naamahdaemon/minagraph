@@ -394,6 +394,20 @@
               </span>
             </label>
           </div>
+          <label class="adaptive-viewport-option amount-weight-layout-option" for="layout-amount-weight-enabled">
+            <span>
+              <strong>Amount-weighted layout</strong>
+              <small>Pull high-value relationships closer during spatialization.</small>
+            </span>
+            <input type="checkbox" id="layout-amount-weight-enabled">
+          </label>
+          <div id="layout-amount-weight-settings" class="amount-weight-layout-settings" hidden>
+            <label for="layout-amount-weight-influence">
+              <span>AMOUNT INFLUENCE</span>
+              <output id="layout-amount-weight-value" for="layout-amount-weight-influence">35%</output>
+            </label>
+            <input id="layout-amount-weight-influence" type="range" min="0" max="100" step="5" value="35">
+          </div>
         </div>
       </div>
 
