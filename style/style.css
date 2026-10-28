@@ -4335,6 +4335,13 @@
     display: none;
   }
 
+  .transaction-memo-indicator {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: middle;
+    opacity: 0.65;
+  }
+
   .transaction-memo-popup[hidden] {
     display: none;
   }
