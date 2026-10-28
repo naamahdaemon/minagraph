@@ -8620,6 +8620,11 @@ function getTransactionMemoAttributes(memo) {
   return `data-transaction-memo="${encodeURIComponent(value)}" title="${escapedTitle}"`;
 }
 
+function renderTransactionMemoIndicator(memo) {
+  if (!String(memo || "").trim()) return "";
+  return `<span class="transaction-memo-indicator" role="img" aria-label="Memo available" ${getTransactionMemoAttributes(memo)}><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M3 2.5h10v8H7l-4 3v-11Z"/><path d="M5 5h6M5 8h4"/></svg></span>`;
+}
+
 function closeTransactionMemoPopup() {
   const popup = document.getElementById("transaction-memo-popup");
   if (popup) popup.hidden = true;
@@ -8745,7 +8750,7 @@ function renderChronologicalNodeTransactions(visibleEdges, node) {
             return `
               <tr ${getTransactionMemoAttributes(tx.memo)}>
                 <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
-                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}</td>
+                <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}${renderTransactionMemoIndicator(tx.memo)}</td>
                 <td>
                   <a href="#" onclick="showNodePanel('${linkedNode}'); return false;" style="color:#4fc3f7; text-decoration:none;">
                     ${linkedLabel}
@@ -8964,7 +8969,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
                 <tr ${getTransactionMemoAttributes(tx.memo)}>
                   <td class="transaction-action-column">${renderTransactionDeleteButton(edge)}</td>
                   <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${tx.blockchain}</td>
-                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}</td>
+                  <td class="transaction-memo-trigger" data-transaction-memo="${encodeURIComponent(String(tx.memo || ""))}">${formatTransactionTimestamp(tx.timestamp, tx.status)}${renderTransactionMemoIndicator(tx.memo)}</td>
                   <td>
                       ${tx.block_id || tx.block_hash
                         ? `<a href="${getExplorerURL('block', tx.block_hash || tx.block_id, tx.blockchain)}" 
