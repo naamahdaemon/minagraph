@@ -5746,7 +5746,7 @@ async function fetchSolanaTransactions(publicKey, limit, baseUrl) {
       params: [sig.signature, {
         encoding: "jsonParsed",
         commitment: "finalized",
-        maxSupportedTransactionVersion: 0
+        maxSupportedTransactionVersion: 1
       }]
     };
 
@@ -7354,7 +7354,7 @@ async function fetchTransactionsForKey2(publicKey, blockchain = selectedBlockcha
                 sig.signature,
                 {
                   encoding: "jsonParsed",
-                  maxSupportedTransactionVersion: 0
+                  maxSupportedTransactionVersion: 1
                 }
               ]
             };
