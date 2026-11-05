@@ -23,6 +23,7 @@ assert.match(source, /function refreshLegendFilteredViews\(\)/);
 assert.match(source, /showNodePanel\(selectedNode, false\)/);
 
 const context = {
+  transactionMatchesTokenFilter: () => true,
   expandedCommandTypeFilter: () => new Set(),
   chainFilter: new Set()
 };

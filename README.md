@@ -18,6 +18,8 @@ Mina Graph Explorer allows you to:
 - Start from a public key and recursively fetch its transaction graph
 - Explore nodes (accounts) and edges (transactions) visually
 - Filter by transaction type (payment, delegation, zkApp)
+- Filter loaded assets by symbol, name, or contract in **Filters → Tokens**, with multiple selections and native currencies. Tokens are distinguished by network, contract, and token ID when present.
+- Apply the same transaction filters to the graph, node details, and Timeline Activity, including the exchanged-amount threshold and search visibility.
 - Search nodes by name or public key fragment
 - Customize layout parameters for graph positioning
 - Save and load graphs as JSON

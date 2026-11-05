@@ -107,6 +107,9 @@ let nodeTransactionRenderContext = "";
 //let commandTypeFilter = null;
 const commandTypeFilter = new Set(); // allows multiple command types
 const chainFilter = new Set();
+const tokenFilter = new Set();
+let tokenFilterCatalog = new Map();
+let tokenFilterCatalogSignature = "";
 const nodeColorFilter = new Set();
 let minimumNodeExchangeAmount = 0;
 let nodeExchangeAmountTotals = new Map();
@@ -726,12 +729,115 @@ const expandedCommandTypeFilter = () => {
   return expanded;
 };
 
+function getTransactionTokenKey(transaction) {
+  const chain = transaction?.blockchain || "unknown";
+  if (!isTokenMovement(transaction?.command_type || transaction?.label)) {
+    return JSON.stringify([chain, "native"]);
+  }
+  const rawContract = String(transaction.token_contract || "");
+  const contract = EVM_CHAIN_CONFIG[chain] ? rawContract.toLowerCase() : rawContract;
+  return JSON.stringify([chain, "token", contract, String(transaction.token_id ?? ""),
+    contract || transaction.token_id != null ? "" : String(transaction.token_name || transaction.token_symbol || "unknown")]);
+}
+
+function transactionMatchesTokenFilter(transaction) {
+  return tokenFilter.size === 0 || tokenFilter.has(getTransactionTokenKey(transaction));
+}
+
+function getTransactionTokenDescription(transaction) {
+  const chain = transaction.blockchain || "unknown";
+  const nativeSymbols = { mina: "MINA", "mina-devnet": "MINA", solana: "SOL", tezos: "XTZ", bitcoin: "BTC" };
+  const chainLabel = EVM_CHAIN_CONFIG[chain]?.label || (chain === "mina-devnet" ? "Mina Devnet" : chain);
+  const isToken = isTokenMovement(transaction.command_type || transaction.label);
+  const contract = isToken ? String(transaction.token_contract || "") : "";
+  const tokenId = isToken ? String(transaction.token_id ?? "") : "";
+  const known = isToken ? getKnownTokenInfo(contract) : null;
+  const symbol = isToken
+    ? (transaction.token_symbol || known?.symbol || transaction.token_name || "Unknown token")
+    : (EVM_CHAIN_CONFIG[chain]?.nativeSymbol || nativeSymbols[chain] || chain.toUpperCase());
+  const identity = contract ? `${contract.slice(0, 6)}…${contract.slice(-6)}` : (tokenId ? `${tokenId.slice(0, 8)}…${tokenId.slice(-6)}` : "");
+  const idSuffix = contract && tokenId !== "" ? ` #${tokenId}` : "";
+  return {
+    key: getTransactionTokenKey(transaction),
+    label: `${symbol} · ${chainLabel}${identity ? ` · ${identity}${idSuffix}` : (isToken ? " · Unknown contract" : " · Native")}`,
+    search: [symbol, transaction.token_name, known?.name, contract, tokenId, chain, chainLabel].filter(Boolean).join(" ").toLowerCase(),
+    title: [symbol, chainLabel, contract, tokenId !== "" ? `Token ID: ${tokenId}` : ""].filter(Boolean).join(" · ")
+  };
+}
+
+function syncTokenFilterCatalog() {
+  if (!document.getElementById("token-filter-results")) return;
+  const catalog = new Map();
+  graph?.forEachEdge((edge, transaction) => {
+    const token = getTransactionTokenDescription(transaction);
+    const existing = catalog.get(token.key);
+    if (existing) {
+      existing.count++;
+      existing.aliases.add(token.search);
+    } else {
+      catalog.set(token.key, { ...token, count: 1, aliases: new Set([token.search]) });
+    }
+  });
+  catalog.forEach(token => { token.search = [...token.aliases].join(" "); });
+  const signature = JSON.stringify([...catalog.values()].map(({ key, label, search, count }) => [key, label, search, count]));
+  tokenFilterCatalog = catalog;
+  if (signature === tokenFilterCatalogSignature) return;
+  tokenFilterCatalogSignature = signature;
+  renderTokenFilterControls();
+}
+
+function renderTokenFilterControls() {
+  const results = document.getElementById("token-filter-results");
+  const selected = document.getElementById("token-filter-selected");
+  if (!results || !selected) return;
+  results.replaceChildren();
+  selected.replaceChildren();
+  const createButton = (token, remove = false) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = remove ? "token-filter-chip" : "token-filter-option";
+    button.textContent = `${token.label}${remove ? " ×" : ` (${token.count})`}`;
+    button.title = token.title || token.label;
+    button.setAttribute("aria-label", `${remove ? "Remove" : "Filter by"} ${token.label}`);
+    if (!remove) button.setAttribute("aria-pressed", String(tokenFilter.has(token.key)));
+    button.addEventListener("click", () => {
+      if (tokenFilter.has(token.key)) tokenFilter.delete(token.key);
+      else tokenFilter.add(token.key);
+      renderTokenFilterControls();
+      refreshLegendFilteredViews();
+    });
+    return button;
+  };
+  tokenFilter.forEach(key => selected.append(createButton(tokenFilterCatalog.get(key) || { key, label: "Unavailable asset", title: key }, true)));
+  const query = (document.getElementById("token-filter-search")?.value || "").trim().toLowerCase();
+  const matches = [...tokenFilterCatalog.values()].filter(token => token.search.includes(query))
+    .sort((left, right) => left.label.localeCompare(right.label));
+  matches.slice(0, 40).forEach(token => results.append(createButton(token)));
+  const status = document.getElementById("token-filter-status");
+  if (status) status.textContent = !tokenFilterCatalog.size ? "Load a graph to see its assets."
+    : !matches.length ? "No matching assets in the loaded graph."
+      : `${matches.length} matching assets${matches.length > 40 ? " · Showing the first 40; refine your search." : ""}`;
+  const clear = document.getElementById("token-filter-clear");
+  if (clear) clear.disabled = tokenFilter.size === 0 && !query;
+}
+
+function initializeTokenFilter() {
+  document.getElementById("token-filter-search")?.addEventListener("input", renderTokenFilterControls);
+  document.getElementById("token-filter-clear")?.addEventListener("click", () => {
+    tokenFilter.clear();
+    document.getElementById("token-filter-search").value = "";
+    renderTokenFilterControls();
+    refreshLegendFilteredViews();
+  });
+  syncTokenFilterCatalog();
+}
+
 function transactionMatchesActiveLegendFilters(transaction) {
   const visibleTypes = expandedCommandTypeFilter();
   const command = transaction?.command_type || transaction?.label;
   const typeMatch = visibleTypes.size === 0 || visibleTypes.has(command);
   const chainMatch = chainFilter.size === 0 || chainFilter.has(transaction?.blockchain);
-  return typeMatch && chainMatch;
+  return typeMatch && chainMatch && transactionMatchesTokenFilter(transaction);
 }
 
 // Date filtering is materialized on each edge by applyDateFilter. Consumers
@@ -868,6 +974,7 @@ function getActiveGraphSubset() {
     focusNode ||
     commandTypeFilter.size > 0 ||
     chainFilter.size > 0 ||
+    tokenFilter.size > 0 ||
     minimumNodeExchangeAmount > 0 ||
     (multiSelectionEnabled && (multiSelectionFocused || multiSelectionFollowLinks) && getMultiSelectedNodes().size > 0)
   );
@@ -1749,14 +1856,12 @@ function getTransactionsVisibleInDateRange(range = currentRange) {
   const [min, max] = range.map(Number);
   return graph.edges().filter(edge => {
     const timestamp = Number(graph.getEdgeAttribute(edge, "timestamp"));
-    const attrs = graph.getEdgeAttributes(edge);
     const source = graph.source(edge);
     const target = graph.target(edge);
     return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
-      transactionMatchesActiveLegendFilters(attrs) &&
-      edgeMatchesSelectedNodeDirection(source, target) &&
-      edgeMatchesMultiSelection(source, target) &&
-      edgeMatchesActiveColorFilter(source, target) &&
+      graphEdgeMatchesActiveView(edge) &&
+      graph.getNodeAttribute(source, "searchHidden") !== true &&
+      graph.getNodeAttribute(target, "searchHidden") !== true &&
       (!strictTouchFocusedNode || edgeMatchesStrictTouchFocus(edge));
   });
 }
@@ -1928,6 +2033,7 @@ function renderDatePlaybackFeed(edges, direction, range, newEdges = []) {
   const previousScrollTop = list.scrollTop;
   list.replaceChildren();
   const visibleEdgeIds = new Set(edges);
+  newEdges = newEdges.filter(edge => visibleEdgeIds.has(edge));
   const newEdgeIds = new Set(newEdges);
   const orderedEdges = sortDatePlaybackEdges([...edges], direction);
   highlightLatestDatePlaybackFlow(newEdges, direction);
@@ -3682,6 +3788,7 @@ document.addEventListener("DOMContentLoaded", () => {
   apiTokenInput.value = getApiToken(chain);
   loadStartKeyForBlockchain(chain);  
 
+  initializeTokenFilter();
   document.querySelectorAll('.legend-item').forEach(item => {
     item.addEventListener('click', () => {
       const type = item.getAttribute('data-command-type');
@@ -3690,6 +3797,9 @@ document.addEventListener("DOMContentLoaded", () => {
         // Reset both filters
         commandTypeFilter.clear();
         chainFilter.clear();
+        tokenFilter.clear();
+        document.getElementById("token-filter-search").value = "";
+        renderTokenFilterControls();
         nodeColorFilter.clear();
         minimumNodeExchangeAmount = 0;
         selectedNodeDirectionFilter = "all";
@@ -4130,9 +4240,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   legend.style.cursor = "move";
   legend.style.userSelect = "none"; // prevent text selection
-  legend.style.touchAction = "none"; // important for touch dragging
+  legend.style.touchAction = "auto"; // allow scrolling and typing inside filter controls
 
   const startDrag = (e) => {
+    if (e.target.closest("input, button, select, textarea, a, #token-filter")) return;
+    if (e.type === "touchstart" && e.cancelable) e.preventDefault();
     isDragging = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -7533,7 +7645,7 @@ async function buildGraphRecursively(publicKey, depth, level = 0, chainOverride 
         token_amount: tx.token_amount,        
         token_name: tx.token_name,
         token_decimals: tx.token_decimals,
-        token_id: tx.token_id || null,
+        token_id: tx.token_id ?? null,
         token_symbol: tx.token_symbol || null,
         transfer_id: tx.transfer_id || null,
         utxo_ambiguous: tx.utxo_ambiguous === true,
@@ -7938,6 +8050,7 @@ function getNodeTransactionRenderContext(node) {
     range: currentRange,
     commandTypes: [...commandTypeFilter].sort(),
     chains: [...chainFilter].sort(),
+    tokens: [...tokenFilter].sort(),
     nodeColors: [...nodeColorFilter].sort(),
     minimumNodeExchangeAmount,
     timelineEdges: [...datePlaybackFocusedEdges].sort()
@@ -8204,6 +8317,7 @@ function rebuildEdgeVisualSizes(visibleEdges = getRenderedEdgeRecords()) {
 
 function rebuildVisibleGraphMetrics() {
   rebuildNodeExchangeAmountTotals();
+  syncTokenFilterCatalog();
   const visibleEdges = getRenderedEdgeRecords();
   rebuildEdgeVisualSizes(visibleEdges);
   rebuildNodeVisualSizes(visibleEdges);
@@ -9151,6 +9265,7 @@ function setupReducers() {
     if (!nodeMatchesActiveColorFilter(node)) return { ...data, hidden: true };
     if (!nodeMatchesMultiSelection(node)) return { ...data, hidden: true };
     if (!nodeMatchesMinimumExchangeAmount(node)) return { ...data, hidden: true };
+    if (tokenFilter.size > 0 && !graph.edges(node).some(edge => graphEdgeMatchesActiveView(edge, selectedNode))) return { ...data, hidden: true };
     const playbackFocus = getDatePlaybackFocus();
     if (playbackFocus && !playbackFocus.nodes.has(node)) {
       return { ...data, hidden: true };
@@ -9198,7 +9313,7 @@ function setupReducers() {
     //console.log("Dans nodeReducer - isLightTheme = " + isLightTheme())
 
 
-    const hasActiveLegendFilters = !playbackFocus && (commandTypeFilter.size > 0 || chainFilter.size > 0);
+    const hasActiveLegendFilters = !playbackFocus && (commandTypeFilter.size > 0 || chainFilter.size > 0 || tokenFilter.size > 0);
     const matchesActiveFilters = !hasActiveLegendFilters || graph.edges(node).some(edge =>
       transactionMatchesActiveLegendFilters(graph.getEdgeAttributes(edge))
     );
@@ -10426,6 +10541,8 @@ function handleSearch(query) {
     });
     searchDirectlyMatchedNodes = new Set();
     rebuildVisibleGraphMetrics();
+    refreshSelectedNodePanelIfOpen();
+    refreshDatePlaybackFeedForCurrentRange();
     renderer.refresh();
     return;
   }
@@ -10519,6 +10636,8 @@ function handleSearch(query) {
   // touch selection and multi-selection retain their normal behavior.
   searchDirectlyMatchedNodes = directlyMatchedNodes;
   rebuildVisibleGraphMetrics();
+  refreshSelectedNodePanelIfOpen();
+  refreshDatePlaybackFeedForCurrentRange();
   renderer.refresh();
 }
 
@@ -12069,6 +12188,7 @@ function applyDateFilter() {
   refreshSelectedNodePanelIfOpen();
 
   renderer.refresh();
+  refreshDatePlaybackFeedForCurrentRange();
 }
 
 function updateDateHistogramRange() {
