@@ -450,6 +450,33 @@ function syncNodeColorFilterControls() {
   });
 }
 
+function initializeLegendDisclosures() {
+  // A PWA can briefly combine cached HTML with a newer script/stylesheet.
+  // Upgrade old div-based sections before styling or binding their controls.
+  document.querySelectorAll("#legend .legend-section").forEach(section => {
+    const header = section.querySelector(".legend-toggle");
+    if (!header) return;
+    let disclosure = section;
+    let summary = header;
+    if (section.tagName !== "DETAILS" || header.tagName !== "SUMMARY") {
+      disclosure = document.createElement("details");
+      disclosure.className = section.className;
+      summary = document.createElement("summary");
+      summary.className = "legend-toggle";
+      summary.dataset.target = header.dataset.target || "";
+      summary.textContent = header.textContent.replace(/^[▶▼]\s*/, "").trim();
+      disclosure.open = header.textContent.trim().startsWith("▼");
+      disclosure.append(summary);
+      [...section.childNodes].forEach(child => {
+        if (child !== header) disclosure.append(child);
+      });
+      section.replaceWith(disclosure);
+    }
+    const content = summary.dataset.target ? disclosure.querySelector(summary.dataset.target) : null;
+    content?.style.removeProperty("display");
+  });
+}
+
 function initializeNodeColorFilters() {
   let container = document.getElementById("node-color-filter-swatches");
   if (!container) {
@@ -3549,6 +3576,7 @@ function initializeLayoutParameterHelp() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initializeLegendDisclosures();
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
   details = document.getElementById("node-details");
