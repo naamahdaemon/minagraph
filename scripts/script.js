@@ -951,10 +951,11 @@ function edgeMatchesMinimumExchangeAmount(source, target) {
 function rebuildNodeExchangeAmountTotals(referenceNode = selectedNode) {
   nodeExchangeAmountTotals = new Map();
   if (!graph || minimumNodeExchangeAmount <= 0) return;
-  const playbackFocus = getDatePlaybackFocus();
+  // Highlighting an Activity entry must not change the population used by
+  // the amount filter. getDatePlaybackFocus itself reads these totals, so
+  // consulting it here creates a circular filter while the map is empty.
   graph.forEachEdge((edge, attributes, source, target) => {
     if (!edgeMatchesActiveView(attributes, source, target, referenceNode)) return;
-    if (playbackFocus && !playbackFocus.edges.has(edge)) return;
     const amount = Math.abs(getEdgeTransferredAmount(attributes));
     if (!Number.isFinite(amount) || amount <= 0) return;
     nodeExchangeAmountTotals.set(source, (nodeExchangeAmountTotals.get(source) || 0) + amount);
