@@ -122,24 +122,50 @@ assert.ok(elements['token-filter-results'].children.some(button => button.textCo
 assert.ok(elements['token-filter-results'].children.every(button => button.innerHTML === undefined), 'Names are rendered as text');
 console.log('Token filter controls and Activity shared filtering tests passed');
 
-// Touching a section title must preserve the browser's synthetic click.
-// Only the panel background starts a drag and cancels the default gesture.
-const dragHandler = source.match(/const startDrag = \(e\) => \{[\s\S]*?\n  \};/)[0];
-const dragContext = { legend: { offsetLeft: 0, offsetTop: 0, style: {} }, isDragging: false };
+// A tap must preserve native disclosure activation; dragging from the same
+// title must move the panel and suppress only the click after that gesture.
+const dragSource = source.slice(source.indexOf('  const startDrag = (e) => {'), source.indexOf('  // Filter sections use native details/summary'));
+const events = {};
+const legendEvents = {};
+const dragContext = {
+  legend: { offsetLeft: 50, offsetTop: 70, style: {}, addEventListener: (name, handler) => { legendEvents[name] = handler; } },
+  document: { addEventListener: (name, handler) => { events[name] = handler; } },
+  isDragging: false, suppressLegendClick: false,
+  offsetX: 0, offsetY: 0, dragStartX: 0, dragStartY: 0
+};
 vm.createContext(dragContext);
-vm.runInContext(`${dragHandler}; this.startDrag = startDrag;`, dragContext);
+vm.runInContext(dragSource, dragContext);
 let prevented = false;
-const touchEvent = selector => ({
-  type: 'touchstart', cancelable: true, touches: [{ clientX: 10, clientY: 20 }],
+const event = (selector, x = 10, y = 20) => ({
+  touches: [{ clientX: x, clientY: y }], cancelable: true,
   target: { closest: selectors => selectors.split(',').map(value => value.trim()).includes(selector) },
-  preventDefault() { prevented = true; }
+  preventDefault() { prevented = true; },
+  stopImmediatePropagation() { this.stopped = true; }
 });
-for (const selector of ['.legend-toggle', '.legend-item', '.legend-chain', '.legend-node-color', '#token-filter', 'input', 'button']) {
-  dragContext.startDrag(touchEvent(selector));
-  assert.equal(prevented, false, `${selector} must still receive a click after touch`);
-  assert.equal(dragContext.isDragging, false);
+for (const selector of ['.legend-toggle', '.legend-item', '.legend-chain', 'background']) {
+  prevented = false;
+  legendEvents.touchstart(event(selector));
+  events.touchmove(event(selector, 12, 22));
+  events.touchend();
+  const tap = event(selector);
+  legendEvents.click(tap);
+  assert.equal(prevented, false, 'Small finger movements must preserve a tap');
+  assert.equal(tap.stopped, undefined);
+  legendEvents.touchstart(event(selector));
+  events.touchmove(event(selector, 30, 50));
+  assert.equal(prevented, true, 'A drag cancels native scrolling');
+  assert.equal(dragContext.legend.style.left, '70px');
+  assert.equal(dragContext.legend.style.top, '100px');
+  events.touchend();
+  const click = event(selector);
+  legendEvents.click(click);
+  assert.equal(click.stopped, true, 'A drag must not toggle its starting section or filter');
 }
-dragContext.startDrag(touchEvent('background'));
-assert.equal(prevented, true);
-assert.equal(dragContext.isDragging, true);
-console.log('Filter section touch interaction tests passed');
+for (const selector of ['input', 'button', '#token-filter']) {
+  dragContext.isDragging = false;
+  dragContext.suppressLegendClick = true;
+  legendEvents.touchstart(event(selector));
+  assert.equal(dragContext.isDragging, false, 'Editing and token-list scrolling remain available');
+  assert.equal(dragContext.suppressLegendClick, false, 'A fresh touch must never inherit click suppression from an earlier drag');
+}
+console.log('Filter panel tap and drag gesture tests passed');

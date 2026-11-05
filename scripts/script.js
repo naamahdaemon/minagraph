@@ -4235,6 +4235,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let isDragging = false;
   let offsetX = 0;
   let offsetY = 0;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let suppressLegendClick = false;
 
   if (!legend) return;
 
@@ -4243,20 +4246,25 @@ document.addEventListener("DOMContentLoaded", () => {
   legend.style.touchAction = "auto"; // allow scrolling and typing inside filter controls
 
   const startDrag = (e) => {
-    if (e.target.closest("input, button, select, textarea, a, #token-filter, .legend-toggle, .legend-item, .legend-chain, .legend-node-color")) return;
-    if (e.type === "touchstart" && e.cancelable) e.preventDefault();
+    suppressLegendClick = false;
+    if (e.target.closest("input, button, select, textarea, a, #token-filter")) return;
     isDragging = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartX = clientX;
+    dragStartY = clientY;
     offsetX = clientX - legend.offsetLeft;
     offsetY = clientY - legend.offsetTop;
-    legend.style.transition = "none";
   };
 
   const onDrag = (e) => {
     if (!isDragging) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    if (!suppressLegendClick && Math.hypot(clientX - dragStartX, clientY - dragStartY) < 8) return;
+    suppressLegendClick = true;
+    legend.style.transition = "none";
+    legend.style.right = "auto";
     legend.style.left = `${clientX - offsetX}px`;
     legend.style.top = `${clientY - offsetY}px`;
     if (e.cancelable) e.preventDefault(); // avoid scrolling on touch
@@ -4276,6 +4284,13 @@ document.addEventListener("DOMContentLoaded", () => {
   legend.addEventListener("touchstart", startDrag, { passive: false });
   document.addEventListener("touchmove", onDrag, { passive: false });
   document.addEventListener("touchend", stopDrag);
+  document.addEventListener("touchcancel", stopDrag);
+  legend.addEventListener("click", event => {
+    if (!suppressLegendClick) return;
+    suppressLegendClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   
   // Filter sections use native details/summary disclosure. No synthetic-click
   // handler or inline display state should compete with the browser on touch.
