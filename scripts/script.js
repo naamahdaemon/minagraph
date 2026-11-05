@@ -3435,52 +3435,12 @@ async function activateApplicationUpdate() {
   registration.waiting.postMessage({ type: 'activate-update' });
 }
 
-async function resetApplicationCache() {
-  const status = document.getElementById('technical-info-status');
-  const button = document.getElementById('technical-reset-cache-button');
-  if (button?.disabled) return;
-  if (navigator.onLine === false) {
-    if (status) status.textContent = 'Connect to the internet before resetting the application cache.';
-    return;
-  }
-  if (button) button.disabled = true;
-  if (status) status.textContent = 'Refreshing application files...';
-  try {
-    const pageUrl = new URL(window.location.href);
-    // Refresh the regular HTML URL in the HTTP cache, then warm its current
-    // local scripts/styles with cache:reload as well. Clearing CacheStorage
-    // alone does not invalidate the browser's separate HTTP CSS/JS cache.
-    const htmlUrl = new URL('index.html', document.baseURI);
-    const response = await fetch(htmlUrl.href, { cache: 'reload' });
-    if (!response.ok) throw new Error(`Application download failed (${response.status}).`);
-    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-    const assets = new Set();
-    page.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(element => {
-      const url = new URL(element.getAttribute('src') || element.getAttribute('href'), htmlUrl);
-      if (url.origin === pageUrl.origin) assets.add(url.href);
-    });
-    await Promise.all([...assets].map(async url => {
-      const asset = await fetch(url, { cache: 'reload' });
-      if (!asset.ok) throw new Error(`Application file download failed (${asset.status}).`);
-      // Consume the response before clearing caches and navigating away.
-      await asset.arrayBuffer();
-    }));
-    if ('caches' in window) {
-      const keys = await window.caches.keys();
-      await Promise.all(keys.filter(key => key.startsWith('mina-graph-explorer-'))
-        .map(key => window.caches.delete(key)));
-    }
-    // Keep the worker registration (and its push subscription), localStorage,
-    // and IndexedDB. Only disposable application resource caches are reset.
-    pageUrl.searchParams.set('_cache_reset', String(Date.now()));
-    if (status) status.textContent = 'Cache reset. Reloading application...';
-    window.location.replace(pageUrl.href);
-  } catch (error) {
-    console.error('[Diagnostics] Cache reset failed:', error);
-    if (status) status.textContent = `Cache reset failed: ${error.message}`;
-  } finally {
-    if (button) button.disabled = false;
-  }
+function ensureCacheResetScript() {
+  if (document.querySelector('script[data-minagraph-cache-reset]')) return;
+  const script = document.createElement('script');
+  script.dataset.minagraphCacheReset = 'true';
+  script.src = new URL('scripts/cache-reset.js?v=237', document.baseURI).href;
+  document.head.append(script);
 }
 
 async function copyTechnicalDiagnostics() {
@@ -3625,6 +3585,7 @@ function initializeLayoutParameterHelp() {
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeLegendDisclosures();
+  ensureCacheResetScript();
   panel = document.getElementById("side-panel");
   tooltip = document.getElementById("tooltip");
   details = document.getElementById("node-details");
@@ -3694,7 +3655,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('technical-update-button')?.addEventListener('click', checkForApplicationUpdate);
   document.getElementById('technical-activate-update-button')?.addEventListener('click', activateApplicationUpdate);
   document.getElementById('technical-copy-button')?.addEventListener('click', copyTechnicalDiagnostics);
-  document.getElementById('technical-reset-cache-button')?.addEventListener('click', resetApplicationCache);
   technicalModal?.addEventListener('click', event => {
     if (event.target === technicalModal) technicalModal.hidden = true;
   });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v236';
+const CACHE_NAME = 'mina-graph-explorer-v237';
 const APP_BUILD_DATE = '2026-11-05';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -150,6 +150,7 @@ function saveNotificationToStorage(data) {
 
 
 const STATIC_ASSETS = [
+  '/scripts/cache-reset.js?v=237',
   '/',
   '/index.html',
   '/manifest.webmanifest',
