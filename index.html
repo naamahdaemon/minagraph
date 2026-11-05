@@ -1111,24 +1111,24 @@
     ⛶ Exit Fullscreen
   </button>  
   
-<div id="legend" class="legend-box" style="left: 350px; cursor: move; user-select: none; touch-action: none;">
+<div id="legend" class="legend-box" style="left: 350px; cursor: move; user-select: none; touch-action: auto;">
   <!-- Command Types (Foldable) -->
-  <div class="legend-section">
-    <div class="legend-toggle" data-target="#command-types" style="cursor:pointer;"><em>▶ Command Types</em></div>
-    <div id="command-types" class="legend-pill-list" style="display: none;">
+  <details class="legend-section">
+    <summary class="legend-toggle" data-target="#command-types" style="cursor:pointer;">Command Types</summary>
+    <div id="command-types" class="legend-pill-list">
     <div class="legend-item" data-command-type="payment" style="color:#4caf50; cursor:pointer;">Payment</div>
     <div class="legend-item" data-command-type="delegation" style="color:#2196f3; cursor:pointer;">Delegation</div>
     <div class="legend-item" data-command-type="zkapp" style="color:#9c27b0; cursor:pointer;">Contracts</div>
     <div class="legend-item" data-command-type="token_transfer" style="color:#f9a825; cursor:pointer;">Token</div>
     </div>
-  </div>
+  </details>
 
   <hr style="margin: 8px 0;">
 
   <!-- Blockchain Types (Foldable) -->
-  <div class="legend-section">
-    <div class="legend-toggle" data-target="#blockchain-types" style="cursor:pointer;"><em>▶ Blockchain</em></div>
-    <div id="blockchain-types" class="legend-pill-list" style="display: none;">
+  <details class="legend-section">
+    <summary class="legend-toggle" data-target="#blockchain-types" style="cursor:pointer;">Blockchain</summary>
+    <div id="blockchain-types" class="legend-pill-list">
       <div class="legend-chain" data-chain="mina" style="color:#009688;">Mina</div>
       <div class="legend-chain" data-chain="mina-devnet" style="color:#26a69a;">Mina Devnet</div>
       <div class="legend-chain" data-chain="ethereum" style="color:#627eea;">Ethereum</div>
@@ -1146,13 +1146,13 @@
       <div class="legend-chain" data-chain="scroll" style="color:#e5a55d;">Scroll</div>
       <div class="legend-chain" data-chain="bitcoin" style="color:#f7931a;">Bitcoin</div>
     </div>
-  </div>
+  </details>
 
   <hr style="margin: 8px 0;">
 
-  <div class="legend-section">
-    <div class="legend-toggle" data-target="#token-filter" style="cursor:pointer;"><em>▶ Tokens</em></div>
-    <div id="token-filter" style="display: none;">
+  <details class="legend-section">
+    <summary class="legend-toggle" data-target="#token-filter" style="cursor:pointer;">Tokens</summary>
+    <div id="token-filter">
       <label for="token-filter-search">Search loaded assets</label>
       <input id="token-filter-search" type="search" autocomplete="off" placeholder="Symbol, name or contract" aria-controls="token-filter-results">
       <div id="token-filter-selected" role="group" aria-label="Selected assets"></div>
@@ -1160,26 +1160,26 @@
       <p id="token-filter-status" role="status" aria-live="polite">Load a graph to see its assets.</p>
       <div id="token-filter-results" role="group" aria-label="Assets in the loaded graph"></div>
     </div>
-  </div>
+  </details>
 
   <hr style="margin: 8px 0;">
 
-  <div class="legend-section">
-    <div class="legend-toggle" data-target="#node-amount-filter" style="cursor:pointer;"><em>▶ Exchanged Amount</em></div>
-    <div id="node-amount-filter" style="display: none;">
+  <details class="legend-section">
+    <summary class="legend-toggle" data-target="#node-amount-filter" style="cursor:pointer;">Exchanged Amount</summary>
+    <div id="node-amount-filter">
       <p class="node-amount-filter-hint">Keep nodes whose absolute exchanged total, after the other filters, exceeds this threshold.</p>
       <label class="node-amount-filter-control" for="minimum-node-exchange-amount">
         <span>Minimum total</span>
         <input id="minimum-node-exchange-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0 (off)" aria-label="Minimum absolute exchanged amount">
       </label>
     </div>
-  </div>
+  </details>
 
   <hr style="margin: 8px 0;">
 
-  <div class="legend-section">
-    <div class="legend-toggle" data-target="#node-direction-types" style="cursor:pointer;"><em>▶ Selected Node Links</em></div>
-    <div id="node-direction-types" style="display: none;">
+  <details class="legend-section">
+    <summary class="legend-toggle" data-target="#node-direction-types" style="cursor:pointer;">Selected Node Links</summary>
+    <div id="node-direction-types">
       <p id="node-direction-filter-hint" class="node-direction-filter-hint">Choose a direction now; it will apply when a node is selected.</p>
       <div class="node-direction-filter" role="group" aria-label="Filter links relative to the selected node">
         <button type="button" data-node-direction="all" class="active" aria-pressed="true">All</button>
@@ -1187,7 +1187,7 @@
         <button type="button" data-node-direction="outgoing" aria-pressed="false">Outgoing</button>
       </div>
     </div>
-  </div>
+  </details>
 
   <hr style="margin: 8px 0;">
 
