@@ -23,4 +23,6 @@ assert.match(css, /#legend \.legend-section:not\(\[open\]\) > :not\(summary\)\s*
   'Collapsed content stays hidden even when a pill list explicitly uses grid display');
 assert.doesNotMatch(legend, /touch-action:\s*none/,
   'The panel must not disable native touch gestures before application initialization');
+assert.match(css, /\.legend-pill-list\s*\{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+  'Open native disclosures must retain two equal-width columns without a JavaScript display override');
 console.log('Native filter disclosure tests passed');
