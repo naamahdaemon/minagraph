@@ -1886,6 +1886,7 @@ function getTransactionsVisibleInDateRange(range = currentRange) {
     const source = graph.source(edge);
     const target = graph.target(edge);
     return Number.isFinite(timestamp) && timestamp >= min && timestamp <= max &&
+      (!selectedNode || source === selectedNode || target === selectedNode) &&
       graphEdgeMatchesActiveView(edge) &&
       graph.getNodeAttribute(source, "searchHidden") !== true &&
       graph.getNodeAttribute(target, "searchHidden") !== true &&
@@ -8966,6 +8967,7 @@ function showNodePanel(node, refreshExternalStatus = true) {
   selectedNode = node;
   syncNodeDirectionFilterControls();
   if (previouslySelectedNode !== node) rebuildVisibleGraphMetrics();
+  refreshDatePlaybackFeedForCurrentRange();
 
   let tx = 0, del = 0, failed = 0, sc = 0, tt = 0;
   visibleEdges.forEach(edge => {
@@ -12247,8 +12249,8 @@ function hideNodePanel(options = {}) {
   selectedNode = null;
   strictTouchFocusedNode = null;
   syncNodeDirectionFilterControls();
-  refreshDatePlaybackFeedForCurrentRange();
   rebuildVisibleGraphMetrics();
+  refreshDatePlaybackFeedForCurrentRange();
   renderer?.refresh();
 }
 
