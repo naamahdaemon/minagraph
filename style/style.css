@@ -2483,6 +2483,13 @@
       line-height: 1.35;
     }
 
+    #legend .legend-toggle {
+      cursor: pointer;
+      touch-action: manipulation;
+      padding: 4px 0;
+    }
+    #legend .legend-toggle:focus-visible { outline: 2px solid #4fc3f7; outline-offset: 2px; }
+    #legend .legend-section:not([open]) > :not(summary) { display: none; }
     #token-filter { max-width: 300px; touch-action: pan-y; cursor: auto; }
     #token-filter label { display: block; margin: 8px 0 5px; font-size: 11px; }
     #token-filter-search {

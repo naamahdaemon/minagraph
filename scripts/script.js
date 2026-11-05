@@ -455,10 +455,10 @@ function initializeNodeColorFilters() {
   if (!container) {
     const directionSection = document.querySelector('[data-target="#node-direction-types"]')?.closest(".legend-section");
     if (!directionSection) return;
-    const section = document.createElement("div");
+    const section = document.createElement("details");
     section.className = "legend-section";
-    section.innerHTML = `<div class="legend-toggle" data-target="#node-color-filter" style="cursor:pointer;"><em>▶ Node Colors</em></div>
-      <div id="node-color-filter" style="display:none;">
+    section.innerHTML = `<summary class="legend-toggle" data-target="#node-color-filter">Node Colors</summary>
+      <div id="node-color-filter">
         <p class="node-color-filter-hint">Select one or more node colors.</p>
         <div id="node-color-filter-swatches" class="node-color-filter-swatches" role="group" aria-label="Filter nodes by custom color"></div>
       </div>`;
@@ -4277,19 +4277,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("touchmove", onDrag, { passive: false });
   document.addEventListener("touchend", stopDrag);
   
-  document.querySelectorAll('.legend-toggle').forEach(toggle => {
-    toggle.addEventListener('click', () => {
-      const targetSelector = toggle.getAttribute('data-target');
-      const target = document.querySelector(targetSelector);
-      if (!target) return;
-
-      const isVisible = target.style.display !== 'none';
-      target.style.display = isVisible ? 'none' : (target.classList.contains('legend-pill-list') ? 'grid' : 'block');
-
-      // Update toggle icon (▶ or ▼)
-      toggle.innerHTML = `<em>${isVisible ? '▶' : '▼'} ${toggle.textContent.slice(2)}</em>`;
-    });
-  });
+  // Filter sections use native details/summary disclosure. No synthetic-click
+  // handler or inline display state should compete with the browser on touch.
   
   const status = document.getElementById('network-status');
 
