@@ -121,3 +121,25 @@ assert.equal(elements['token-filter-results'].children.length, 5, 'Loading new a
 assert.ok(elements['token-filter-results'].children.some(button => button.textContent.includes('<img src=x onerror=alert(1)>')));
 assert.ok(elements['token-filter-results'].children.every(button => button.innerHTML === undefined), 'Names are rendered as text');
 console.log('Token filter controls and Activity shared filtering tests passed');
+
+// Touching a section title must preserve the browser's synthetic click.
+// Only the panel background starts a drag and cancels the default gesture.
+const dragHandler = source.match(/const startDrag = \(e\) => \{[\s\S]*?\n  \};/)[0];
+const dragContext = { legend: { offsetLeft: 0, offsetTop: 0, style: {} }, isDragging: false };
+vm.createContext(dragContext);
+vm.runInContext(`${dragHandler}; this.startDrag = startDrag;`, dragContext);
+let prevented = false;
+const touchEvent = selector => ({
+  type: 'touchstart', cancelable: true, touches: [{ clientX: 10, clientY: 20 }],
+  target: { closest: selectors => selectors.split(',').map(value => value.trim()).includes(selector) },
+  preventDefault() { prevented = true; }
+});
+for (const selector of ['.legend-toggle', '.legend-item', '.legend-chain', '.legend-node-color', '#token-filter', 'input', 'button']) {
+  dragContext.startDrag(touchEvent(selector));
+  assert.equal(prevented, false, `${selector} must still receive a click after touch`);
+  assert.equal(dragContext.isDragging, false);
+}
+dragContext.startDrag(touchEvent('background'));
+assert.equal(prevented, true);
+assert.equal(dragContext.isDragging, true);
+console.log('Filter section touch interaction tests passed');

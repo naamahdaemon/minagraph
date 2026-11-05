@@ -4243,7 +4243,7 @@ document.addEventListener("DOMContentLoaded", () => {
   legend.style.touchAction = "auto"; // allow scrolling and typing inside filter controls
 
   const startDrag = (e) => {
-    if (e.target.closest("input, button, select, textarea, a, #token-filter")) return;
+    if (e.target.closest("input, button, select, textarea, a, #token-filter, .legend-toggle, .legend-item, .legend-chain, .legend-node-color")) return;
     if (e.type === "touchstart" && e.cancelable) e.preventDefault();
     isDragging = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
