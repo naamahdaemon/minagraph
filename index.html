@@ -1151,6 +1151,20 @@
   <hr style="margin: 8px 0;">
 
   <div class="legend-section">
+    <div class="legend-toggle" data-target="#token-filter" style="cursor:pointer;"><em>▶ Tokens</em></div>
+    <div id="token-filter" style="display: none;">
+      <label for="token-filter-search">Search loaded assets</label>
+      <input id="token-filter-search" type="search" autocomplete="off" placeholder="Symbol, name or contract" aria-controls="token-filter-results">
+      <div id="token-filter-selected" role="group" aria-label="Selected assets"></div>
+      <button id="token-filter-clear" type="button" disabled>Clear</button>
+      <p id="token-filter-status" role="status" aria-live="polite">Load a graph to see its assets.</p>
+      <div id="token-filter-results" role="group" aria-label="Assets in the loaded graph"></div>
+    </div>
+  </div>
+
+  <hr style="margin: 8px 0;">
+
+  <div class="legend-section">
     <div class="legend-toggle" data-target="#node-amount-filter" style="cursor:pointer;"><em>▶ Exchanged Amount</em></div>
     <div id="node-amount-filter" style="display: none;">
       <p class="node-amount-filter-hint">Keep nodes whose absolute exchanged total, after the other filters, exceeds this threshold.</p>

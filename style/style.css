@@ -2483,6 +2483,26 @@
       line-height: 1.35;
     }
 
+    #token-filter { max-width: 300px; touch-action: pan-y; cursor: auto; }
+    #token-filter label { display: block; margin: 8px 0 5px; font-size: 11px; }
+    #token-filter-search {
+      box-sizing: border-box; width: 100%; padding: 7px; border-radius: 5px;
+      background: transparent; color: inherit; border: 1px solid #777;
+      user-select: text; touch-action: auto;
+    }
+    #token-filter-selected { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+    #token-filter-results { max-height: 200px; overflow-y: auto; overscroll-behavior: contain; }
+    #token-filter button {
+      color: inherit; background: transparent; border: 1px solid #777;
+      border-radius: 5px; padding: 5px 7px; cursor: pointer; font-size: 10px;
+      overflow-wrap: anywhere; text-align: left;
+    }
+    #token-filter button:focus-visible, #token-filter-search:focus-visible { outline: 2px solid #4fc3f7; outline-offset: 1px; }
+    #token-filter button:disabled { opacity: 0.45; cursor: default; }
+    #token-filter .token-filter-option { display: block; width: 100%; margin-bottom: 4px; }
+    #token-filter .token-filter-chip, #token-filter [aria-pressed="true"] { border-color: #4fc3f7; background: rgba(79, 195, 247, 0.15); }
+    #token-filter-status { font-size: 10px; opacity: 0.75; margin: 6px 0; }
+
     .node-amount-filter-control {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 96px;
