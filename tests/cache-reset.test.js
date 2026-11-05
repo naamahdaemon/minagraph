@@ -2,17 +2,20 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../scripts/script.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../scripts/cache-reset.js'), 'utf8');
 const worker = fs.readFileSync(path.join(__dirname, '../service-worker.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
-const helper = source.match(/async function resetApplicationCache\(\) \{[\s\S]*?\n\}/)[0];
+const helper = source;
 assert.match(html, /id="technical-reset-cache-button"/);
-assert.match(source, /addEventListener\('click', resetApplicationCache\)/);
+assert.match(html, /scripts\/cache-reset\.js\?v=237/);
+assert.match(source, /event\.stopImmediatePropagation\(\)/);
 assert.doesNotMatch(helper, /unregister|localStorage\.(clear|removeItem)|indexedDB\.deleteDatabase/);
 
-async function run({ online = true, failedUrl = '', cacheStorage = true } = {}) {
+async function run({ online = true, failedUrl = '', cacheStorage = true, holdNetwork = false } = {}) {
   const status = {};
-  const button = { disabled: false };
+  const button = { disabled: false, textContent: 'Reset cache and reload', setAttribute(name, value) { this[name] = value; } };
+  let clickHandler, deadline, release;
+  const gate = holdNetwork ? new Promise(resolve => { release = resolve; }) : Promise.resolve();
   const deleted = [], requests = [], navigations = [];
   class Parser {
     parseFromString() {
@@ -22,12 +25,14 @@ async function run({ online = true, failedUrl = '', cacheStorage = true } = {}) 
     }
   }
   const context = {
-    console: { error() {} }, URL, Date, DOMParser: Parser,
+    console: { error() {} }, URL, Date, DOMParser: Parser, AbortController,
+    setTimeout: callback => { deadline = callback; return 1; }, clearTimeout() {},
     navigator: { onLine: online },
-    document: { baseURI: 'https://example.com/mina-graph/', getElementById: id => id === 'technical-info-status' ? status : button },
+    document: { baseURI: 'https://example.com/mina-graph/', getElementById: id => id === 'technical-info-status' ? status : button, addEventListener: (name, handler, capture) => { assert.equal(capture, true); clickHandler = handler; } },
     window: { location: { href: 'https://example.com/mina-graph/?chain=ethereum#graph', replace: url => navigations.push(url) } },
     fetch: async (url, options) => {
       requests.push({ url, options });
+      await gate;
       if (url.includes(failedUrl) && failedUrl) throw new Error('Network error');
       return { ok: true, text: async () => '<html></html>', arrayBuffer: async () => new ArrayBuffer(0) };
     }
@@ -36,12 +41,31 @@ async function run({ online = true, failedUrl = '', cacheStorage = true } = {}) 
     keys: async () => ['mina-graph-explorer-v234', 'mina-graph-explorer-v236', 'unrelated-app'],
     delete: async key => { deleted.push(key); return true; }
   };
-  vm.runInNewContext(`${helper}; this.reset = resetApplicationCache;`, context);
-  await context.reset();
-  return { status, button, deleted, requests, navigations };
+  vm.runInNewContext(helper, context);
+  const event = { target: { closest: () => button }, preventDefault() {}, stopImmediatePropagation() {} };
+  const action = clickHandler(event);
+  if (!holdNetwork) await action;
+  return { status, button, deleted, requests, navigations, action, release, expire: () => deadline(), click: () => clickHandler(event) };
 }
 
 (async () => {
+  const pending = await run({ holdNetwork: true });
+  assert.equal(pending.button.textContent, 'Resetting cache…');
+  assert.equal(pending.button.disabled, true);
+  assert.equal(pending.button['aria-busy'], 'true');
+  await pending.click();
+  assert.equal(pending.requests.length, 1, 'Ignore double taps');
+  pending.release();
+  await pending.action;
+  assert.equal(pending.navigations.length, 1);
+  const timeout = await run({ holdNetwork: true });
+  timeout.expire();
+  await timeout.action;
+  assert.match(timeout.status.textContent, /30 seconds/);
+  assert.equal(timeout.button.textContent, 'Retry cache reset');
+  assert.equal(timeout.button.disabled, false);
+  assert.equal(timeout.deleted.length, 0);
+  timeout.release();
   const success = await run();
   assert.deepEqual(success.deleted, ['mina-graph-explorer-v234', 'mina-graph-explorer-v236']);
   assert.equal(success.requests.length, 3, 'Refresh HTML and each unique local script/style, not third-party libraries');
