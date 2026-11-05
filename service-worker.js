@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mina-graph-explorer-v235';
+const CACHE_NAME = 'mina-graph-explorer-v236';
 const APP_BUILD_DATE = '2026-11-05';
 const FORCE_ACTIVATE_FROM_CACHE = 'mina-graph-explorer-v37';
 
@@ -239,10 +239,12 @@ async function networkFirst(request, navigationFallback = false) {
   try {
     const response = await fetch(request);
     if (!response.ok && response.type !== 'opaque') {
+      if (request.cache === 'reload') return response;
       return (await caches.match(request)) || response;
     }
     return await cacheSuccessfulGet(request, response);
   } catch (error) {
+    if (request.cache === 'reload') throw error;
     const cached = await caches.match(request);
     if (cached) return cached;
     if (navigationFallback) {
