@@ -10,6 +10,7 @@ const worker = fs.readFileSync(path.resolve(__dirname, "..", "service-worker.js"
 const context = { window: {} };
 vm.runInNewContext(source, context);
 const adapter = context.window.MinaRosettaAdapter;
+assert.equal(adapter.NETWORK_IDENTIFIER.network, "devnet");
 
 assert.match(html, /scripts\/mina-rosetta-adapter\.js/);
 assert.match(html, /option value="mina-devnet">Mina Devnet/);

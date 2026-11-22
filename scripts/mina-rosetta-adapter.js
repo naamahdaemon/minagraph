@@ -1,7 +1,7 @@
 (function (global) {
   "use strict";
 
-  const NETWORK_IDENTIFIER = Object.freeze({ blockchain: "mina", network: "testnet" });
+  const NETWORK_IDENTIFIER = Object.freeze({ blockchain: "mina", network: "devnet" });
   const DEFAULT_TOKEN_ID = "wSHV2S4qX9jFsLjQo8r1BsMLH2ZRKsZx6EJd1sbozGPieEC4Jf";
   const PAGE_SIZE = 100;
   const MAX_PAGES = 200;
